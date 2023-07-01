@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "viking-log-keeper"
+version = "0.1.0"
+authors = [
+  { name="Michael Jennings", email="mjennings061@gmail.com" },
+]
+description = "661 VGS - Function to collate 2965D log sheets into a single master log file."
+readme = "README.md"
+requires-python = ">3.7"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent"
+]
+dependencies = [
+    "pandas==2.0.2",
+    "XlsxWriter==3.1.2",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/mjennings061/viking-log-keeper"
+"Repository" = "https://github.com/mjennings061/viking-log-keeper.git"
