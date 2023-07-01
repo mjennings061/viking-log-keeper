@@ -151,6 +151,16 @@ def main():
         "Royal Air Force Air Cadets",
         "661 VGS - RAF Kirknewton - 661 Documents",
     )
+
+    # If the path does not exist, its probably the squadron laptop.
+    # There is definitely a better way of doing this.
+    if SHAREPOINT_DIR.exists() == False:
+        SHAREPOINT_DIR = Path(
+            root_dir, 
+            "Onedrive - Royal Air Force Air Cadets",
+            "661 Documents",
+        )
+
     # Path to the log sheets directory.
     LOG_SHEETS_DIR = Path(
         SHAREPOINT_DIR, 

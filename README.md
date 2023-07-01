@@ -33,5 +33,5 @@ pip install -r requirements.txt
 7. Run the log keeper function.
 
 ```bash
-python -m log_keeper.py
+python log_keeper/main.py
 ```
