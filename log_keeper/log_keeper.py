@@ -14,7 +14,6 @@ def ingest_log_sheet(file_path):
     """
     # Constants.
     SHEET_NAME = "FORMATTED"
-    TABLE_NAME = "Formatted"
     
     # Read from the log sheet.
     raw_df = pd.read_excel(
@@ -132,7 +131,7 @@ def master_log_to_excel(master_log, output_file_path):
 
     # Change the format of the 'Date' column to 'dd/mm/yyyy'.
     date_column = master_log.columns.get_loc("Date")
-    date_format = workbook.add_format({'num_format': 'dd/mm/yyyy'})
+    date_format = workbook.add_format({'num_format': 'dd/mm/yyyy'}) # type: ignore
     worksheet.set_column(date_column, date_column, 10, date_format)
 
     # Close the Pandas Excel writer and output the Excel file.
@@ -140,6 +139,9 @@ def master_log_to_excel(master_log, output_file_path):
 
 
 def main():
+    # Initial comment.
+    print("viking-log-keeper: Starting...")
+
     # Get the file path.
     root_dir = Path.home()
 
@@ -167,6 +169,9 @@ def main():
 
     # Save the master log to excel.
     master_log_to_excel(master_log, OUTPUT_FILE)
+
+    # Print success message.
+    print("viking-log-keeper: Success!")
 
 
 if __name__ == "__main__":
