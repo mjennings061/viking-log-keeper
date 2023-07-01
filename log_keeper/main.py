@@ -86,8 +86,11 @@ def collate_log_sheets(dir_path):
             else:
                 # Append to the master dataframe.
                 log_sheet_df = pd.concat([log_sheet_df, this_sheet_df], ignore_index=True)
-        except:
-            warnings.warn(f"Log sheet invalid: {file_path.name}", RuntimeWarning, stacklevel=2)
+        except Exception as e:
+            if file_path.name != "2965D_YYMMDD_ZEXXX.xlsx":
+                warnings.warn(f"Log sheet invalid: {file_path.name}", RuntimeWarning)
+                print(e)
+
 
     collated_df = sanitise_log_sheets(log_sheet_df)
 
