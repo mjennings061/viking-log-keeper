@@ -5,7 +5,7 @@
 from pathlib import Path
 import pandas as pd
 import warnings
-
+from datetime import datetime
 
 def ingest_log_sheet(file_path):
     """
@@ -104,7 +104,18 @@ def master_log_to_excel(master_log, output_file_path):
     SHEET_NAME = "MASTER LOG"
 
     # Create the excel file and table.
-    writer = pd.ExcelWriter(output_file_path, engine='xlsxwriter')
+    try:
+        writer = pd.ExcelWriter(output_file_path, engine='xlsxwriter')
+    except Exception as e:
+        # Writing to MASTER_LOG didn't work. We will need to create a temp file to copy and paste.
+        print(e)
+        # Get new path using todays date.
+        date = datetime.today().strftime('%y%m%d')
+        output_file_path = output_file_path.with_suffix('')
+        output_file_path = Path(str(output_file_path) + '-' + date + '.xlsx')
+        print("viking-log-keeper: Writing to ")
+        writer = pd.ExcelWriter(output_file_path, engine='xlsxwriter')
+        
     master_log.to_excel(
         writer,
         sheet_name=SHEET_NAME,
