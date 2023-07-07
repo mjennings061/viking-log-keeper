@@ -6,6 +6,10 @@ from pathlib import Path
 import pandas as pd
 import warnings
 from datetime import datetime
+from openpyxl.worksheet.dimensions import ColumnDimension, DimensionHolder
+from openpyxl.utils import get_column_letter
+from openpyxl.worksheet.table import Table, TableStyleInfo
+from openpyxl.styles import numbers
 
 def ingest_log_sheet(file_path):
     """
@@ -62,6 +66,9 @@ def sanitise_log_sheets(log_sheet_df):
     # Rename 2ndPilot to SecondPilot.
     log_sheet_df.rename(columns={"2ndPilot": "SecondPilot"}, inplace=True)
 
+    # Change FlightTime to be a timedelta instead of integer.
+    log_sheet_df['FlightTime'] = pd.to_timedelta(log_sheet_df['FlightTime'], unit='m').dt.floor('min')
+
     return log_sheet_df
 
 
@@ -101,55 +108,79 @@ def master_log_to_excel(master_log, output_file_path):
     """Save the master log dataframe to an excel table."""
 
     # Sheet the table should be inserted into.
-    SHEET_NAME = "MASTER LOG"
+    SHEET_NAME = "Master Log"
 
     # Create the excel file and table.
-    try:
-        writer = pd.ExcelWriter(output_file_path, engine='xlsxwriter')
-    except Exception as e:
-        # Writing to MASTER_LOG didn't work. We will need to create a temp file to copy and paste.
-        print(e)
-        # Get new path using todays date.
-        date = datetime.today().strftime('%y%m%d')
-        output_file_path = output_file_path.with_suffix('')
-        output_file_path = Path(str(output_file_path) + '-' + date + '.xlsx')
-        print("viking-log-keeper: Writing to ")
-        writer = pd.ExcelWriter(output_file_path, engine='xlsxwriter')
-        
-    master_log.to_excel(
-        writer,
-        sheet_name=SHEET_NAME,
-        index=False,
-        header=False,
-        startrow=1
-    )
+    with pd.ExcelWriter(output_file_path, engine='openpyxl', 
+                            mode='a', if_sheet_exists='replace') as writer:
+        master_log.to_excel(
+            writer,
+            sheet_name=SHEET_NAME,
+            index=False,
+            header=True,
+        )
 
-    # Get the xlsxwriter workbook and worksheet objects.
-    workbook = writer.book
-    worksheet = writer.sheets[SHEET_NAME]
+        # Access the workbook and worksheet.
+        workbook = writer.book
+        worksheet = workbook[SHEET_NAME]
 
-    # Get the dimensions of the dataframe.
-    (max_row, max_col) = master_log.shape
+        # Get the range of the data.
+        min_row = worksheet.min_row
+        max_row = worksheet.max_row
+        min_column = worksheet.min_column
+        max_column = worksheet.max_column
+        data_range = f"A1:{get_column_letter(max_column)}{max_row}"
 
-    # Create a list of column headers, to use in add_table().
-    column_settings = [{"header": column} for column in master_log.columns]
+        # Create the table.
+        table = Table(displayName="MasterLog", ref=data_range)
 
-    # Add the Excel table structure. Pandas will add the data.
-    worksheet.add_table(
-        0, 0, max_row, max_col - 1, 
-        {"columns": column_settings, 'style': 'Table Style Medium 1'}
-    )
+        # Apply the table style.
+        table.tableStyleInfo = TableStyleInfo(name="TableStyleMedium9", showRowStripes=True)
 
-    # Make the columns wider for clarity.
-    worksheet.set_column(0, max_col - 1, 17)
+        # Set column widths.
+        dim_holder = DimensionHolder(worksheet=worksheet)
 
-    # Change the format of the 'Date' column to 'dd/mm/yyyy'.
-    date_column = master_log.columns.get_loc("Date")
-    date_format = workbook.add_format({'num_format': 'dd/mm/yyyy'}) # type: ignore
-    worksheet.set_column(date_column, date_column, 10, date_format)
+        # Get the length of the column title and set the column width accordingly
+        for col in range(min_column, max_column + 1):
+            column_letter = get_column_letter(col)
+            cell = worksheet[column_letter + "1"]  # Assuming the column title is in the first row
+            title_length = len(cell.value)  # Get the length of the title.
+            column_width = title_length + 6  # Adjust if needed for better fit
+            dim_holder[column_letter] = ColumnDimension(worksheet, min=col, max=col, width=column_width)
 
-    # Close the Pandas Excel writer and output the Excel file.
-    writer.close()
+        worksheet.column_dimensions = dim_holder
+
+        # Set the number format for 'TakeOffTime' and 'LandingTime' columns.
+        time_format = 'h:mm'
+
+        for column_name in ['TakeOffTime', 'LandingTime']:
+            column_num = master_log.columns.get_loc(column_name) + 1
+            for col in worksheet.iter_cols(min_row=min_row + 1, max_row=max_row,
+                                            min_col=column_num, max_col=column_num):
+                # For each cell in the column.
+                for cell in col:
+                    cell.number_format = time_format
+
+        # Set date format for 'FlightTime' column.
+        duration_format = '[h]:mm'
+        column_num = master_log.columns.get_loc('FlightTime') + 1
+        for col in worksheet.iter_cols(min_row=min_row + 1, max_row=max_row,
+                                            min_col=column_num, max_col=column_num):
+            # For each cell in the column.
+            for cell in col:
+                cell.number_format = duration_format
+
+        # Set date format for 'Date' column.
+        date_format = numbers.FORMAT_DATE_DDMMYY
+        column_num = master_log.columns.get_loc('Date') + 1
+        for col in worksheet.iter_cols(min_row=min_row + 1, max_row=max_row,
+                                            min_col=column_num, max_col=column_num):
+            # For each cell in the column.
+            for cell in col:
+                cell.number_format = date_format
+
+        # Add the table to the worksheet.
+        worksheet.add_table(table)
 
 
 def main():
@@ -185,7 +216,7 @@ def main():
     OUTPUT_FILE = Path(
         SHAREPOINT_DIR,
         "Stats",
-        "MASTER-LOG.xlsx"
+        "Dashboard.xlsx"
     )
 
     # Create a dataframe of all log sheets.
