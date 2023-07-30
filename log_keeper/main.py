@@ -1,18 +1,20 @@
 """log_keeper.py
 661 VGS - Collate all log sheets (2965D) into one master log.
 
-To get the github secrets, use:
-DB_URL = os.environ.get("URL") 
-
 To test the MongoDB connection, use:
 mongosh "mongodb+srv://{${{ secrets.DB_URL }}/" --apiVersion 1 --username {USERNAME}
 """
+
+# TODO: Use MongoDB to check for the latest collection/DB and save as a rolling buffer.
+# TODO: Update dependencies for mongoDB.
 
 # Get packages.
 from pathlib import Path
 import pandas as pd
 import warnings
 from datetime import datetime
+import os
+
 
 def ingest_log_sheet(file_path):
     """
@@ -159,6 +161,26 @@ def master_log_to_excel(master_log, output_file_path):
     writer.close()
 
 
+# TODO: Connect and save dataframe to MongoDB.
+def master_log_to_db(master_log):
+    """Save the master log dataframe to a MongoDB."""
+    # Get environment variables.
+    DB_NAME = os.environ.get("URL") 
+    DB_USERNAME = os.environ.get("USERNAME") 
+    DB_PASSWORD = os.environ.get("PASSWORD") 
+    DB_URL = f"mongodb+srv://{DB_USERNAME}:{DB_PASSWORD}@{DB_NAME}/"
+
+    # Connect to the DB.
+
+    # Ensure collection is valid.
+
+    # Format dataframe to be saved.
+
+    # Save dataframe to Mongo DB.
+
+    # Close DB session.
+
+
 def main():
     # Initial comment.
     print("viking-log-keeper: Starting...")
@@ -201,7 +223,11 @@ def main():
     # Save the master log to excel.
     master_log_to_excel(master_log, OUTPUT_FILE)
 
+    # Save the master log to MongoDB Atlas.
+    master_log_to_db(master_log)
+
     # Print success message.
+    print(f"viking-log-keeper: Saved to {OUTPUT_FILE.name}")
     print("viking-log-keeper: Success!")
 
 
