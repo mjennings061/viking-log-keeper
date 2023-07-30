@@ -14,6 +14,9 @@ import pandas as pd
 import warnings
 from datetime import datetime
 import os
+import json
+from pymongo.mongo_client import MongoClient
+from pymongo.server_api import ServerApi
 
 
 def ingest_log_sheet(file_path):
@@ -165,20 +168,47 @@ def master_log_to_excel(master_log, output_file_path):
 def master_log_to_db(master_log):
     """Save the master log dataframe to a MongoDB."""
     # Get environment variables.
-    DB_NAME = os.environ.get("URL") 
-    DB_USERNAME = os.environ.get("USERNAME") 
-    DB_PASSWORD = os.environ.get("PASSWORD") 
-    DB_URL = f"mongodb+srv://{DB_USERNAME}:{DB_PASSWORD}@{DB_NAME}/"
-
-    # Connect to the DB.
-
-    # Ensure collection is valid.
+    DB_CONFIG_PATH = ".config/database-config.json"
+    config_filepath = Path(__file__).resolve().parent / DB_CONFIG_PATH
+    with open(Path(DB_CONFIG_PATH).resolve(), 'r') as f:
+        DB_CONFIG = json.load(f)
+        DB_URL = DB_CONFIG["DB_URL"]
+        DB_USERNAME = DB_CONFIG["DB_USERNAME"] 
+        DB_PASSWORD = DB_CONFIG["DB_PASSWORD"]
+        DB_COLLECTION_NAME = DB_CONFIG["DB_COLLECTION_NAME"]
+        DB_NAME = DB_CONFIG["DB_NAME"]
 
     # Format dataframe to be saved.
+    master_dict = master_log.to_dict('records')
 
-    # Save dataframe to Mongo DB.
+    # Create the DB connection URL
+    db_url = f"mongodb+srv://{DB_USERNAME}:{DB_PASSWORD}@{DB_URL}/?retryWrites=true&w=majority"
 
+    # Create a new client and connect to the server
+    client = MongoClient(db_url, server_api=ServerApi('1'))
+
+    # Connect to the DB.
+    try:
+        # Send a ping to confirm the connection.
+        client.admin.command('ping')
+        print("Connected to DB.")
+
+        # Get the master log collection.
+        db = client[DB_NAME]
+        collection = db[DB_COLLECTION_NAME]
+
+        try:
+            # Save to the DB.
+            collection.insert_many(master_dict)
+            print("Saved to DB.")
+        except Exception as e:
+            print(f"Could not save to DB:\n{e}")
+
+    except Exception as e:
+        print(f"Could not connect to DB: \n{e}")
+    
     # Close DB session.
+    client.close()
 
 
 def main():
@@ -221,7 +251,7 @@ def main():
     master_log = collate_log_sheets(LOG_SHEETS_DIR)
 
     # Save the master log to excel.
-    master_log_to_excel(master_log, OUTPUT_FILE)
+    # master_log_to_excel(master_log, OUTPUT_FILE)
 
     # Save the master log to MongoDB Atlas.
     master_log_to_db(master_log)
