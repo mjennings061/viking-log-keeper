@@ -1,5 +1,12 @@
 """log_keeper.py
-661 VGS - Collate all log sheets (2965D) into one master log."""
+661 VGS - Collate all log sheets (2965D) into one master log.
+
+To get the github secrets, use:
+DB_URL = os.environ.get("URL") 
+
+To test the MongoDB connection, use:
+mongosh "mongodb+srv://{${{ secrets.DB_URL }}/" --apiVersion 1 --username {USERNAME}
+"""
 
 # Get packages.
 from pathlib import Path
