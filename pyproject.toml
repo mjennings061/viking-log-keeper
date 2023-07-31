@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "viking-log-keeper"
-version = "0.1.0"
+version = "0.2.0"
 authors = [
   { name="Michael Jennings", email="mjennings061@gmail.com" },
 ]
@@ -18,8 +18,7 @@ classifiers = [
 ]
 dependencies = [
     "pandas==2.0.2",
-    "XlsxWriter==3.1.2",
-    "openpyxl==3.1.2"
+    "pymongo[srv]==4.4.1"
 ]
 
 [project.urls]
