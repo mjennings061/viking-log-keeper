@@ -27,11 +27,21 @@ python -m venv .venv
 
 ```bash
 .venv\Scripts\activate
-pip install -r requirements.txt
+pip install .
 ```
 
-7. Run the log keeper function.
+7. Sign up to [MongoDB Atlas](https://cloud.mongodb.com). It is free for 512 MB.
+
+8. Create a `.config` directory and save your DB credentials into it. Be sure to replace each one of the fields below e.g. change `mymongo.pdd134.mongodb.net` to your DB connection URL.
 
 ```bash
-python log_keeper/main.py
+mkdir .config
+$json='{"DB_URL": "mymongo.pdd134.mongodb.net", "DB_USERNAME": "mymongo", "DB_PASSWORD": "pass123", "DB_COLLECTION_NAME": "666vgs", "DB_NAME": "myDB"}'
+echo "$json" > .config/database-config.json
+```
+
+9. Run the log keeper function.
+
+```bash
+python -m log_keeper.main
 ```

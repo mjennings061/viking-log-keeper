@@ -1,11 +1,19 @@
-"""log_keeper.py
-661 VGS - Collate all log sheets (2965D) into one master log."""
+"""main.py
+661 VGS - Collate all log sheets (2965D) into one master log DB.
+"""
 
 # Get packages.
 from pathlib import Path
 import pandas as pd
 import warnings
 from datetime import datetime
+import json
+from pymongo.mongo_client import MongoClient
+from pymongo.server_api import ServerApi
+
+# Project constants.
+PROJECT_NAME = "viking-log-keeper"
+
 
 def ingest_log_sheet(file_path):
     """
@@ -29,7 +37,9 @@ def ingest_log_sheet(file_path):
         'SPC': 'UInt8',
         'PLF': 'bool',
         'Aircraft': 'string',
-        'Date': 'string'
+        'Date': 'datetime64[ns]',
+        'P1': 'bool',
+        'P2': 'bool'
         }
     )
     
@@ -45,6 +55,12 @@ def sanitise_log_sheets(log_sheet_df):
     # Change GIC to GIF.
     log_sheet_df.loc[log_sheet_df['Duty'] == 'GIC', 'Duty'] = 'GIF'
 
+    # Change SGS to G/S.
+    log_sheet_df.loc[log_sheet_df['Duty'] == 'SGS', 'Duty'] = 'G/S'
+
+    # Change GWGT to AGT.
+    log_sheet_df.loc[log_sheet_df['Duty'] == 'GWGT', 'Duty'] = 'AGT'
+
     # Add SCT into QGI and U/T duties e.g. "QGI" -> "SCT QGI"
     log_sheet_df.loc[log_sheet_df['Duty'] == 'U/T', 'Duty'] = 'SCT U/T'
     log_sheet_df.loc[log_sheet_df['Duty'] == 'QGI', 'Duty'] = 'SCT QGI'
@@ -52,9 +68,6 @@ def sanitise_log_sheets(log_sheet_df):
     # Change aircraft commander and second pilot to Upper Case.
     log_sheet_df.loc[:, 'AircraftCommander'] = log_sheet_df['AircraftCommander'].str.title()
     log_sheet_df.loc[:, '2ndPilot'] = log_sheet_df['2ndPilot'].str.title()
-
-    # Change date to DD/MM/YYYY format.
-    log_sheet_df.loc[:, 'Date'] = log_sheet_df['Date'].str[:10]
 
     # Sort by takeofftime.
     log_sheet_df = log_sheet_df.sort_values(by="TakeOffTime", ascending=True, na_position="first")
@@ -73,13 +86,12 @@ def collate_log_sheets(dir_path):
     log_sheet_files = [x for x in dir_contents if x.is_file()]
 
     # Extract data from each log sheet.
-    # Constants.
-    N_COLS = 10
-
+    log_sheet_df = pd.DataFrame()
     for i_file, file_path in enumerate(log_sheet_files):
         # Get the log sheet data.
         try:
             this_sheet_df = ingest_log_sheet(file_path)
+            # TODO: Write a function to also ingest the launches and hours CF for F724 if given.
             if i_file == 0:
                 # Create a new dataframe based on the first file ingest.
                 log_sheet_df = this_sheet_df
@@ -97,7 +109,7 @@ def collate_log_sheets(dir_path):
     return collated_df
 
 
-def master_log_to_excel(master_log, output_file_path):
+def launches_to_excel(launches_df, output_file_path):
     """Save the master log dataframe to an excel table."""
 
     # Sheet the table should be inserted into.
@@ -113,10 +125,10 @@ def master_log_to_excel(master_log, output_file_path):
         date = datetime.today().strftime('%y%m%d')
         output_file_path = output_file_path.with_suffix('')
         output_file_path = Path(str(output_file_path) + '-' + date + '.xlsx')
-        print("viking-log-keeper: Writing to ")
+        print(f"{PROJECT_NAME}: Writing to ")
         writer = pd.ExcelWriter(output_file_path, engine='xlsxwriter')
         
-    master_log.to_excel(
+    launches_df.to_excel(
         writer,
         sheet_name=SHEET_NAME,
         index=False,
@@ -129,10 +141,10 @@ def master_log_to_excel(master_log, output_file_path):
     worksheet = writer.sheets[SHEET_NAME]
 
     # Get the dimensions of the dataframe.
-    (max_row, max_col) = master_log.shape
+    (max_row, max_col) = launches_df.shape
 
     # Create a list of column headers, to use in add_table().
-    column_settings = [{"header": column} for column in master_log.columns]
+    column_settings = [{"header": column} for column in launches_df.columns]
 
     # Add the Excel table structure. Pandas will add the data.
     worksheet.add_table(
@@ -144,17 +156,77 @@ def master_log_to_excel(master_log, output_file_path):
     worksheet.set_column(0, max_col - 1, 17)
 
     # Change the format of the 'Date' column to 'dd/mm/yyyy'.
-    date_column = master_log.columns.get_loc("Date")
+    date_column = launches_df.columns.get_loc("Date")
     date_format = workbook.add_format({'num_format': 'dd/mm/yyyy'}) # type: ignore
     worksheet.set_column(date_column, date_column, 10, date_format)
 
     # Close the Pandas Excel writer and output the Excel file.
     writer.close()
 
+    # Print success message.
+    print(f"{PROJECT_NAME}: Saved to {output_file_path.name}")
+
+
+def launches_to_db(launches_df):
+    """Save the master log dataframe to a MongoDB."""
+    # Get environment variables.
+    DB_CONFIG_PATH = ".config/database-config.json"
+    config_filepath = Path(__file__).resolve().parent / DB_CONFIG_PATH
+    with open(Path(DB_CONFIG_PATH).resolve(), 'r') as f:
+        DB_CONFIG = json.load(f)
+        DB_URL = DB_CONFIG["DB_URL"]
+        DB_USERNAME = DB_CONFIG["DB_USERNAME"] 
+        DB_PASSWORD = DB_CONFIG["DB_PASSWORD"]
+        DB_COLLECTION_NAME = DB_CONFIG["DB_COLLECTION_NAME"]
+        DB_NAME = DB_CONFIG["DB_NAME"]
+
+    # Format dataframe to be saved.
+    master_dict = launches_df.to_dict('records')
+
+    # Create the DB connection URL
+    db_url = f"mongodb+srv://{DB_USERNAME}:{DB_PASSWORD}@{DB_URL}/?retryWrites=true&w=majority"
+
+    # Create a new client and connect to the server
+    client = MongoClient(db_url, server_api=ServerApi('1'))
+
+    # Connect to the DB.
+    client.admin.command('ping')
+    print(f"{PROJECT_NAME}: Connected to DB.")
+
+    # Get the database.
+    db = client[DB_NAME]
+
+    # Get all collections in the DB.
+    collections = db.list_collection_names()
+
+    # Backup the old collection with today's date as the suffix.
+    # Get today's date as YYMMDD.
+    today = datetime.today().strftime('%y%m%d')
+
+    # Create collection search string.
+    collection_search_string = f"{DB_COLLECTION_NAME}_{today}"
+
+    # Check if the backup exists and replace it.
+    if collection_search_string in collections:
+        db.drop_collection(collection_search_string)
+
+    # Rename the old collection.
+    if DB_COLLECTION_NAME in collections:
+        old_collection = db[DB_COLLECTION_NAME]
+        old_collection.rename(collection_search_string)
+
+    # Save to the DB.
+    collection = db.create_collection(DB_COLLECTION_NAME)
+    collection.insert_many(master_dict)
+    print(f"{PROJECT_NAME}: Saved to DB.")
+    
+    # Close DB session.
+    client.close()
+
 
 def main():
     # Initial comment.
-    print("viking-log-keeper: Starting...")
+    print(f"{PROJECT_NAME}: Starting...")
 
     # Get the file path.
     root_dir = Path.home()
@@ -189,13 +261,16 @@ def main():
     )
 
     # Create a dataframe of all log sheets.
-    master_log = collate_log_sheets(LOG_SHEETS_DIR)
+    launches_df = collate_log_sheets(LOG_SHEETS_DIR)
 
-    # Save the master log to excel.
-    master_log_to_excel(master_log, OUTPUT_FILE)
+    # Save the launches to excel.
+    launches_to_excel(launches_df, OUTPUT_FILE)
+
+    # Save the master log to MongoDB Atlas.
+    launches_to_db(launches_df)
 
     # Print success message.
-    print("viking-log-keeper: Success!")
+    print(f"{PROJECT_NAME}: Success!")
 
 
 if __name__ == "__main__":
