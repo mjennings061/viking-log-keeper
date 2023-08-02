@@ -43,5 +43,5 @@ echo "$json" > .config/database-config.json
 9. Run the log keeper function.
 
 ```bash
-python log_keeper/main.py
+python -m log_keeper.main
 ```

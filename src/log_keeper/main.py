@@ -11,6 +11,9 @@ import json
 from pymongo.mongo_client import MongoClient
 from pymongo.server_api import ServerApi
 
+# Project constants.
+PROJECT_NAME = "viking-log-keeper"
+
 
 def ingest_log_sheet(file_path):
     """
@@ -122,7 +125,7 @@ def launches_to_excel(launches_df, output_file_path):
         date = datetime.today().strftime('%y%m%d')
         output_file_path = output_file_path.with_suffix('')
         output_file_path = Path(str(output_file_path) + '-' + date + '.xlsx')
-        print("viking-log-keeper: Writing to ")
+        print(f"{PROJECT_NAME}: Writing to ")
         writer = pd.ExcelWriter(output_file_path, engine='xlsxwriter')
         
     launches_df.to_excel(
@@ -161,7 +164,7 @@ def launches_to_excel(launches_df, output_file_path):
     writer.close()
 
     # Print success message.
-    print(f"viking-log-keeper: Saved to {output_file_path.name}")
+    print(f"{PROJECT_NAME}: Saved to {output_file_path.name}")
 
 
 def launches_to_db(launches_df):
@@ -188,24 +191,34 @@ def launches_to_db(launches_df):
 
     # Connect to the DB.
     client.admin.command('ping')
-    print("Connected to DB.")
+    print(f"{PROJECT_NAME}: Connected to DB.")
 
     # Get the database.
     db = client[DB_NAME]
 
-    # TODO: Get today's date.
-    # TODO: Search for the collection with today's date and replace it.
-    # TODO: Otherwise create a new collection with today's date.
-    # Check if the collection exists and replace it.
-    if DB_COLLECTION_NAME in db.list_collection_names():
-        db.drop_collection(DB_COLLECTION_NAME)
+    # Get all collections in the DB.
+    collections = db.list_collection_names()
 
-    # Create the collection.
-    collection = db[DB_COLLECTION_NAME]
+    # Backup the old collection with today's date as the suffix.
+    # Get today's date as YYMMDD.
+    today = datetime.today().strftime('%y%m%d')
+
+    # Create collection search string.
+    collection_search_string = f"{DB_COLLECTION_NAME}_{today}"
+
+    # Check if the backup exists and replace it.
+    if collection_search_string in collections:
+        db.drop_collection(collection_search_string)
+
+    # Rename the old collection.
+    if DB_COLLECTION_NAME in collections:
+        old_collection = db[DB_COLLECTION_NAME]
+        old_collection.rename(collection_search_string)
 
     # Save to the DB.
+    collection = db.create_collection(DB_COLLECTION_NAME)
     collection.insert_many(master_dict)
-    print("Saved to DB.")
+    print(f"{PROJECT_NAME}: Saved to DB.")
     
     # Close DB session.
     client.close()
@@ -213,7 +226,7 @@ def launches_to_db(launches_df):
 
 def main():
     # Initial comment.
-    print("viking-log-keeper: Starting...")
+    print(f"{PROJECT_NAME}: Starting...")
 
     # Get the file path.
     root_dir = Path.home()
@@ -251,13 +264,13 @@ def main():
     launches_df = collate_log_sheets(LOG_SHEETS_DIR)
 
     # Save the launches to excel.
-    # launches_to_excel(launches_df, OUTPUT_FILE)
+    launches_to_excel(launches_df, OUTPUT_FILE)
 
     # Save the master log to MongoDB Atlas.
     launches_to_db(launches_df)
 
     # Print success message.
-    print("viking-log-keeper: Success!")
+    print(f"{PROJECT_NAME}: Success!")
 
 
 if __name__ == "__main__":

@@ -18,7 +18,9 @@ classifiers = [
 ]
 dependencies = [
     "pandas==2.0.2",
-    "pymongo[srv]==4.4.1"
+    "pymongo[srv]==4.4.1",
+    "xlsxwriter==3.1.2",
+    "openpyxl==3.1.2"
 ]
 
 [project.urls]
