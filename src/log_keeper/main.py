@@ -52,6 +52,9 @@ def sanitise_log_sheets(log_sheet_df):
     # Filter the log sheets to remove AircraftCommander "0"
     log_sheet_df = log_sheet_df[log_sheet_df.AircraftCommander != "0"]
 
+    # Change Duty column to upper case.
+    log_sheet_df.loc[:, 'Duty'] = log_sheet_df['Duty'].str.upper()
+
     # Change GIC to GIF.
     log_sheet_df.loc[log_sheet_df['Duty'] == 'GIC', 'Duty'] = 'GIF'
 
