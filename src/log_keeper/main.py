@@ -9,9 +9,9 @@ import warnings
 from datetime import datetime
 from pymongo.mongo_client import MongoClient
 from pymongo.server_api import ServerApi
-from dotenv import dotenv_values
-from cryptography.fernet import Fernet
-import inquirer
+
+# Get modules.
+from log_keeper.get_config import get_config, remove_config
 
 # Project constants.
 PROJECT_NAME = "viking-log-keeper"
@@ -110,7 +110,6 @@ def collate_log_sheets(dir_path):
 
 
     collated_df = sanitise_log_sheets(log_sheet_df)
-
     return collated_df
 
 
@@ -172,88 +171,6 @@ def launches_to_excel(launches_df, output_file_path):
     print(f"{PROJECT_NAME}: Saved to {output_file_path.name}")
 
 
-def get_key():
-    """Get the secret key for encrypting the credentials."""
-    # Key file.
-    KEY_FILE = "secret.key"
-
-    # Check if the key file exists.
-    if Path(KEY_FILE).is_file():
-        # Get the key from the file.
-        with open(KEY_FILE, 'rb') as key_file:
-            secret_key = key_file.read()
-    else:
-        # Generate a key and save it to a file.
-        secret_key = Fernet.generate_key()
-        with open(KEY_FILE, 'wb') as key_file:
-            key_file.write(secret_key)
-    return secret_key
-
-
-def encrypt_data(data, secret_key):
-    """Encrypt the data using the secret key."""
-    cipher_suite = Fernet(secret_key)
-    encrypted_data = cipher_suite.encrypt(data.encode())
-    return encrypted_data
-
-
-def decrypt_data(encrypted_data, secret_key):
-    """Decrypt the data using the secret key."""
-    cipher_suite = Fernet(secret_key)
-    decrypted_data = cipher_suite.decrypt(encrypted_data.encode())
-    return decrypted_data
-
-
-def get_credentials_cli():
-    """Use inquirer to get the encrypted credentials CLI."""
-    # Get the credentials using CLI.
-    questions = [
-        inquirer.Text("DB_HOSTNAME", message="Database hostname e.g. 666vgs.pda4bch.mongodb.net"),
-        inquirer.Text("DB_USERNAME", message="Database username e.g. 666vgs"),
-        inquirer.Text("DB_PASSWORD", message="Database password e.g. vigilants_are_better"),
-        inquirer.Text("DB_COLLECTION_NAME", message="Database collection name"),
-        inquirer.Text("DB_NAME", message="Database name:"),
-    ]
-    answers = inquirer.prompt(questions)
-    return answers
-
-
-def get_config():
-    """Get the config file path."""
-    # Get the config file path.
-    DB_CONFIG_FILE = ".env"
-    config_filepath = Path(__file__).resolve().parents[2] / DB_CONFIG_FILE
-
-    # Check if a config file exists.
-    if not config_filepath.is_file():
-        # Use CLI to create a config file.
-        config = get_credentials_cli()
-
-        # Create a secret key.
-        secret_key = get_key()
-
-        # Write the config file.
-        with open(config_filepath, "w") as f:
-            for key, value in config.items():   # type: ignore
-                encrypted_value = encrypt_data(value, secret_key)
-                f.write(f"{key}={encrypted_value.decode()}\n")
-
-    else:
-        # Read the config file.
-        config_encrypted = dotenv_values(config_filepath)
-
-        # Get the secret key.
-        secret_key = get_key()
-
-        # Decrypt the credentials.
-        config = {}
-        for key, value in config_encrypted.items():
-            decrypted_value = decrypt_data(value, secret_key)
-            config[key] = decrypted_value.decode()
-        
-    return config
-
-
 def launches_to_db(launches_df, db_config):
     """Save the master log dataframe to a MongoDB."""
     # Get environment variables.
@@ -309,53 +226,73 @@ def launches_to_db(launches_df, db_config):
     client.close()
 
 
+def find_directory(start_path, search_string):
+    """Find a directory."""
+    # Search for the directory.
+    for dir in start_path.iterdir():
+        if dir.is_dir() and search_string in dir.name:
+            return dir
+        
+    # Raise an error if the directory is not found.
+    raise FileNotFoundError("Could not find OneDrive directory.")
+
+
+def get_onedrive_path():
+    """Get the path to OneDrive."""
+    # Name of the onedrive directory to search for.
+    ONEDRIVE_SEARCH_STRING = "Royal Air Force Air Cadets"
+    DOCUMENTS_SEARCH_STRING = "Documents"
+    
+    # Search for the onedrive from home.
+    root_dir = Path.home()
+    onedrive_path = find_directory(root_dir, ONEDRIVE_SEARCH_STRING)
+
+    # Now get the path to the documents directory.
+    documents_path = find_directory(onedrive_path, DOCUMENTS_SEARCH_STRING)
+    return documents_path
+
+
 def main():
     # Initial comment.
     print(f"{PROJECT_NAME}: Starting...")
 
-    # Get the file path.
-    root_dir = Path.home()
-
-    # Path to the sharepoint directory.
-    SHAREPOINT_DIR = Path(
-        root_dir, 
-        "Royal Air Force Air Cadets",
-        "661 VGS - RAF Kirknewton - 661 Documents",
-    )
-
-    # If the path does not exist, its probably the squadron laptop.
-    # There is definitely a better way of doing this.
-    if SHAREPOINT_DIR.exists() == False:
-        SHAREPOINT_DIR = Path(
-            root_dir, 
-            "Onedrive - Royal Air Force Air Cadets",
-            "661 Documents",
-        )
+    # Get the file paths.
+    onedrive_path = get_onedrive_path()
 
     # Path to the log sheets directory.
-    LOG_SHEETS_DIR = Path(
-        SHAREPOINT_DIR, 
+    log_sheets_dir = Path(
+        onedrive_path, 
         "Log Sheets"
     )
 
     # Output file path.
-    OUTPUT_FILE = Path(
-        SHAREPOINT_DIR,
-        "Stats",
-        "MASTER-LOG.xlsx"
+    master_log_filepath = Path(
+        log_sheets_dir,
+        "Master Log.xlsx"
     )
 
     # Create a dataframe of all log sheets.
-    launches_df = collate_log_sheets(LOG_SHEETS_DIR)
+    launches_df = collate_log_sheets(log_sheets_dir)
 
     # Save the launches to excel.
-    launches_to_excel(launches_df, OUTPUT_FILE)
+    launches_to_excel(launches_df, master_log_filepath)
 
     # Get the config filepath, or use the CLI interface to create one.
     db_config = get_config()
 
     # Save the master log to MongoDB Atlas.
-    launches_to_db(launches_df, db_config)
+    try:
+        launches_to_db(launches_df, db_config)
+    except Exception as e:
+        # Filter a ConnectionError.
+        if isinstance(e, ConnectionError):
+            print(e)
+        else:
+            # Remove the config file and try again.
+            print(f"{PROJECT_NAME}: Could not save to DB. Try changing the config file.")
+            remove_config()
+            db_config = get_config()
+            launches_to_db(launches_df, db_config)
 
     # Print success message.
     print(f"{PROJECT_NAME}: Success!")
