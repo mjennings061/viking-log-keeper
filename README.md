@@ -1,5 +1,5 @@
 # Log Keeper
-661 VGS - Function to collate 2965D log sheets into a single master log file.
+661 VGS - Function to collate 2965D log sheets into a single master log file and database.
 
 ## Usage
 1. Ensure python is installed and `python.exe` is added to the path.

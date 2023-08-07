@@ -9,7 +9,7 @@ import warnings
 from datetime import datetime
 from pymongo.mongo_client import MongoClient
 from pymongo.server_api import ServerApi
-from dotenv import load_dotenv, dotenv_values
+from dotenv import dotenv_values
 from cryptography.fernet import Fernet
 import inquirer
 
@@ -234,7 +234,7 @@ def get_config():
 
         # Write the config file.
         with open(config_filepath, "w") as f:
-            for key, value in config.items():
+            for key, value in config.items():   # type: ignore
                 encrypted_value = encrypt_data(value, secret_key)
                 f.write(f"{key}={encrypted_value.decode()}\n")
 
