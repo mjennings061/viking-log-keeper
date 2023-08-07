@@ -3,6 +3,7 @@
 """
 
 # Get packages.
+import os
 from pathlib import Path
 import pandas as pd
 import warnings
@@ -10,6 +11,7 @@ from datetime import datetime
 import json
 from pymongo.mongo_client import MongoClient
 from pymongo.server_api import ServerApi
+from dotenv import load_dotenv
 
 # Project constants.
 PROJECT_NAME = "viking-log-keeper"
@@ -172,29 +174,38 @@ def launches_to_excel(launches_df, output_file_path):
 
 def launches_to_db(launches_df):
     """Save the master log dataframe to a MongoDB."""
+    # Get filepath to environment variables.
+    DB_CONFIG_NAME = ".env"
+    config_filepath = Path(__file__).resolve().parents[2] / DB_CONFIG_NAME
+
+    # Check if a config file exists.
+    if not config_filepath.is_file():
+        raise FileNotFoundError(f"{PROJECT_NAME}: No config file found at {config_filepath}")
+    
+    # Load environment variables from config file.
+    load_dotenv(dotenv_path=config_filepath)
+
     # Get environment variables.
-    DB_CONFIG_PATH = ".config/database-config.json"
-    config_filepath = Path(__file__).resolve().parent / DB_CONFIG_PATH
-    with open(Path(DB_CONFIG_PATH).resolve(), 'r') as f:
-        DB_CONFIG = json.load(f)
-        DB_URL = DB_CONFIG["DB_URL"]
-        DB_USERNAME = DB_CONFIG["DB_USERNAME"] 
-        DB_PASSWORD = DB_CONFIG["DB_PASSWORD"]
-        DB_COLLECTION_NAME = DB_CONFIG["DB_COLLECTION_NAME"]
-        DB_NAME = DB_CONFIG["DB_NAME"]
+    DB_HOSTNAME = str(os.getenv("DB_HOSTNAME"))
+    DB_USERNAME = str(os.getenv("DB_USERNAME"))
+    DB_PASSWORD = str(os.getenv("DB_PASSWORD"))
+    DB_COLLECTION_NAME = str(os.getenv("DB_COLLECTION_NAME"))
+    DB_NAME = str(os.getenv("DB_NAME"))
 
     # Format dataframe to be saved.
     master_dict = launches_df.to_dict('records')
 
     # Create the DB connection URL
-    db_url = f"mongodb+srv://{DB_USERNAME}:{DB_PASSWORD}@{DB_URL}/?retryWrites=true&w=majority"
+    db_url = f"mongodb+srv://{DB_USERNAME}:{DB_PASSWORD}@{DB_HOSTNAME}/?retryWrites=true&w=majority"
 
     # Create a new client and connect to the server
     client = MongoClient(db_url, server_api=ServerApi('1'))
 
-    # Connect to the DB.
-    client.admin.command('ping')
-    print(f"{PROJECT_NAME}: Connected to DB.")
+    # Print success message if ping is successful.
+    if client.admin.command('ping')['ok'] == 1.0:
+        print(f"{PROJECT_NAME}: Connected to DB.")
+    else:
+        raise ConnectionError(f"{PROJECT_NAME}: Could not connect to DB.")
 
     # Get the database.
     db = client[DB_NAME]
