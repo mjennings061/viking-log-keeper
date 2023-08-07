@@ -3,15 +3,15 @@
 """
 
 # Get packages.
-import os
 from pathlib import Path
 import pandas as pd
 import warnings
 from datetime import datetime
-import json
 from pymongo.mongo_client import MongoClient
 from pymongo.server_api import ServerApi
-from dotenv import load_dotenv
+from dotenv import load_dotenv, dotenv_values
+from cryptography.fernet import Fernet
+import inquirer
 
 # Project constants.
 PROJECT_NAME = "viking-log-keeper"
@@ -172,25 +172,96 @@ def launches_to_excel(launches_df, output_file_path):
     print(f"{PROJECT_NAME}: Saved to {output_file_path.name}")
 
 
-def launches_to_db(launches_df):
-    """Save the master log dataframe to a MongoDB."""
-    # Get filepath to environment variables.
-    DB_CONFIG_NAME = ".env"
-    config_filepath = Path(__file__).resolve().parents[2] / DB_CONFIG_NAME
+def get_key():
+    """Get the secret key for encrypting the credentials."""
+    # Key file.
+    KEY_FILE = "secret.key"
+
+    # Check if the key file exists.
+    if Path(KEY_FILE).is_file():
+        # Get the key from the file.
+        with open(KEY_FILE, 'rb') as key_file:
+            secret_key = key_file.read()
+    else:
+        # Generate a key and save it to a file.
+        secret_key = Fernet.generate_key()
+        with open(KEY_FILE, 'wb') as key_file:
+            key_file.write(secret_key)
+    return secret_key
+
+
+def encrypt_data(data, secret_key):
+    """Encrypt the data using the secret key."""
+    cipher_suite = Fernet(secret_key)
+    encrypted_data = cipher_suite.encrypt(data.encode())
+    return encrypted_data
+
+
+def decrypt_data(encrypted_data, secret_key):
+    """Decrypt the data using the secret key."""
+    cipher_suite = Fernet(secret_key)
+    decrypted_data = cipher_suite.decrypt(encrypted_data.encode())
+    return decrypted_data
+
+
+def get_credentials_cli():
+    """Use inquirer to get the encrypted credentials CLI."""
+    # Get the credentials using CLI.
+    questions = [
+        inquirer.Text("DB_HOSTNAME", message="Database hostname e.g. 666vgs.pda4bch.mongodb.net"),
+        inquirer.Text("DB_USERNAME", message="Database username e.g. 666vgs"),
+        inquirer.Text("DB_PASSWORD", message="Database password e.g. vigilants_are_better"),
+        inquirer.Text("DB_COLLECTION_NAME", message="Database collection name"),
+        inquirer.Text("DB_NAME", message="Database name:"),
+    ]
+    answers = inquirer.prompt(questions)
+    return answers
+
+
+def get_config():
+    """Get the config file path."""
+    # Get the config file path.
+    DB_CONFIG_FILE = ".env"
+    config_filepath = Path(__file__).resolve().parents[2] / DB_CONFIG_FILE
 
     # Check if a config file exists.
     if not config_filepath.is_file():
-        raise FileNotFoundError(f"{PROJECT_NAME}: No config file found at {config_filepath}")
-    
-    # Load environment variables from config file.
-    load_dotenv(dotenv_path=config_filepath)
+        # Use CLI to create a config file.
+        config = get_credentials_cli()
 
+        # Create a secret key.
+        secret_key = get_key()
+
+        # Write the config file.
+        with open(config_filepath, "w") as f:
+            for key, value in config.items():
+                encrypted_value = encrypt_data(value, secret_key)
+                f.write(f"{key}={encrypted_value.decode()}\n")
+
+    else:
+        # Read the config file.
+        config_encrypted = dotenv_values(config_filepath)
+
+        # Get the secret key.
+        secret_key = get_key()
+
+        # Decrypt the credentials.
+        config = {}
+        for key, value in config_encrypted.items():
+            decrypted_value = decrypt_data(value, secret_key)
+            config[key] = decrypted_value.decode()
+        
+    return config
+
+
+def launches_to_db(launches_df, db_config):
+    """Save the master log dataframe to a MongoDB."""
     # Get environment variables.
-    DB_HOSTNAME = str(os.getenv("DB_HOSTNAME"))
-    DB_USERNAME = str(os.getenv("DB_USERNAME"))
-    DB_PASSWORD = str(os.getenv("DB_PASSWORD"))
-    DB_COLLECTION_NAME = str(os.getenv("DB_COLLECTION_NAME"))
-    DB_NAME = str(os.getenv("DB_NAME"))
+    DB_HOSTNAME = db_config["DB_HOSTNAME"]
+    DB_USERNAME = db_config["DB_USERNAME"]
+    DB_PASSWORD = db_config["DB_PASSWORD"]
+    DB_COLLECTION_NAME = db_config["DB_COLLECTION_NAME"]
+    DB_NAME = db_config["DB_NAME"]
 
     # Format dataframe to be saved.
     master_dict = launches_df.to_dict('records')
@@ -280,8 +351,11 @@ def main():
     # Save the launches to excel.
     launches_to_excel(launches_df, OUTPUT_FILE)
 
+    # Get the config filepath, or use the CLI interface to create one.
+    db_config = get_config()
+
     # Save the master log to MongoDB Atlas.
-    launches_to_db(launches_df)
+    launches_to_db(launches_df, db_config)
 
     # Print success message.
     print(f"{PROJECT_NAME}: Success!")
