@@ -110,7 +110,6 @@ def collate_log_sheets(dir_path):
 
 
     collated_df = sanitise_log_sheets(log_sheet_df)
-
     return collated_df
 
 
@@ -218,11 +217,23 @@ def get_credentials_cli():
     return answers
 
 
+def remove_config():
+    """Remove the config file."""
+    # Get the config file path.
+    DB_CONFIG_FILE = ".env"
+    config_filepath = Path(__file__).resolve().parent / DB_CONFIG_FILE
+
+    # Check if a config file exists.
+    if config_filepath.is_file():
+        # Remove the config file.
+        config_filepath.unlink()
+
+
 def get_config():
     """Get the config file path."""
     # Get the config file path.
     DB_CONFIG_FILE = ".env"
-    config_filepath = Path(__file__).resolve().parents[2] / DB_CONFIG_FILE
+    config_filepath = Path(__file__).resolve().parent / DB_CONFIG_FILE
 
     # Check if a config file exists.
     if not config_filepath.is_file():
@@ -309,53 +320,73 @@ def launches_to_db(launches_df, db_config):
     client.close()
 
 
+def find_directory(start_path, search_string):
+    """Find a directory."""
+    # Search for the directory.
+    for dir in start_path.iterdir():
+        if dir.is_dir() and search_string in dir.name:
+            return dir
+        
+    # Raise an error if the directory is not found.
+    raise FileNotFoundError("Could not find OneDrive directory.")
+
+
+def get_onedrive_path():
+    """Get the path to OneDrive."""
+    # Name of the onedrive directory to search for.
+    ONEDRIVE_SEARCH_STRING = "Royal Air Force Air Cadets"
+    DOCUMENTS_SEARCH_STRING = "Documents"
+    
+    # Search for the onedrive from home.
+    root_dir = Path.home()
+    onedrive_path = find_directory(root_dir, ONEDRIVE_SEARCH_STRING)
+
+    # Now get the path to the documents directory.
+    documents_path = find_directory(onedrive_path, DOCUMENTS_SEARCH_STRING)
+    return documents_path
+
+
 def main():
     # Initial comment.
     print(f"{PROJECT_NAME}: Starting...")
 
-    # Get the file path.
-    root_dir = Path.home()
-
-    # Path to the sharepoint directory.
-    SHAREPOINT_DIR = Path(
-        root_dir, 
-        "Royal Air Force Air Cadets",
-        "661 VGS - RAF Kirknewton - 661 Documents",
-    )
-
-    # If the path does not exist, its probably the squadron laptop.
-    # There is definitely a better way of doing this.
-    if SHAREPOINT_DIR.exists() == False:
-        SHAREPOINT_DIR = Path(
-            root_dir, 
-            "Onedrive - Royal Air Force Air Cadets",
-            "661 Documents",
-        )
+    # Get the file paths.
+    onedrive_path = get_onedrive_path()
 
     # Path to the log sheets directory.
-    LOG_SHEETS_DIR = Path(
-        SHAREPOINT_DIR, 
+    log_sheets_dir = Path(
+        onedrive_path, 
         "Log Sheets"
     )
 
     # Output file path.
-    OUTPUT_FILE = Path(
-        SHAREPOINT_DIR,
-        "Stats",
-        "MASTER-LOG.xlsx"
+    master_log_filepath = Path(
+        log_sheets_dir,
+        "Master Log.xlsx"
     )
 
     # Create a dataframe of all log sheets.
-    launches_df = collate_log_sheets(LOG_SHEETS_DIR)
+    launches_df = collate_log_sheets(log_sheets_dir)
 
     # Save the launches to excel.
-    launches_to_excel(launches_df, OUTPUT_FILE)
+    launches_to_excel(launches_df, master_log_filepath)
 
     # Get the config filepath, or use the CLI interface to create one.
     db_config = get_config()
 
     # Save the master log to MongoDB Atlas.
-    launches_to_db(launches_df, db_config)
+    try:
+        launches_to_db(launches_df, db_config)
+    except Exception as e:
+        # Filter a ConnectionError.
+        if isinstance(e, ConnectionError):
+            print(e)
+        else:
+            # Remove the config file and try again.
+            print(f"{PROJECT_NAME}: Could not save to DB. Try changing the config file.")
+            remove_config()
+            db_config = get_config()
+            launches_to_db(launches_df, db_config)
 
     # Print success message.
     print(f"{PROJECT_NAME}: Success!")
