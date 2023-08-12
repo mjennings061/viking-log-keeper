@@ -300,6 +300,10 @@ def main():
     # Print success message.
     print(f"{PROJECT_NAME}: Success!")
 
+    # Pause for user input.
+    input("Press any key to finish...")
+
 
 if __name__ == "__main__":
+    # Run the log keeper.
     main()

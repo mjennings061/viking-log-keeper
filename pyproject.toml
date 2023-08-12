@@ -32,3 +32,6 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["build", "wheel"]
+
+[project.scripts]
+update-logs = "log_keeper.main:main"
