@@ -54,6 +54,9 @@ def sanitise_log_sheets(log_sheet_df):
     # Filter the log sheets to remove AircraftCommander "0"
     log_sheet_df = log_sheet_df[log_sheet_df.AircraftCommander != "0"]
 
+    # Filter "launches" with a takeoff time equal to 00:00:00.
+    log_sheet_df = log_sheet_df[log_sheet_df['TakeOffTime'].dt.time != pd.Timestamp('00:00:00').time()]
+
     # Change Duty column to upper case.
     log_sheet_df.loc[:, 'Duty'] = log_sheet_df['Duty'].str.upper()
 
@@ -297,6 +300,10 @@ def main():
     # Print success message.
     print(f"{PROJECT_NAME}: Success!")
 
+    # Pause for user input.
+    input("Press any key to finish...")
+
 
 if __name__ == "__main__":
+    # Run the log keeper.
     main()

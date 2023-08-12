@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "viking-log-keeper"
-version = "0.4.0"
+version = "0.5.0"
 authors = [
   { name="Michael Jennings", email="mjennings061@gmail.com" },
 ]
@@ -32,3 +32,6 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["build", "wheel"]
+
+[project.scripts]
+update-logs = "log_keeper.main:main"
