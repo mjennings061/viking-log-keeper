@@ -49,7 +49,7 @@ python -m pip install viking-log-keeper
 1. Following installation, run the log keeper function:
 
 ```bash
-python -m log_keeper.main
+update-logs
 ```
 
 2. Enter the credentials of your database. The URL can be found in the "Database > Overview > Connect" menu:
