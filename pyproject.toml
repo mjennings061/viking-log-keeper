@@ -4,13 +4,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "viking-log-keeper"
-version = "0.5.0"
+version = "0.5.1"
 authors = [
   { name="Michael Jennings", email="mjennings061@gmail.com" },
 ]
 description = "661 VGS - Function to collate 2965D log sheets into a master log and database."
 readme = "README.md"
-requires-python = ">3.7"
+requires-python = ">3.9"
 classifiers = [
     "Programming Language :: Python :: 3",
     "License :: OSI Approved :: MIT License",
