@@ -3,7 +3,7 @@
 
 ![image](https://github.com/mjennings061/viking-log-keeper/assets/24479573/cd4929e4-7a13-4d48-b4b6-1cd52f865b8d)
 
-## Installation/Usage
+## Installation
 1. Ensure [Python 3.11](https://www.python.org/downloads/windows/) is installed and `python.exe` is [added to the path](https://realpython.com/add-python-to-path/):
 
 ![image](https://github.com/mjennings061/viking-log-keeper/assets/24479573/f2d58a92-752c-426e-878f-832cfcf7e175)
@@ -32,13 +32,23 @@
 python -m pip install viking-log-keeper
 ```
 
-6. Run the log keeper function:
+## Usage
+
+1. Following installation, run the log keeper function:
 
 ```bash
 python -m log_keeper.main
 ```
 
-7. Enter the credentials of your database. The URL can be found in the "Database > Overview > Connect" menu:
+2. Enter the credentials of your database. The URL can be found in the "Database > Overview > Connect" menu:
 
 ![image](https://github.com/mjennings061/viking-log-keeper/assets/24479573/7b91cde7-aa26-4bc3-8f85-5c37893aceee)
 
+## Contribution
+
+- Issue Tracker: https://github.com/mjennings061/viking-log-keeper/issues
+- Source Code: https://github.com/mjennings061/viking-log-keeper/tree/main
+
+## License
+
+The project is licensed under the MIT License.
