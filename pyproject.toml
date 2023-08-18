@@ -10,7 +10,7 @@ authors = [
 ]
 description = "661 VGS - Function to collate 2965D log sheets into a master log and database."
 readme = "README.md"
-requires-python = ">3.7"
+requires-python = ">3.9"
 classifiers = [
     "Programming Language :: Python :: 3",
     "License :: OSI Approved :: MIT License",
