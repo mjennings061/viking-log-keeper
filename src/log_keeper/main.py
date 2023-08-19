@@ -5,10 +5,12 @@
 # Get packages.
 from pathlib import Path
 import pandas as pd
-import warnings
+from warnings import warn
 from datetime import datetime
 from pymongo.mongo_client import MongoClient
 from pymongo.server_api import ServerApi
+import openpyxl as xl
+
 
 # Get modules.
 from log_keeper.get_config import get_config, remove_config
@@ -45,6 +47,39 @@ def ingest_log_sheet(file_path):
         }
     )
     
+    return raw_df
+
+
+def ingest_aircraft_launches(file_path):
+    """Extract aircraft hours and launches from an excel log sheet."""
+    # Constants.
+    SHEET_NAME = "2965D"
+
+    # Read from the log sheet.
+    sheet = xl.load_workbook(file_path, read_only=True, data_only=True)
+
+    # Get the number of launches before and after flight.
+    date = sheet[SHEET_NAME]['OPQ1'].value
+    launches_bf = sheet[SHEET_NAME]['RS56'].value
+    launches_af = sheet[SHEET_NAME]['RS57'].value
+    hours_bf = sheet[SHEET_NAME]['IJ56'].value
+    hours_af = sheet[SHEET_NAME]['IJ57'].value
+
+    # Get todays date.
+    today = datetime.today().strftime('%d%m%y')
+
+    # Create a dataframe.
+    raw_df = pd.DataFrame(
+        data={
+            "Date": date,
+            "LaunchesBF": launches_bf,
+            "LaunchesAF": launches_af,
+            "HoursBF": hours_bf,
+            "HoursAF": hours_af,
+            "DateAdded": today
+        }
+    )
+
     return raw_df
 
 
@@ -100,6 +135,7 @@ def collate_log_sheets(dir_path):
         try:
             this_sheet_df = ingest_log_sheet(file_path)
             # TODO: Write a function to also ingest the launches and hours CF for F724 if given.
+            this_aircraft_df = ingest_aircraft_launches(file_path)
             if i_file == 0:
                 # Create a new dataframe based on the first file ingest.
                 log_sheet_df = this_sheet_df
@@ -108,7 +144,7 @@ def collate_log_sheets(dir_path):
                 log_sheet_df = pd.concat([log_sheet_df, this_sheet_df], ignore_index=True)
         except Exception as e:
             if file_path.name != "2965D_YYMMDD_ZEXXX.xlsx":
-                warnings.warn(f"Log sheet invalid: {file_path.name}", RuntimeWarning)
+                warn(f"Log sheet invalid: {file_path.name}", RuntimeWarning)
                 print(e)
 
 
