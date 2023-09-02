@@ -59,6 +59,9 @@ def ingest_aircraft_launches(file_path):
     sheet = xl.load_workbook(file_path, read_only=True, data_only=True)
 
     # Get the number of launches before and after flight.
+    # This method only works if the log sheet is formatted correctly.
+    # TODO: Change this to find the correct cell to the right of "Launches C/F" and "Hours C/F"
+    # instead of using the cell reference.
     date = sheet[SHEET_NAME]['OPQ1'].value
     launches_bf = sheet[SHEET_NAME]['RS56'].value
     launches_af = sheet[SHEET_NAME]['RS57'].value
@@ -142,6 +145,7 @@ def collate_log_sheets(dir_path):
             else:
                 # Append to the master dataframe.
                 log_sheet_df = pd.concat([log_sheet_df, this_sheet_df], ignore_index=True)
+                # TODO: Append to the aircraft dataframe.
         except Exception as e:
             if file_path.name != "2965D_YYMMDD_ZEXXX.xlsx":
                 warn(f"Log sheet invalid: {file_path.name}", RuntimeWarning)
@@ -149,6 +153,7 @@ def collate_log_sheets(dir_path):
 
 
     collated_df = sanitise_log_sheets(log_sheet_df)
+    # TODO: Write a sanitise aircraft launches function.
     return collated_df
 
 
