@@ -3,15 +3,15 @@
 """
 
 # Get packages.
+import warnings
 from pathlib import Path
 import pandas as pd
-import warnings
 from datetime import datetime
 from pymongo.mongo_client import MongoClient
 from pymongo.server_api import ServerApi
 
 # Get modules.
-from log_keeper.get_config import get_config, remove_config
+from .get_config import get_config, remove_config
 
 # Project constants.
 PROJECT_NAME = "viking-log-keeper"
