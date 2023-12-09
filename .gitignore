@@ -166,3 +166,6 @@ secret.key
 
 # Visual Studio Code
 .vscode/
+
+# Poetry file.
+poetry.lock
