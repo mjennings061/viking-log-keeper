@@ -93,6 +93,10 @@ def collate_log_sheets(dir_path):
     dir_contents = dir_path.glob(f"{FILE_NAME}")
     log_sheet_files = [x for x in dir_contents if x.is_file()]
 
+    # Check if list is empty.
+    if not log_sheet_files:
+        raise FileNotFoundError(f"No log sheets found in \n{dir_path}")
+
     # Extract data from each log sheet.
     log_sheet_df = pd.DataFrame()
     for i_file, file_path in enumerate(log_sheet_files):
@@ -265,6 +269,7 @@ def main():
     # Path to the log sheets directory.
     log_sheets_dir = Path(
         onedrive_path, 
+        "#Statistics",
         "Log Sheets"
     )
 
@@ -299,9 +304,6 @@ def main():
 
     # Print success message.
     print(f"{PROJECT_NAME}: Success!")
-
-    # Pause for user input.
-    input("Press any key to finish...")
 
 
 if __name__ == "__main__":
