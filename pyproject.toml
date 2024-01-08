@@ -31,7 +31,8 @@ repository = "https://github.com/mjennings061/viking-log-keeper.git"
 
 [tool.poetry.scripts]
 update-logs = "log_keeper.main:main"
-update-password = "log_keeper.get_config:update_config"
+update-config = "log_keeper.get_config:update_config"
+update-log-sheet-location = "log_keeper.get_config:update_log_sheet_location"
 
 [build-system]
 requires = ["poetry-core"]

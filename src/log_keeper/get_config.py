@@ -6,9 +6,10 @@ import inquirer
 from pathlib import Path
 from dotenv import dotenv_values
 from cryptography.fernet import Fernet
-from log_keeper.utils import get_log_sheets_path
+from log_keeper.utils import get_log_sheets_path, prompt_directory_path
 
 # Constants.
+DB_CONFIG_FILE = ".env"
 KEY_FILE = "secret.key"
 
 
@@ -167,7 +168,6 @@ def get_config(overwrite: bool = False):
         dict: The configuration values as a dictionary.
     """
     # Get the config file path.
-    DB_CONFIG_FILE = ".env"
     config_filepath = Path(__file__).resolve().parent / DB_CONFIG_FILE
 
     # Check if a config file exists.
@@ -187,6 +187,21 @@ def get_config(overwrite: bool = False):
         config = read_config(config_filepath)
 
     return config
+
+
+def update_log_sheet_location():
+    """Update the log sheet location in the config file."""
+    # Get the config file path.
+    config_filepath = Path(__file__).resolve().parent / DB_CONFIG_FILE
+
+    # Read the config file.
+    config = read_config(config_filepath)
+
+    # Get path to log sheets folder.
+    config["LOG_SHEETS_DIR"] = str(prompt_directory_path())
+
+    # Save the config to a file.
+    write_config(config_filepath, config)
 
 
 def update_config():

@@ -28,17 +28,21 @@ def verify_directory_path(path):
         return True
 
 
-def prompt_directory_path(prompt_message):
+def prompt_directory_path():
     """
     Prompt the user to enter a directory path.
-
-    Args:
-        prompt_message (str): The prompt message to display to the user.
 
     Returns:
         Path: The path entered by the user.
     """
-    questions = [inquirer.Text('path', message=prompt_message)]
+
+    questions = [
+        inquirer.Text(
+            'path',
+            message="Enter the path to the Documents directory " +
+                    "e.g. C:\\Users\\YOUR_USERNAME\\OneDrive\\Documents\n"
+        )
+    ]
     answers = inquirer.prompt(questions)
     return Path(answers['path'])
 
@@ -82,27 +86,27 @@ def get_log_sheets_path():
 
     # Search for the onedrive from home.
     root_dir = Path.home()
-    onedrive_path = find_directory(root_dir, ONEDRIVE_SEARCH_STRING)
+    log_sheets_dir = Path()
 
-    # Now get the path to the documents directory.
-    documents_path = find_directory(onedrive_path, DOCUMENTS_SEARCH_STRING)
+    try:
+        onedrive_path = find_directory(root_dir, ONEDRIVE_SEARCH_STRING)
 
-    # Now attempt to resolve the log sheets directory.
-    log_sheets_dir = Path(
-        documents_path,
-        "#Statistics",
-        "Log Sheets"
-    )
+        # Now get the path to the documents directory.
+        documents_path = find_directory(onedrive_path, DOCUMENTS_SEARCH_STRING)
 
-    # Verify that we found the documents directory, otherwise use CLI.
-    if verify_directory_path(log_sheets_dir) is False:
+        # Now attempt to resolve the log sheets directory.
+        log_sheets_dir = Path(
+            documents_path,
+            "#Statistics",
+            "Log Sheets"
+        )
+
+    except Exception:
         logging.info(f"{PROJECT_NAME}: " +
                      "Could not find 'Log Sheets' directory automatically.")
-        # Prompt the user to enter the path to the documents directory.
-        while verify_directory_path(log_sheets_dir) is False:
-            log_sheets_dir = prompt_directory_path(
-                "Enter the path to the Documents directory " +
-                "e.g. C:\\Users\\YOUR_USERNAME\\OneDrive\\Documents\n"
-            )
+
+    # Prompt the user to enter the path to the documents directory.
+    while verify_directory_path(log_sheets_dir) is False:
+        log_sheets_dir = prompt_directory_path()
 
     return log_sheets_dir
