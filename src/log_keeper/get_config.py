@@ -1,10 +1,19 @@
+"""get_config.py
+
+Get the database configuration from a config file."""
+
 from pathlib import Path
 from dotenv import dotenv_values
 from cryptography.fernet import Fernet
 import inquirer
 
+
 def get_key():
-    """Get the secret key for encrypting the credentials."""
+    """Get the secret key for encrypting the credentials.
+
+    Returns:
+        Fernet: The secret key used for encryption.
+    """
     # Key file.
     KEY_FILE = "secret.key"
 
@@ -22,35 +31,87 @@ def get_key():
 
 
 def encrypt_data(data, secret_key):
-    """Encrypt the data using the secret key."""
+    """
+    Encrypts the data using the provided secret key.
+
+    Args:
+        data (str): The data to be encrypted.
+        secret_key (Fernet): The secret key used for encryption.
+
+    Returns:
+        Fernet: The encrypted data.
+    """
     cipher_suite = Fernet(secret_key)
     encrypted_data = cipher_suite.encrypt(data.encode())
     return encrypted_data
 
 
 def decrypt_data(encrypted_data, secret_key):
-    """Decrypt the data using the secret key."""
+    """
+    Decrypt the data using the secret key.
+
+    Args:
+        encrypted_data (str): The encrypted data to be decrypted.
+        secret_key (Fernet): The secret key used for decryption.
+
+    Returns:
+        Fernet: The decrypted data.
+    """
     cipher_suite = Fernet(secret_key)
     decrypted_data = cipher_suite.decrypt(encrypted_data.encode())
     return decrypted_data
 
 
 def get_credentials_cli():
-    """Use inquirer to get the encrypted credentials CLI."""
+    """
+    Use inquirer to get the encrypted credentials CLI.
+
+    Returns:
+        dict: A dictionary containing the user's input for database
+            hostname, username, password, collection name, and database name.
+    """
     # Get the credentials using CLI.
     questions = [
-        inquirer.Text("DB_HOSTNAME", message="Database hostname e.g. 666vgs.pda4bch.mongodb.net"),
-        inquirer.Text("DB_USERNAME", message="Database username e.g. 666vgs"),
-        inquirer.Text("DB_PASSWORD", message="Database password e.g. vigilants_are_better"),
-        inquirer.Text("DB_COLLECTION_NAME", message="Database collection name"),
-        inquirer.Text("DB_NAME", message="Database name:"),
+        inquirer.Text(
+            "DB_HOSTNAME",
+            message="Database hostname e.g. 666vgs.pda4bch.mongodb.net"
+        ),
+        inquirer.Text(
+            "DB_USERNAME",
+            message="Database username e.g. 666vgs"
+        ),
+        inquirer.Text(
+            "DB_PASSWORD",
+            message="Database password e.g. vigilants_are_better"
+        ),
+        inquirer.Text(
+            "DB_NAME",
+            message="Database name e.g. 666vgs"
+        ),
+        inquirer.Text(
+            "DB_COLLECTION_NAME",
+            message="Database collection name e.g. log_sheets"
+        ),
     ]
+
+    # Display the questions.
     answers = inquirer.prompt(questions)
     return answers
 
 
 def remove_config():
-    """Remove the config file."""
+    """Remove the config file.
+
+    This function removes the config file if it exists.
+    The config file path is obtained by resolving the parent directory
+    of the current file and appending the name of the config file.
+
+    Args:
+        None
+
+    Returns:
+        None
+    """
     # Get the config file path.
     DB_CONFIG_FILE = ".env"
     config_filepath = Path(__file__).resolve().parent / DB_CONFIG_FILE
@@ -62,7 +123,19 @@ def remove_config():
 
 
 def get_config():
-    """Get the config file path."""
+    """Get the config file path and return the configuration as a dictionary.
+
+    If the config file does not exist, it prompts the user to enter
+    the configuration values through the command-line interface (CLI)
+    and creates the config file.
+    If the config file exists, it reads the encrypted values from the
+    file, decrypts them using a secret key, and returns the configuration
+    as a dictionary.
+
+    Returns:
+        dict: The configuration values as a dictionary.
+
+    """
     # Get the config file path.
     DB_CONFIG_FILE = ".env"
     config_filepath = Path(__file__).resolve().parent / DB_CONFIG_FILE
@@ -93,7 +166,7 @@ def get_config():
         for key, value in config_encrypted.items():
             decrypted_value = decrypt_data(value, secret_key)
             config[key] = decrypted_value.decode()
-        
+
     return config
 
 
