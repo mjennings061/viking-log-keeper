@@ -4,9 +4,10 @@
 
 # Get packages.
 from pathlib import Path
+from cryptography.fernet import InvalidToken
 
 # Get modules.
-from log_keeper.get_config import get_config, remove_config
+from log_keeper.get_config import get_config, update_config, remove_key
 from log_keeper.ingest import collate_log_sheets
 from log_keeper.output import launches_to_excel, launches_to_db
 from log_keeper.utils import PROJECT_NAME, get_onedrive_path
@@ -53,7 +54,18 @@ def main():
     launches_to_excel(launches_df, master_log_filepath)
 
     # Get the config filepath, or use the CLI interface to create one.
-    db_config = get_config()
+    try:
+        db_config = get_config()
+    # A Fernet cryptography error is raised if an existing config is invalid.
+    except Exception as e:
+        print(f"{PROJECT_NAME}: Invalid config file.")
+        if isinstance(e, InvalidToken):
+            # Create a new config file.
+            remove_key()
+            db_config = update_config()
+        else:
+            # Raise the error.
+            raise e
 
     # Save the master log to MongoDB Atlas.
     try:
@@ -66,7 +78,6 @@ def main():
             # Remove the config file and try again.
             print(f"{PROJECT_NAME}: Could not save to DB." +
                   "Try changing the config file.")
-            remove_config()
             db_config = get_config()
             launches_to_db(launches_df, db_config)
 

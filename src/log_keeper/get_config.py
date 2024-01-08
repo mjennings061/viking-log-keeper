@@ -1,11 +1,20 @@
 """get_config.py
 
 Get the database configuration from a config file."""
-
+# Get packages.
+import inquirer
 from pathlib import Path
 from dotenv import dotenv_values
 from cryptography.fernet import Fernet
-import inquirer
+
+# Constants.
+KEY_FILE = "secret.key"
+
+
+def remove_key():
+    """Remove the key file."""
+    if Path(KEY_FILE).is_file():
+        Path(KEY_FILE).unlink()
 
 
 def get_key():
@@ -14,9 +23,6 @@ def get_key():
     Returns:
         Fernet: The secret key used for encryption.
     """
-    # Key file.
-    KEY_FILE = "secret.key"
-
     # Check if the key file exists.
     if Path(KEY_FILE).is_file():
         # Get the key from the file.
@@ -99,30 +105,52 @@ def get_credentials_cli():
     return answers
 
 
-def remove_config():
-    """Remove the config file.
+def write_config(config_filepath: Path, config: dict):
+    """Write the config file.
 
-    This function removes the config file if it exists.
+    This function writes the config file if it does not exist.
     The config file path is obtained by resolving the parent directory
     of the current file and appending the name of the config file.
 
     Args:
-        None
+        config_filepath (Path): The path to the config file.
+        config (dict): The configuration values as a dictionary.
 
     Returns:
         None
     """
-    # Get the config file path.
-    DB_CONFIG_FILE = ".env"
-    config_filepath = Path(__file__).resolve().parent / DB_CONFIG_FILE
+    # Get the secret key.
+    secret_key = get_key()
 
-    # Check if a config file exists.
-    if config_filepath.is_file():
-        # Remove the config file.
-        config_filepath.unlink()
+    # Write the config file.
+    with open(config_filepath, "w") as f:
+        for key, value in config.items():   # type: ignore
+            encrypted_value = encrypt_data(value, secret_key)
+            f.write(f"{key}={encrypted_value.decode()}\n")
 
 
-def get_config():
+def read_config(config_filepath: Path):
+    """Read the config file and return the configuration as a dictionary.
+
+    Args:
+        config_filepath (Path): The path to the config file.
+    """
+    # Read the config file.
+    config_encrypted = dotenv_values(config_filepath)
+
+    # Get the secret key.
+    secret_key = get_key()
+
+    # Decrypt the credentials.
+    config = {}
+    for key, value in config_encrypted.items():
+        decrypted_value = decrypt_data(value, secret_key)
+        config[key] = decrypted_value.decode()
+
+    return config
+
+
+def get_config(overwrite: bool = False):
     """Get the config file path and return the configuration as a dictionary.
 
     If the config file does not exist, it prompts the user to enter
@@ -132,43 +160,42 @@ def get_config():
     file, decrypts them using a secret key, and returns the configuration
     as a dictionary.
 
+    Args:
+        overwrite (bool): If True, the config file will be overwritten.
+
     Returns:
         dict: The configuration values as a dictionary.
-
     """
     # Get the config file path.
     DB_CONFIG_FILE = ".env"
     config_filepath = Path(__file__).resolve().parent / DB_CONFIG_FILE
 
     # Check if a config file exists.
-    if not config_filepath.is_file():
+    if not config_filepath.is_file() or overwrite:
         # Use CLI to create a config file.
         config = get_credentials_cli()
 
-        # Create a secret key.
-        secret_key = get_key()
-
-        # Write the config file.
-        with open(config_filepath, "w") as f:
-            for key, value in config.items():   # type: ignore
-                encrypted_value = encrypt_data(value, secret_key)
-                f.write(f"{key}={encrypted_value.decode()}\n")
+        # Save the config to a file.
+        write_config(config_filepath, config)
 
     else:
         # Read the config file.
-        config_encrypted = dotenv_values(config_filepath)
-
-        # Get the secret key.
-        secret_key = get_key()
-
-        # Decrypt the credentials.
-        config = {}
-        for key, value in config_encrypted.items():
-            decrypted_value = decrypt_data(value, secret_key)
-            config[key] = decrypted_value.decode()
+        config = read_config(config_filepath)
 
     return config
 
 
+def update_config():
+    """Update the config file.
+
+    Returns:
+        dict: The configuration values as a dictionary.
+    """
+    overwrite = True
+    config = get_config(overwrite)
+    return config
+
+
 if __name__ == "__main__":
-    get_config()
+    # Update the config file.
+    config = update_config()
