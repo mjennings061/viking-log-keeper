@@ -6,15 +6,15 @@ import inquirer
 from pathlib import Path
 from dotenv import dotenv_values
 from cryptography.fernet import Fernet
+from log_keeper.utils import get_log_sheets_path
 
 # Constants.
 KEY_FILE = "secret.key"
 
 
-def remove_key():
+def remove_key_file():
     """Remove the key file."""
-    if Path(KEY_FILE).is_file():
-        Path(KEY_FILE).unlink()
+    Path(KEY_FILE).unlink(missing_ok=True)
 
 
 def get_key():
@@ -173,7 +173,11 @@ def get_config(overwrite: bool = False):
     # Check if a config file exists.
     if not config_filepath.is_file() or overwrite:
         # Use CLI to create a config file.
+        remove_key_file()
         config = get_credentials_cli()
+
+        # Get path to log sheets folder.
+        config["LOG_SHEETS_DIR"] = str(get_log_sheets_path())
 
         # Save the config to a file.
         write_config(config_filepath, config)

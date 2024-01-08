@@ -3,6 +3,7 @@
 This file handles outputting the master log to excel and MongoDB Atlas.
 """
 
+import logging
 from pathlib import Path
 import pandas as pd
 from datetime import datetime
@@ -23,12 +24,12 @@ def launches_to_excel(launches_df, output_file_path):
     except Exception as e:
         # Writing to MASTER_LOG didn't work. We will need to create a temp
         # file to copy and paste.
-        print(e)
+        logging.exception(e)
         # Get new path using todays date.
         date = datetime.today().strftime('%y%m%d')
         output_file_path = output_file_path.with_suffix('')
         output_file_path = Path(str(output_file_path) + '-' + date + '.xlsx')
-        print(f"{PROJECT_NAME}: Writing to ")
+        logging.info(f"{PROJECT_NAME}: Writing to {output_file_path.name}")
         writer = pd.ExcelWriter(output_file_path, engine='xlsxwriter')
 
     launches_df.to_excel(
@@ -69,7 +70,7 @@ def launches_to_excel(launches_df, output_file_path):
     writer.close()
 
     # Print success message.
-    print(f"{PROJECT_NAME}: Saved to {output_file_path.name}")
+    logging.info(f"{PROJECT_NAME}: Saved to {output_file_path.name}")
 
 
 def launches_to_db(launches_df, db_config):
@@ -93,7 +94,7 @@ def launches_to_db(launches_df, db_config):
 
     # Print success message if ping is successful.
     if client.admin.command('ping')['ok'] == 1.0:
-        print(f"{PROJECT_NAME}: Connected to DB.")
+        logging.info(f"{PROJECT_NAME}: Connected to DB.")
     else:
         raise ConnectionError(f"{PROJECT_NAME}: Could not connect to DB.")
 
@@ -122,7 +123,7 @@ def launches_to_db(launches_df, db_config):
     # Save to the DB.
     collection = db.create_collection(DB_COLLECTION_NAME)
     collection.insert_many(master_dict)
-    print(f"{PROJECT_NAME}: Saved to DB.")
+    logging.info(f"{PROJECT_NAME}: Saved to DB.")
 
     # Close DB session.
     client.close()

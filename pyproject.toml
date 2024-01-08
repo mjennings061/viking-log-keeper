@@ -23,6 +23,7 @@ cryptography = "^41.0.7"
 python-dotenv = "^1.0.0"
 inquirer = "^3.1.4"
 openpyxl = "^3.1.2"
+logging = "^0.4.9.6"
 
 [tool.poetry.urls]
 homepage = "https://github.com/mjennings061/viking-log-keeper"
