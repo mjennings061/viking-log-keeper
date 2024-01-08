@@ -46,6 +46,8 @@ python -m pip install viking-log-keeper
 
 ## Usage
 
+### Normal Usage
+
 1. Following installation, run the log keeper function:
 
 ```bash
@@ -55,6 +57,20 @@ update-logs
 2. Enter the credentials of your database. The URL can be found in the "Database > Overview > Connect" menu:
 
 ![image](https://github.com/mjennings061/viking-log-keeper/assets/24479573/7b91cde7-aa26-4bc3-8f85-5c37893aceee)
+
+### Debugging
+
+1. To update your database configuration, run the following command:
+
+```bash
+update-config
+```
+
+2. To update your log sheet location, run the following command:
+
+```bash
+update-log-sheet-location
+```
 
 ## Contribution
 

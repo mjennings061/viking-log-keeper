@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "viking-log-keeper"
-version = "0.6.0"
+version = "0.7.0"
 description = "661 VGS - Function to collate 2965D log sheets into a master log and database."
 authors = ["Michael Jennings <mjennings061@gmail.com>"]
 license = "MIT"
@@ -23,6 +23,7 @@ cryptography = "^41.0.7"
 python-dotenv = "^1.0.0"
 inquirer = "^3.1.4"
 openpyxl = "^3.1.2"
+logging = "^0.4.9.6"
 
 [tool.poetry.urls]
 homepage = "https://github.com/mjennings061/viking-log-keeper"
@@ -30,6 +31,8 @@ repository = "https://github.com/mjennings061/viking-log-keeper.git"
 
 [tool.poetry.scripts]
 update-logs = "log_keeper.main:main"
+update-config = "log_keeper.get_config:update_config"
+update-log-sheet-location = "log_keeper.get_config:update_log_sheet_location"
 
 [build-system]
 requires = ["poetry-core"]
