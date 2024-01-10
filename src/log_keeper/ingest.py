@@ -3,8 +3,10 @@
 This file handles log sheet extraction and sanitisation.
 """
 
+import logging
 import warnings
 import pandas as pd
+from log_keeper.utils import PROJECT_NAME
 
 
 def ingest_log_sheet(file_path):
@@ -113,6 +115,7 @@ def collate_log_sheets(dir_path):
         FileNotFoundError: If no log sheets are found in the
             specified directory.
     """
+    logging.info(f"{PROJECT_NAME}: Collating log sheets...")
     # Get the directory contents.
     FILE_NAME = "2965D_*.xlsx"
     dir_contents = dir_path.glob(f"{FILE_NAME}")
