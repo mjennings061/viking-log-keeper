@@ -1,2 +1,0 @@
-# requirements.txt
-pymongo==4.6.1
