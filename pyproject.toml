@@ -25,6 +25,7 @@ inquirer = "^3.1.4"
 openpyxl = "^3.1.2"
 logging = "^0.4.9.6"
 streamlit = "^1.31.0"
+matplotlib = "^3.8.0"
 
 [tool.poetry.urls]
 homepage = "https://github.com/mjennings061/viking-log-keeper"
