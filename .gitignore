@@ -170,3 +170,6 @@ secret.key
 
 # Poetry file.
 poetry.lock
+
+#streamlit stuff
+secrets.toml
