@@ -35,6 +35,7 @@ repository = "https://github.com/mjennings061/viking-log-keeper.git"
 update-logs = "log_keeper.main:main"
 update-config = "log_keeper.get_config:update_config"
 update-log-sheet-location = "log_keeper.get_config:update_log_sheet_location"
+viking-dashboard = "streamlit run src/dashboard/dashboard.py"
 
 [build-system]
 requires = ["poetry-core"]
