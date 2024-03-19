@@ -116,7 +116,11 @@ def connect_to_db(db_config):
         "/?retryWrites=true&w=majority"
 
     # Create a new client and connect to the server
-    client = MongoClient(db_url, server_api=ServerApi('1'))
+    client = MongoClient(db_url,
+                         server_api=ServerApi('1'),
+                         tls=True,
+                         tlsAllowInvalidCertificates=True
+    )
 
     # Print success message if ping is successful.
     if client.admin.command('ping')['ok'] == 1.0:
