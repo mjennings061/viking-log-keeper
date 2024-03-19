@@ -62,25 +62,30 @@ def fetch_data_from_mongodb() -> pd.DataFrame:
     Returns:
         pd.DataFrame: The data from MongoDB."""
 
-    # Construct the MongoDB connection URI
-    db_config = get_config()
-    db_hostname = db_config["DB_HOSTNAME"]
-    db_username = db_config["DB_USERNAME"]
-    db_password = db_config["DB_PASSWORD"]
-    db_collection_name = db_config["DB_COLLECTION_NAME"]
-    db_name = db_config["DB_NAME"]
+    try:
+        # Construct the MongoDB connection URI
+        db_config = get_config()
+        db_hostname = db_config["DB_HOSTNAME"]
+        db_username = db_config["DB_USERNAME"]
+        db_password = db_config["DB_PASSWORD"]
+        db_collection_name = db_config["DB_COLLECTION_NAME"]
+        db_name = db_config["DB_NAME"]
 
-    # Create the DB connection URL
-    db_url = f"mongodb+srv://{db_username}:{db_password}@{db_hostname}" + \
-        "/?retryWrites=true&w=majority"
+        # Create the DB connection URL
+        db_url = f"mongodb+srv://{db_username}:{db_password}@{db_hostname}" + \
+            "/?retryWrites=true&w=majority"
 
-    # Connect to MongoDB
-    client = pymongo.MongoClient(db_url)
-    db = client[db_name]
-    collection = db[db_collection_name]
+        # Connect to MongoDB
+        client = pymongo.MongoClient(db_url)
+        db = client[db_name]
+        collection = db[db_collection_name]
 
-    # Convert list of dictionaries to DataFrame
-    df = pd.DataFrame(collection.find())
+        # Convert list of dictionaries to DataFrame
+        df = pd.DataFrame(collection.find())
+
+    except Exception as e:  # pylint: disable=broad-except
+        st.error(f"Error: {e}")
+        df = pd.DataFrame()
     return df
 
 
@@ -199,9 +204,9 @@ def main():
         st.session_state.df = fetch_data_from_mongodb()
 
     # Refresh data button.
-    if st.button("Refresh Data"):
+    if st.button("🔃 Refresh Data"):
         st.session_state.df = fetch_data_from_mongodb()
-        st.success("Data Refreshed!")
+        st.success("Data Refreshed!", icon="✅")
 
     # Get the data from the session state.
     df = st.session_state.df
