@@ -8,7 +8,7 @@ import altair as alt
 from log_keeper.get_config import get_config
 
 
-def format_data_for_table(raw_df):
+def format_data_for_table(raw_df: pd.DataFrame) -> pd.DataFrame:
     """Format the data for display in Streamlit.
     Args:
         data_df (pd.DataFrame): The data to be formatted.
@@ -57,7 +57,7 @@ def format_data_for_table(raw_df):
     return data_df
 
 
-def fetch_data_from_mongodb():
+def fetch_data_from_mongodb() -> pd.DataFrame:
     """Fetch data from MongoDB and return as a DataFrame.
     Returns:
         pd.DataFrame: The data from MongoDB."""
@@ -84,7 +84,7 @@ def fetch_data_from_mongodb():
     return df
 
 
-def plot_launches_by_commander(df):
+def plot_launches_by_commander(df: pd.DataFrame):
     """ Plot the number of launches by AircraftCommander.
 
     Args:
@@ -111,18 +111,25 @@ def plot_launches_by_commander(df):
         titleFontSize=14
     )
 
+    # Display the chart in Streamlit.
     st.altair_chart(chart, use_container_width=True)
 
 
-def show_launches_by_commander(df, commander):
+def show_launches_by_commander(df: pd.DataFrame, commander: str):
     """Show the number of launches by AircraftCommander in a table.
 
     Args:
         df (pd.DataFrame): The data to be displayed.
         commander (str): The AircraftCommander to filter by.
     """
-    # Filter the data by AircraftCommander
-    filtered_df = df[df["AircraftCommander"] == commander]
+    # Filter the data by AircraftCommander, if specified.
+    if commander:
+        filtered_df = df[df["AircraftCommander"] == commander]
+    else:
+        filtered_df = df
+        commander = "All"
+
+    # Format the data for display in Streamlit.
     display_df = format_data_for_table(filtered_df)
     st.header("Logbook Helper")
     st.text(f"Launches by {commander}")
@@ -133,11 +140,59 @@ def show_launches_by_commander(df, commander):
     )
 
 
+def date_filter(df: pd.DataFrame) -> pd.DataFrame:
+    """Filter the data by date.
+
+    Args:
+        df (pd.DataFrame): The data to be filtered.
+
+    Returns:
+        pd.DataFrame: The filtered data.
+    """
+    # Add a date filter to the sidebar.
+    st.sidebar.markdown("## Date Filter")
+
+    # Get the date range from the user.
+    min_date = df["Date"].min()
+    max_date = df["Date"].max()
+
+    # Add a date filter to the sidebar.
+    start_date = st.sidebar.date_input(
+        "Start Date",
+        value=min_date,
+        min_value=min_date,
+        max_value=max_date,
+        help="Select the start date",
+    )
+    end_date = st.sidebar.date_input(
+        "End Date",
+        value=max_date,
+        min_value=min_date,
+        max_value=max_date,
+        help="Select the end date",
+    )
+
+    # Convert the date to a pandas datetime object.
+    start_date = pd.to_datetime(start_date)
+    end_date = pd.to_datetime(end_date)
+
+    # Validate the date range.
+    if start_date <= end_date:
+        # Filter the data by the date range.
+        filtered_df = df[
+            (df["Date"] >= start_date) & (df["Date"] <= end_date)
+        ]
+    else:
+        st.error("Error: End date must fall after start date.")
+        filtered_df = df
+    return filtered_df
+
+
 def main():
     """Main Streamlit App Code."""
     # Set the page title.
     st.markdown("# 661 VGS Dashboard")
-    st.sidebar.markdown("# 661 VGS Dashboard")
+    st.sidebar.markdown("# Dashboard Filters")
 
     # Fetch data from MongoDB
     if "df" not in st.session_state:
@@ -154,14 +209,20 @@ def main():
     # Filter by AircraftCommander.
     commander = st.sidebar.selectbox(
         "Filter by AircraftCommander",
-        df["AircraftCommander"].unique()
+        sorted(df["AircraftCommander"].unique()),
+        index=None,
+        help="Select the AircraftCommander to filter by.",
+        placeholder="All",
     )
 
+    # Add a date filter to the sidebar.
+    filtered_df = date_filter(df)
+
     # Plot the number of launches by unique AircraftCommander.
-    plot_launches_by_commander(df)
+    plot_launches_by_commander(filtered_df)
 
     # Logbook helper by AircraftCommander.
-    show_launches_by_commander(df, commander)
+    show_launches_by_commander(filtered_df, commander)
 
 
 if __name__ == '__main__':
