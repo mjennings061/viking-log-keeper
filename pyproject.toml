@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "viking-log-keeper"
 version = "0.9.0"
-description = "661 VGS - Function to collate 2965D log sheets into a master log and database."
+description = "661 VGS - Function to collate 2965D log sheets into a master log, database, and dashboard."
 authors = ["Michael Jennings <mjennings061@gmail.com>"]
 license = "MIT"
 readme = "README.md"
