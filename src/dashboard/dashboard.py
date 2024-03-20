@@ -1,11 +1,12 @@
 """dashboard.py - Streamlit app for displaying the stats dashboard.
 """
 
+import subprocess
 import pymongo
 import streamlit as st
 import pandas as pd
 import altair as alt
-from log_keeper.get_config import get_config
+from log_keeper.get_config import Config
 
 
 def format_data_for_table(raw_df: pd.DataFrame) -> pd.DataFrame:
@@ -64,21 +65,21 @@ def fetch_data_from_mongodb() -> pd.DataFrame:
 
     try:
         # Construct the MongoDB connection URI
-        db_config = get_config()
-        db_hostname = db_config["DB_HOSTNAME"]
-        db_username = db_config["DB_USERNAME"]
-        db_password = db_config["DB_PASSWORD"]
-        db_collection_name = db_config["DB_COLLECTION_NAME"]
-        db_name = db_config["DB_NAME"]
+        db_config = Config()
+        if not db_config.validate():
+            db_config.update_credentials()
 
         # Create the DB connection URL
-        db_url = f"mongodb+srv://{db_username}:{db_password}@{db_hostname}" + \
+        db_url = (
+            f"mongodb+srv://{db_config.db_username}:"
+            f"{db_config.db_password}@{db_config.db_hostname}"
             "/?retryWrites=true&w=majority"
+        )
 
         # Connect to MongoDB
         client = pymongo.MongoClient(db_url)
-        db = client[db_name]
-        collection = db[db_collection_name]
+        db = client[db_config.db_name]
+        collection = db[db_config.db_collection_name]
 
         # Convert list of dictionaries to DataFrame
         df = pd.DataFrame(collection.find())
@@ -366,6 +367,12 @@ def main():
 
     with all_data_tab:
         plot_all_launches(filtered_df)
+
+
+def display_dashboard():
+    """Run the Streamlit app."""
+    subprocess.run(["streamlit", "run", "src/dashboard/dashboard.py"],
+                   check=True)
 
 
 if __name__ == '__main__':
