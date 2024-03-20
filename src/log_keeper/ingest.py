@@ -3,11 +3,14 @@
 This file handles log sheet extraction and sanitisation.
 """
 
-import warnings
+import sys
+import logging
 import pandas as pd
 
+logger = logging.getLogger(__name__)
 
-def ingest_log_sheet(file_path):
+
+def ingest_log_sheet(file_path: str) -> pd.DataFrame:
     """
     Extract data from an excel log sheet.
     Output a pandas dataframe.
@@ -122,15 +125,21 @@ def collate_log_sheets(dir_path):
     if not log_sheet_files:
         raise FileNotFoundError(f"No log sheets found in \n{dir_path}")
 
+    # Log the number of log sheets found.
+    n_files = len(log_sheet_files)
+    logger.info("Found %d log sheets.", n_files)
+
     # Extract data from each log sheet.
     log_sheet_df = pd.DataFrame()
-    for i_file, file_path in enumerate(log_sheet_files):
+    for i_file, file_path in enumerate(log_sheet_files, start=1):
         # Get the log sheet data.
+        sys.stdout.write(f"\rProcessing file {i_file}/{n_files}")
+        sys.stdout.flush()
         try:
             this_sheet_df = ingest_log_sheet(file_path)
             # TODO: Write a function to also ingest the launches
             # and hours CF for F724 if given.
-            if i_file == 0:
+            if i_file == 1:
                 # Create a new dataframe based on the first file ingest.
                 log_sheet_df = this_sheet_df
             else:
@@ -139,13 +148,15 @@ def collate_log_sheets(dir_path):
                     [log_sheet_df, this_sheet_df],
                     ignore_index=True
                 )
-        except Exception as e:
+        except Exception:   # pylint: disable=broad-except
             if file_path.name != "2965D_YYMMDD_ZEXXX.xlsx":
-                warnings.warn(
-                    f"Log sheet invalid: {file_path.name}",
-                    RuntimeWarning
-                )
-                print(e)
+                logger.warning("Log sheet invalid: %s",
+                               file_path.name,
+                               exc_info=True)
 
+    sys.stdout.write("\nDone processing files.\n")
+    sys.stdout.flush()
+
+    # Sanitise the log sheets.
     collated_df = sanitise_log_sheets(log_sheet_df)
     return collated_df

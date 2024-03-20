@@ -3,12 +3,15 @@
 This file contains utility functions and constants."""
 
 # Get packages.
-import inquirer
 import logging
 from pathlib import Path
+import inquirer
 
 # Constants.
 PROJECT_NAME = "viking-log-keeper"
+
+# Set up logging.
+logger = logging.getLogger(__name__)
 
 
 def verify_directory_path(path):
@@ -22,7 +25,7 @@ def verify_directory_path(path):
         bool: True if the path is a directory, otherwise False.
     """
     if path.is_dir() is False:
-        logging.warning(f"{PROJECT_NAME}: {path} is not a directory.")
+        logger.warning("%s is not a directory.", path)
         return False
     else:
         return True
@@ -40,7 +43,9 @@ def prompt_directory_path():
         inquirer.Text(
             'path',
             message="Enter the path to the Documents directory " +
-                    "e.g. C:\\Users\\YOUR_USERNAME\\OneDrive\\Documents\n"
+                    "e.g. C:\\Users\\YOUR_USERNAME\\OneDrive\\Documents\n",
+            validate=lambda _, x: Path(x).is_dir(
+            ) or "Path does not exist or is not a directory.",
         )
     ]
     answers = inquirer.prompt(questions)
@@ -61,14 +66,14 @@ def find_directory(start_path, search_string):
     found_dir = None
 
     # Search for the directory.
-    for dir in start_path.iterdir():
-        if dir.is_dir() and search_string in dir.name:
-            found_dir = dir
+    for directory in start_path.iterdir():
+        if directory.is_dir() and search_string in directory.name:
+            found_dir = directory
             break
 
     if found_dir is None:
         # We didn't find the directory.
-        logging.warning(f"{PROJECT_NAME}: Could not find {search_string}.")
+        logger.warning("Could not find %s.", search_string)
 
     # Return the directory.
     return found_dir
@@ -81,18 +86,18 @@ def get_log_sheets_path():
         Path: The path to the OneDrive Documents directory.
     """
     # Name of the onedrive directory to search for.
-    ONEDRIVE_SEARCH_STRING = "Royal Air Force Air Cadets"
-    DOCUMENTS_SEARCH_STRING = "Documents"
+    onedrive_search_string = "Royal Air Force Air Cadets"
+    documents_search_string = "Documents"
 
     # Search for the onedrive from home.
     root_dir = Path.home()
     log_sheets_dir = Path()
 
     try:
-        onedrive_path = find_directory(root_dir, ONEDRIVE_SEARCH_STRING)
+        onedrive_path = find_directory(root_dir, onedrive_search_string)
 
         # Now get the path to the documents directory.
-        documents_path = find_directory(onedrive_path, DOCUMENTS_SEARCH_STRING)
+        documents_path = find_directory(onedrive_path, documents_search_string)
 
         # Now attempt to resolve the log sheets directory.
         log_sheets_dir = Path(
@@ -101,9 +106,9 @@ def get_log_sheets_path():
             "Log Sheets"
         )
 
-    except Exception:
-        logging.info(f"{PROJECT_NAME}: " +
-                     "Could not find 'Log Sheets' directory automatically.")
+    except Exception:  # pylint: disable=broad-except
+        logger.info("Could not find 'Log Sheets' directory automatically. ",
+                    exc_info=True)
 
     # Prompt the user to enter the path to the documents directory.
     while verify_directory_path(log_sheets_dir) is False:
