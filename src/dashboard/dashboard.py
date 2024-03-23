@@ -224,7 +224,6 @@ def authenticate():
 
 def main():
     """Main Streamlit App Code."""
-
     # Authenticate the user.
     authenticate()
 
