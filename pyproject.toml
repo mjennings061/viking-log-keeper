@@ -11,7 +11,8 @@ classifiers = [
     "Operating System :: OS Independent"
 ]
 packages = [
-    { include = "log_keeper", from = "src" }
+    { include = "log_keeper", from = "src" },
+    { include = "dashboard", from = "src" }
 ]
 
 [tool.poetry.dependencies]
