@@ -16,6 +16,7 @@ packages = [
 ]
 
 [tool.poetry.dependencies]
+extra-streamlit-components = "^0.1.70"
 inquirer = "^3.2.0"
 keyring = "^24.3.0"
 logging = "^0.4.9.6"

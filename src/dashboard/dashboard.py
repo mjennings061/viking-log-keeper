@@ -1,10 +1,15 @@
 """dashboard.py - Streamlit app for displaying the stats dashboard.
 """
 
+# Import modules.
 import subprocess
+from datetime import datetime, timedelta
 import pymongo
 import streamlit as st
+from extra_streamlit_components import CookieManager
 import pandas as pd
+
+# User defined modules.
 from log_keeper.get_config import Config
 from src.dashboard.plots import plot_launches_by_commander
 from src.dashboard.plots import plot_all_launches, quarterly_summary
@@ -173,31 +178,58 @@ def check_password(password: str) -> bool:
     return authenticated
 
 
-def main():
-    """Main Streamlit App Code."""
+def authenticate():
+    """Prompt and authenticate."""
+    # Create a cookie manager.
+    cookie_manager = CookieManager()
+
     # Add auth to session state.
     if "authenticated" not in st.session_state:
         st.session_state["authenticated"] = False
 
-    # Check if the user is authenticated.
-    if not st.session_state["authenticated"]:
-        # Show the password form.
-        st.subheader("VGS Dashboard")
-        password = st.text_input("Password", type="password")
+    if st.session_state["authenticated"]:
+        return
 
-        # Validate the password.
-        if st.button("Enter"):
-            valid_login = check_password(password)
-            if valid_login:
-                # User is authenticated remove the form.
-                st.session_state["authenticated"] = True
+    # Attempt to read the authenticated cookie.
+    authenticated_cookie = cookie_manager.get(cookie="vgs_auth")
+    if authenticated_cookie:
+        # Cookie read successfully.
+        st.session_state["authenticated"] = True
+        st.toast("Login successful", icon="🍪")
+        return
 
-                # Rerun the app to show the dashboard.
-                st.experimental_rerun()
-            else:
-                st.error("Invalid Password")
-    else:
-        # User is authenticated display the dashboard.
+    # No cookie present, authenticate.
+    st.subheader("VGS Dashboard")
+    password = st.text_input("Password", type="password")
+
+    # Validate the password.
+    if st.button("Enter"):
+        valid_login = check_password(password)
+        if valid_login:
+            # User is authenticated remove the form.
+            st.session_state["authenticated"] = True
+            st.toast("Login successful")
+
+            # User is authenticated, set the authenticated cookie.
+            expires_at = datetime.now() + timedelta(days=90)
+            cookie_manager.set(
+                "vgs_auth",
+                "true",
+                expires_at=expires_at
+            )  # Expires in 90 days
+
+        else:
+            st.error("Invalid Password")
+
+
+def main():
+    """Main Streamlit App Code."""
+
+    # Authenticate the user.
+    authenticate()
+
+    # User is authenticated display the dashboard.
+    if st.session_state.get("authenticated"):
         show_data_dashboard()
 
 
