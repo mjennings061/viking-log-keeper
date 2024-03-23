@@ -45,7 +45,7 @@ def format_data_for_table(raw_df: pd.DataFrame) -> pd.DataFrame:
 
     # Convert the FlightTime (minutes) to a string in HH:MM format.
     data_df["FlightTime"] = data_df["FlightTime"].apply(
-        lambda x: f"{x//60}:{x%60:02d}"
+        lambda x: f"{x//60}:{x % 60:02d}"
     )
 
     # Reorder the columns
@@ -266,7 +266,7 @@ def quarterly_summary(df: pd.DataFrame,
 
     # Convert the FlightTime (minutes) to a string in HH:MM format.
     summary["Hours"] = summary["Hours"].apply(
-        lambda x: f"{x//60}:{x%60:02d}"
+        lambda x: f"{x//60}:{x % 60:02d}"
     )
 
     # Display the summary table.
@@ -292,7 +292,7 @@ def plot_all_launches(df: pd.DataFrame):
 
     # Convert the FlightTime (minutes) to a string in HH:MM format.
     df["FlightTime"] = df["FlightTime"].apply(
-        lambda x: f"{x//60}:{x%60:02d}"
+        lambda x: f"{x//60}:{x % 60:02d}"
     )
 
     # Format TakeOffTime and LandingTime.
