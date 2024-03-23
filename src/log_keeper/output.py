@@ -9,7 +9,8 @@ import pandas as pd
 from datetime import datetime
 from pymongo.mongo_client import MongoClient
 from pymongo.server_api import ServerApi
-from log_keeper.utils import PROJECT_NAME
+
+logger = logging.getLogger(__name__)
 
 
 def launches_to_excel(launches_df, output_file_path):
@@ -21,17 +22,18 @@ def launches_to_excel(launches_df, output_file_path):
     # Create the excel file and table.
     try:
         writer = pd.ExcelWriter(output_file_path, engine='xlsxwriter')
-    except Exception as e:
+    except Exception:
         # Writing to MASTER_LOG didn't work. We will need to create a temp
         # file to copy and paste.
-        logging.exception(e)
+        logger.error("Could not write to MASTER_LOG.xlsx. ", exc_info=True)
         # Get new path using todays date.
         date = datetime.today().strftime('%y%m%d')
         output_file_path = output_file_path.with_suffix('')
         output_file_path = Path(str(output_file_path) + '-' + date + '.xlsx')
-        logging.info(f"{PROJECT_NAME}: Writing to {output_file_path.name}")
+        logger.info("Writing to %s", output_file_path.name)
         writer = pd.ExcelWriter(output_file_path, engine='xlsxwriter')
 
+    # Write the dataframe to the Excel file.
     launches_df.to_excel(
         writer,
         sheet_name=SHEET_NAME,
@@ -70,40 +72,41 @@ def launches_to_excel(launches_df, output_file_path):
     writer.close()
 
     # Print success message.
-    logging.info(f"{PROJECT_NAME}: Saved to {output_file_path.name}")
+    logger.info("Saved to %s", output_file_path.name)
 
 
 def launches_to_db(launches_df, db_config):
     """Save the master log dataframe to a MongoDB."""
     # Get environment variables.
-    DB_HOSTNAME = db_config["DB_HOSTNAME"]
-    DB_USERNAME = db_config["DB_USERNAME"]
-    DB_PASSWORD = db_config["DB_PASSWORD"]
-    DB_COLLECTION_NAME = db_config["DB_COLLECTION_NAME"]
-    DB_NAME = db_config["DB_NAME"]
+    db_hostname = db_config.db_hostname
+    db_username = db_config.db_username
+    db_password = db_config.db_password
+    db_collection_name = db_config.db_collection_name
+    db_name = db_config.db_name
 
     # Format dataframe to be saved.
     master_dict = launches_df.to_dict('records')
 
     # Create the DB connection URL
-    db_url = f"mongodb+srv://{DB_USERNAME}:{DB_PASSWORD}@{DB_HOSTNAME}" + \
+    db_url = f"mongodb+srv://{db_username}:{db_password}@{db_hostname}" + \
         "/?retryWrites=true&w=majority"
 
     # Create a new client and connect to the server
-    client = MongoClient(db_url,
-                         server_api=ServerApi('1'),
-                         tls=True,
-                         tlsAllowInvalidCertificates=True
+    client = MongoClient(
+        db_url,
+        server_api=ServerApi('1'),
+        tls=True,
+        tlsAllowInvalidCertificates=True
     )
 
     # Print success message if ping is successful.
     if client.admin.command('ping')['ok'] == 1.0:
-        logging.info(f"{PROJECT_NAME}: Connected to DB.")
+        logger.info("Connected to DB.")
     else:
-        raise ConnectionError(f"{PROJECT_NAME}: Could not connect to DB.")
+        raise ConnectionError("Could not connect to DB.")
 
     # Get the database.
-    db = client[DB_NAME]
+    db = client[db_name]
 
     # Get all collections in the DB.
     collections = db.list_collection_names()
@@ -113,21 +116,22 @@ def launches_to_db(launches_df, db_config):
     today = datetime.today().strftime('%y%m%d')
 
     # Create collection search string.
-    collection_search_string = f"{DB_COLLECTION_NAME}_{today}"
+    collection_search_string = f"{db_collection_name}_{today}"
 
     # Check if the backup exists and replace it.
     if collection_search_string in collections:
         db.drop_collection(collection_search_string)
 
     # Rename the old collection.
-    if DB_COLLECTION_NAME in collections:
-        old_collection = db[DB_COLLECTION_NAME]
+    if db_collection_name in collections:
+        old_collection = db[db_collection_name]
         old_collection.rename(collection_search_string)
 
     # Save to the DB.
-    collection = db.create_collection(DB_COLLECTION_NAME)
+    logger.info("Saving to DB.")
+    collection = db.create_collection(db_collection_name)
     collection.insert_many(master_dict)
-    logging.info(f"{PROJECT_NAME}: Saved to DB.")
+    logger.info("Saved to DB.")
 
     # Close DB session.
     client.close()
