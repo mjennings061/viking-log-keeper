@@ -11,9 +11,9 @@ import pandas as pd
 
 # User defined modules.
 from log_keeper.get_config import Config
-from src.dashboard.plots import plot_launches_by_commander
-from src.dashboard.plots import plot_all_launches, quarterly_summary
-from src.dashboard.plots import show_logbook_helper
+from dashboard.plots import plot_launches_by_commander
+from dashboard.plots import plot_all_launches, quarterly_summary
+from dashboard.plots import show_logbook_helper
 
 
 def fetch_data_from_mongodb() -> pd.DataFrame:
