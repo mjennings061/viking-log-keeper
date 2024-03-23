@@ -4,9 +4,9 @@
 from pathlib import Path
 from dataclasses import dataclass, field
 from typing import Optional
-import streamlit as st
 import inquirer
 import keyring
+import keyring.backends
 import logging
 
 # Get packages from the log_keeper package.
@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 class Config:
     """Data class to store the configuration values."""
     # Define fields with default values of None
+    print("Available backends:", keyring.backend.get_all_keyring())
     db_hostname: Optional[str] = field(default=None)
     db_username: Optional[str] = field(default=None)
     db_password: Optional[str] = field(default=None)
@@ -29,25 +30,14 @@ class Config:
 
     def __post_init__(self):
         logging.info("Loading config...")
-
-        # Try to load from Streamlit secrets first.
-        secrets = st.secrets if hasattr(st, 'secrets') else {}
-        print("Available backends:", keyring.backend.get_all_keyring())
-
         # Attempt to fetch each configuration from Streamlit secrets, 
         # fallback to keyring if not available
-        self.db_hostname = secrets.get("db_hostname") or \
-            keyring.get_password(PROJECT_NAME, "db_hostname")
-        self.db_username = secrets.get("db_username") or \
-            keyring.get_password(PROJECT_NAME, "db_username")
-        self.db_password = secrets.get("db_password") or \
-            keyring.get_password(PROJECT_NAME, "db_password")
-        self.db_name = secrets.get("db_name") or \
-            keyring.get_password(PROJECT_NAME, "db_name")
-        self.db_collection_name = secrets.get("db_collection_name") \
-            or keyring.get_password(PROJECT_NAME, "db_collection_name")
-        self.log_sheets_dir = secrets.get("log_sheets_dir") or \
-            keyring.get_password(PROJECT_NAME, "log_sheets_dir")
+        self.db_hostname = keyring.get_password(PROJECT_NAME, "db_hostname")
+        self.db_username = keyring.get_password(PROJECT_NAME, "db_username")
+        self.db_password = keyring.get_password(PROJECT_NAME, "db_password")
+        self.db_name = keyring.get_password(PROJECT_NAME, "db_name")
+        self.db_collection_name = keyring.get_password(PROJECT_NAME, "db_collection_name")
+        self.log_sheets_dir = keyring.get_password(PROJECT_NAME, "log_sheets_dir")
 
         # Validate config after loading
         self.validate()
