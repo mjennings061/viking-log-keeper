@@ -1,2 +1,3 @@
 gnome-keyring
 libsecret-1-0
+libsecret-1-dev
