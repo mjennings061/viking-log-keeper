@@ -2,9 +2,11 @@
 
 # Get packages.
 from pathlib import Path
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import Optional
+import streamlit as st
 import inquirer
-import keyring
+import keyring as kr
 import logging
 
 # Get packages from the log_keeper package.
@@ -17,16 +19,45 @@ logger = logging.getLogger(__name__)
 @dataclass
 class Config:
     """Data class to store the configuration values."""
-    # Get the credentials from the keyring.
-    # Note: The keyring returns None if the key is not found.
-    logger.info("Loading config...")
-    db_hostname: str = keyring.get_password(PROJECT_NAME, "db_hostname")
-    db_username: str = keyring.get_password(PROJECT_NAME, "db_username")
-    db_password: str = keyring.get_password(PROJECT_NAME, "db_password")
-    db_name: str = keyring.get_password(PROJECT_NAME, "db_name")
-    db_collection_name: str = keyring.get_password(PROJECT_NAME,
-                                                   "db_collection_name")
-    log_sheets_dir: str = keyring.get_password(PROJECT_NAME, "log_sheets_dir")
+    # Define fields with default values of None
+    db_hostname: Optional[str] = field(default=None)
+    db_username: Optional[str] = field(default=None)
+    db_password: Optional[str] = field(default=None)
+    db_name: Optional[str] = field(default=None)
+    db_collection_name: Optional[str] = field(default=None)
+    log_sheets_dir: Optional[str] = field(default=None)
+
+    def __post_init__(self):
+        logging.info("Loading config...")
+        self.load_config()
+        self.validate()
+
+    def load_config(self):
+        try:
+            logging.info("Using Streamlit secrets.")
+            self.db_hostname = st.secrets["db_hostname"]
+            self.db_username = st.secrets["db_username"]
+            self.db_password = st.secrets["db_password"]
+            self.db_name = st.secrets["db_name"]
+            self.db_collection_name = st.secrets["db_collection_name"]
+            self.log_sheets_dir = st.secrets["log_sheets_dir"]
+        except Exception:  # noqa: F841
+            logging.info("Using keyring to fetch config.")
+            self.load_from_keyring()
+
+    def load_from_keyring(self):
+        try:
+            self.db_hostname = kr.get_password(PROJECT_NAME, "db_hostname")
+            self.db_username = kr.get_password(PROJECT_NAME, "db_username")
+            self.db_password = kr.get_password(PROJECT_NAME, "db_password")
+            self.db_name = kr.get_password(PROJECT_NAME, "db_name")
+            self.db_collection_name = kr.get_password(PROJECT_NAME,
+                                                      "db_collection_name")
+            self.log_sheets_dir = kr.get_password(PROJECT_NAME,
+                                                  "log_sheets_dir")
+        except Exception as e:
+            logging.error(f"Failed to load from keyring: {e}")
+            # Handle failure to load from keyring here
 
     def validate(self):
         """Validate the configuration values."""
@@ -47,14 +78,14 @@ class Config:
     def save_credentials(self):
         """Save the credentials to the keyring."""
         logger.info("Saving credentials to keyring.")
-        keyring.set_password(PROJECT_NAME, "db_hostname", self.db_hostname)
-        keyring.set_password(PROJECT_NAME, "db_username", self.db_username)
-        keyring.set_password(PROJECT_NAME, "db_password", self.db_password)
-        keyring.set_password(PROJECT_NAME, "db_name", self.db_name)
-        keyring.set_password(PROJECT_NAME, "db_collection_name",
-                             self.db_collection_name)
-        keyring.set_password(PROJECT_NAME, "log_sheets_dir",
-                             self.log_sheets_dir)
+        kr.set_password(PROJECT_NAME, "db_hostname", self.db_hostname)
+        kr.set_password(PROJECT_NAME, "db_username", self.db_username)
+        kr.set_password(PROJECT_NAME, "db_password", self.db_password)
+        kr.set_password(PROJECT_NAME, "db_name", self.db_name)
+        kr.set_password(PROJECT_NAME, "db_collection_name",
+                        self.db_collection_name)
+        kr.set_password(PROJECT_NAME, "log_sheets_dir",
+                        self.log_sheets_dir)
         logger.info("Credentials saved.")
 
     def get_credentials_cli(self):
