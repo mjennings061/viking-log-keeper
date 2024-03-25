@@ -82,7 +82,7 @@ class Config:
 
         Returns:
             pymongo.MongoClient: The database."""
-        # Get  variables.
+        # Get variables.
         db_hostname = self.db_hostname
         db_username = self.db_username
         db_password = self.db_password
