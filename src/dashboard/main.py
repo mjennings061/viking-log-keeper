@@ -4,16 +4,82 @@
 # Import modules.
 import subprocess
 from datetime import datetime, timedelta
-import pymongo
+from dataclasses import dataclass, field
+from typing import Optional
+from pymongo.mongo_client import MongoClient
+from pymongo.server_api import ServerApi
 import streamlit as st
 from extra_streamlit_components import CookieManager
 import pandas as pd
+import logging
 
 # User defined modules.
 from log_keeper.get_config import Config
 from dashboard.plots import plot_launches_by_commander
 from dashboard.plots import plot_all_launches, quarterly_summary
 from dashboard.plots import show_logbook_helper
+
+# Set up logging.
+logger = logging.getLogger(__name__)
+
+
+@dataclass
+class AuthConfig:
+    """Data class to store the authentication configuration values."""
+    db_url: str = field(default=(
+        "mongodb+srv://vgs_user:<password>@auth.hr6kjov.mongodb.net"
+        "/?retryWrites=true&w=majority"
+    ))
+    db_name: str = field(default="auth")
+    db_collection_name: str = field(default="auth")
+    vgs: str = field(default=None)
+    password: Optional[str] = field(default=None)
+    authenticated: bool = field(default=False)
+    client: Optional[MongoClient] = field(default=None)
+
+    def login(self, password: str) -> bool:
+        """Validate the password.
+
+        Args:
+            password (str): The password to validate.
+
+        Returns:
+            bool: True if the password is correct.
+        """
+        # Replace the password in the URL.
+        self.password = password
+        self.db_url = self.db_url.replace("<password>", password)
+
+        # Connect to MongoDB.
+        self.client = MongoClient(
+            self.db_url,
+            server_api=ServerApi('1'),
+            tls=True,
+            tlsAllowInvalidCertificates=True
+        )
+
+        # Ping the server.
+        if self.client.admin.command('ping')['ok'] == 1.0:
+            logging.info("Connected to Auth DB.")
+            self.authenticated = True
+        else:
+            logging.error("Failed to connect to Auth DB.")
+            self.authenticated = False
+        return self.authenticated
+
+    def fetch_document(self):
+        """Fetch the document from MongoDB."""
+        if self.authenticated:
+            db = self.client[self.db_name]
+            collection = db[self.db_collection_name]
+            document = collection.find_one({"vgs": self.vgs})
+
+            # Ensure the allowed_vgs field contains the current VGS.
+            if self.vgs in document.get("allowed_vgs", []):
+                return document
+            else:
+                logging.error("VGS not allowed.")
+        return None
 
 
 def fetch_data_from_mongodb() -> pd.DataFrame:
@@ -27,16 +93,7 @@ def fetch_data_from_mongodb() -> pd.DataFrame:
         if not db_config.validate():
             db_config.update_credentials()
 
-        # Create the DB connection URL
-        db_url = (
-            f"mongodb+srv://{db_config.db_username}:"
-            f"{db_config.db_password}@{db_config.db_hostname}"
-            "/?retryWrites=true&w=majority"
-        )
-
-        # Connect to MongoDB
-        client = pymongo.MongoClient(db_url)
-        db = client[db_config.db_name]
+        db = db_config.connect_to_db()
         collection = db[db_config.db_collection_name]
 
         # Convert list of dictionaries to DataFrame
@@ -168,6 +225,7 @@ def check_password(password: str) -> bool:
     Returns:
         bool: True if the password is correct.
     """
+    # TODO: Update this to use the AuthConfig class.
     correct_password = st.secrets["dashboard_password"]
 
     # Check if the password is correct.
@@ -200,7 +258,14 @@ def authenticate():
 
     # No cookie present, authenticate.
     st.subheader("VGS Dashboard")
-    password = st.text_input("Password", type="password")
+
+    # Dropdown for selecting the VGS.
+    # TODO: Get list of VGS from the database using AuthConfig.
+    auth = AuthConfig()
+    vgs = st.selectbox("Select VGS", ["626VGS", "661VGS"], key="vgs")
+    # TODO: Start from here.
+    password = st.text_input("Password", type="password", key="password",
+                             on_change=auth.login())
 
     # Validate the password.
     if st.button("Enter"):
