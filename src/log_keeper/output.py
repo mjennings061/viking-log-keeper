@@ -7,8 +7,6 @@ import logging
 from pathlib import Path
 import pandas as pd
 from datetime import datetime
-from pymongo.mongo_client import MongoClient
-from pymongo.server_api import ServerApi
 
 logger = logging.getLogger(__name__)
 
@@ -77,36 +75,9 @@ def launches_to_excel(launches_df, output_file_path):
 
 def launches_to_db(launches_df, db_config):
     """Save the master log dataframe to a MongoDB."""
-    # Get environment variables.
-    db_hostname = db_config.db_hostname
-    db_username = db_config.db_username
-    db_password = db_config.db_password
-    db_collection_name = db_config.db_collection_name
-    db_name = db_config.db_name
-
     # Format dataframe to be saved.
     master_dict = launches_df.to_dict('records')
-
-    # Create the DB connection URL
-    db_url = f"mongodb+srv://{db_username}:{db_password}@{db_hostname}" + \
-        "/?retryWrites=true&w=majority"
-
-    # Create a new client and connect to the server
-    client = MongoClient(
-        db_url,
-        server_api=ServerApi('1'),
-        tls=True,
-        tlsAllowInvalidCertificates=True
-    )
-
-    # Print success message if ping is successful.
-    if client.admin.command('ping')['ok'] == 1.0:
-        logger.info("Connected to DB.")
-    else:
-        raise ConnectionError("Could not connect to DB.")
-
-    # Get the database.
-    db = client[db_name]
+    db = db_config.connect_to_db()
 
     # Get all collections in the DB.
     collections = db.list_collection_names()
@@ -116,22 +87,22 @@ def launches_to_db(launches_df, db_config):
     today = datetime.today().strftime('%y%m%d')
 
     # Create collection search string.
-    collection_search_string = f"{db_collection_name}_{today}"
+    collection_search_string = f"{db_config.db_collection_name}_{today}"
 
     # Check if the backup exists and replace it.
     if collection_search_string in collections:
         db.drop_collection(collection_search_string)
 
     # Rename the old collection.
-    if db_collection_name in collections:
-        old_collection = db[db_collection_name]
+    if db_config.db_collection_name in collections:
+        old_collection = db[db_config.db_collection_name]
         old_collection.rename(collection_search_string)
 
     # Save to the DB.
     logger.info("Saving to DB.")
-    collection = db.create_collection(db_collection_name)
+    collection = db.create_collection(db_config.db_collection_name)
     collection.insert_many(master_dict)
     logger.info("Saved to DB.")
 
     # Close DB session.
-    client.close()
+    db.close()

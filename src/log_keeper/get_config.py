@@ -5,6 +5,8 @@ from pathlib import Path
 from dataclasses import dataclass, field
 from typing import Optional
 import streamlit as st
+from pymongo.mongo_client import MongoClient
+from pymongo.server_api import ServerApi
 import inquirer
 import keyring as kr
 import logging
@@ -74,6 +76,39 @@ class Config:
             return False
         logger.info("Config valid.")
         return True
+
+    def connect_to_db(self):
+        """Connect to the MongoDB database.
+
+        Returns:
+            pymongo.MongoClient: The database."""
+        # Get environment variables.
+        db_hostname = self.db_hostname
+        db_username = self.db_username
+        db_password = self.db_password
+        db_name = self.db_name
+
+        # Create the DB connection URL.
+        db_url = f"mongodb+srv://{db_username}:{db_password}@{db_hostname}" + \
+            "/?retryWrites=true&w=majority"
+
+        # Create a new client and connect to the server.
+        client = MongoClient(
+            db_url,
+            server_api=ServerApi('1'),
+            tls=True,
+            tlsAllowInvalidCertificates=True
+        )
+
+        # Print success message if ping is successful.
+        if client.admin.command('ping')['ok'] == 1.0:
+            logger.info("Connected to DB.")
+        else:
+            raise ConnectionError("Could not connect to DB.")
+
+        # Get the database.
+        db = client[db_name]
+        return db
 
     def save_credentials(self):
         """Save the credentials to the keyring."""
