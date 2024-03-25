@@ -234,7 +234,7 @@ def main():
 
 def display_dashboard():
     """Run the Streamlit app."""
-    subprocess.run(["streamlit", "run", "src/dashboard/dashboard.py"],
+    subprocess.run(["streamlit", "run", "src/dashboard/main.py"],
                    check=True)
 
 
