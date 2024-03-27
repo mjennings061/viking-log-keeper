@@ -243,6 +243,16 @@ def show_data_dashboard(db_credentials: LogSheetConfig):
         placeholder="All",
     )
 
+    # Create a list of quarters from the data.
+    quarters = df["Date"].dt.to_period("Q").unique()
+
+    quarter = st.sidebar.selectbox(
+        "Select Quarter",
+        quarters,
+        index=None,
+        help="Select the quarter to display."
+    )
+
     # Add a date filter to the sidebar.
     filtered_df = date_filter(df)
 
@@ -261,15 +271,7 @@ def show_data_dashboard(db_credentials: LogSheetConfig):
         # for each AircraftCommander.
         st.sidebar.markdown("## Quarterly Summary")
 
-        # Create a list of quarters from the data.
-        quarters = filtered_df["Date"].dt.to_period("Q").unique()
-
-        quarter = st.sidebar.selectbox(
-            "Select Quarter",
-            quarters,
-            index=None,
-            help="Select the quarter to display."
-        )
+        
 
         # Filter the data by the selected quarter.
         if quarter and commander:
@@ -345,7 +347,12 @@ def main():
 
     # User is authenticated display the dashboard.
     if st.session_state["authenticated"]:
-        show_data_dashboard(st.session_state["log_sheet_db"])
+        try:
+            show_data_dashboard(st.session_state["log_sheet_db"])
+        except Exception:  # pylint: disable=broad-except
+            logging.error("Failed to display dashboard.", exc_info=True)
+            cookie_manager.delete("vgs_auth")
+            st.error("Failed to display dashboard.")
 
 
 def display_dashboard():
