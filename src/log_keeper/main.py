@@ -7,7 +7,7 @@ import logging
 from pathlib import Path
 
 # Get modules.
-from log_keeper.get_config import Config
+from log_keeper.get_config import LogSheetConfig
 from log_keeper.ingest import collate_log_sheets
 from log_keeper.output import launches_to_excel, launches_to_db
 
@@ -29,7 +29,7 @@ def main():
     logger.info("Starting...")
 
     # Load config.
-    db_config = Config()
+    db_config = LogSheetConfig()
     if not db_config.validate():
         # Get the credentials from the user.
         db_config.update_credentials()

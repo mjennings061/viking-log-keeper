@@ -3,7 +3,6 @@
 
 # Import modules.
 import subprocess
-from datetime import datetime, timedelta
 from dataclasses import dataclass, field
 from typing import Optional
 from pymongo.mongo_client import MongoClient
@@ -11,10 +10,12 @@ from pymongo.server_api import ServerApi
 import streamlit as st
 from extra_streamlit_components import CookieManager
 import pandas as pd
+import keyring as kr
 import logging
 
 # User defined modules.
-from log_keeper.get_config import Config
+from log_keeper.get_config import LogSheetConfig
+from log_keeper.utils import PROJECT_NAME
 from dashboard.plots import plot_launches_by_commander
 from dashboard.plots import plot_all_launches, quarterly_summary
 from dashboard.plots import show_logbook_helper
@@ -26,83 +27,138 @@ logger = logging.getLogger(__name__)
 @dataclass
 class AuthConfig:
     """Data class to store the authentication configuration values."""
-    db_url: str = field(default=(
+    # Constants.
+    db_name: str = field(default="auth")
+    db_collection_name: str = field(default="auth")
+    db_credentials_name: str = field(default="databases")
+    # Configurable fields.
+    auth_url: str = field(default=(
         "mongodb+srv://vgs_user:<password>@auth.hr6kjov.mongodb.net"
         "/?retryWrites=true&w=majority"
     ))
-    db_name: str = field(default="auth")
-    db_collection_name: str = field(default="auth")
     vgs: str = field(default=None)
     password: Optional[str] = field(default=None)
     authenticated: bool = field(default=False)
     client: Optional[MongoClient] = field(default=None)
+    connected: bool = field(default=False)
+    allowed_vgs: list = field(default_factory=list)
+    log_sheet_config: LogSheetConfig = field(default_factory=LogSheetConfig)
 
-    def login(self, password: str) -> bool:
-        """Validate the password.
+    def __post_init__(self):
+        """Load db_url from secrets or keyring."""
+        self.load_auth_url()
 
-        Args:
-            password (str): The password to validate.
+    def load_auth_url(self):
+        """Load the db_url from secrets or keyring."""
+        # Load auth password from secrets or keyring.
+        try:
+            auth_password = st.secrets["auth_password"]
+        except Exception:  # noqa: F841
+            auth_password = kr.get_password(PROJECT_NAME, "auth_password")
+
+        # TODO: Add config update.
+        if not auth_password:
+            logging.error("Failed to load auth password from secrets.")
+            return
+
+        # Set the auth_url.
+        self.auth_url = self.auth_url.replace("<password>", auth_password)
+
+    def _connect(self) -> bool:
+        """Connect to the DB.
 
         Returns:
-            bool: True if the password is correct.
+            bool: True if connected to the DB.
         """
-        # Replace the password in the URL.
-        self.password = password
-        self.db_url = self.db_url.replace("<password>", password)
-
         # Connect to MongoDB.
         self.client = MongoClient(
-            self.db_url,
+            self.auth_url,
             server_api=ServerApi('1'),
             tls=True,
             tlsAllowInvalidCertificates=True
         )
 
         # Ping the server.
-        if self.client.admin.command('ping')['ok'] == 1.0:
-            logging.info("Connected to Auth DB.")
-            self.authenticated = True
-        else:
-            logging.error("Failed to connect to Auth DB.")
-            self.authenticated = False
-        return self.authenticated
+        try:
+            if self.client.admin.command('ping')['ok'] == 1.0:
+                logging.info("Connected to Auth DB.")
+                self.connected = True
+            else:
+                logging.error("Failed to connect to Auth DB.")
+        except Exception:  # pylint: disable=broad-except
+            logging.error("Connection error", exc_info=True)
+        return self.connected
 
-    def fetch_document(self):
-        """Fetch the document from MongoDB."""
-        if self.authenticated:
+    def _login(self, vgs, password: str) -> bool:
+        """Login to the DB.
+
+        Args:
+            password (str): The password to check.
+
+        Returns:
+            bool: True if the password is correct.
+        """
+        # Set the DB credentials.
+        self.vgs = vgs
+        self.password = password
+
+        # Connect to the DB.
+        self._connect()
+
+        # Get the auth credentials from the DB.
+        if self.connected:
             db = self.client[self.db_name]
             collection = db[self.db_collection_name]
+
+            # Try to fetch the VGS document.
             document = collection.find_one({"vgs": self.vgs})
 
-            # Ensure the allowed_vgs field contains the current VGS.
-            if self.vgs in document.get("allowed_vgs", []):
-                return document
+            # Check the password.
+            if document and self.password == document.get("password"):
+                self.authenticated = True
+                self.allowed_vgs = document.get("allowed_vgs", [])
             else:
-                logging.error("VGS not allowed.")
-        return None
+                logging.error("Invalid username or password.")
+        return self.authenticated
 
+    def fetch_log_sheets_credentials(self, vgs: str,
+                                     password: str) -> dict:
+        """Fetch the log_sheets DB credentials from MongoDB.
 
-def fetch_data_from_mongodb() -> pd.DataFrame:
-    """Fetch data from MongoDB and return as a DataFrame.
-    Returns:
-        pd.DataFrame: The data from MongoDB."""
+        Args:
+            vgs (str): The VGS to fetch the credentials for.
+            password (str): The password to authenticate with.
 
-    try:
-        # Construct the MongoDB connection URI
-        db_config = Config()
-        if not db_config.validate():
-            db_config.update_credentials()
+        Returns:
+            dict: The log_sheets DB credentials."""
+        # Connect to the DB.
+        self._login(vgs, password)
 
-        db = db_config.connect_to_db()
-        collection = db[db_config.db_collection_name]
+        # Get the log_sheets credentials.
+        credentials = {}
+        if self.authenticated:
+            db = self.client[self.db_name]
+            collection = db[self.db_credentials_name]
 
-        # Convert list of dictionaries to DataFrame
-        df = pd.DataFrame(collection.find())
+            # Fetch the log_sheets credentials.
+            credentials = collection.find_one({"vgs": vgs.lower()})
+            logging.info("Fetched log_sheets credentials.")
 
-    except Exception as e:  # pylint: disable=broad-except
-        st.error(f"Error: {e}")
-        df = pd.DataFrame()
-    return df
+            # Pop the _id and vgs fields.
+            credentials.pop("_id", None)
+            credentials.pop("vgs", None)
+        else:
+            logging.error("Failed to fetch log_sheets credentials.")
+
+        # Close the connection.
+        self.close_connection()
+        return credentials
+
+    def close_connection(self):
+        """Close the connection to the DB."""
+        if self.client:
+            self.client.close()
+            logging.info("Closed connection to Auth DB.")
 
 
 def date_filter(df: pd.DataFrame) -> pd.DataFrame:
@@ -153,23 +209,26 @@ def date_filter(df: pd.DataFrame) -> pd.DataFrame:
     return filtered_df
 
 
-def show_data_dashboard():
-    """Display the dashboard."""
+def show_data_dashboard(db_credentials: LogSheetConfig):
+    """Display the dashboard.
+
+    Args:
+        db_credentials (dict): The database credentials."""
     # Set the page title.
     st.markdown("# 661 VGS Dashboard")
     st.sidebar.markdown("# Dashboard Filters")
 
     # Fetch data from MongoDB
     if "df" not in st.session_state:
-        st.session_state.df = fetch_data_from_mongodb()
+        st.session_state['df'] = db_credentials.fetch_data_from_mongodb()
 
     # Refresh data button.
     if st.button("🔃 Refresh Data"):
-        st.session_state.df = fetch_data_from_mongodb()
+        st.session_state.df = db_credentials.fetch_data_from_mongodb()
         st.success("Data Refreshed!", icon="✅")
 
     # Get the data from the session state.
-    df = st.session_state.df
+    df = st.session_state['df']
 
     # Filter by AircraftCommander.
     commander = st.sidebar.selectbox(
@@ -216,31 +275,8 @@ def show_data_dashboard():
         plot_all_launches(filtered_df)
 
 
-def check_password(password: str) -> bool:
-    """Returns true if the password is correct.
-
-    Args:
-        password (str): The password to check.
-
-    Returns:
-        bool: True if the password is correct.
-    """
-    # TODO: Update this to use the AuthConfig class.
-    correct_password = st.secrets["dashboard_password"]
-
-    # Check if the password is correct.
-    if password == correct_password:
-        authenticated = True
-    else:
-        authenticated = False
-    return authenticated
-
-
 def authenticate():
     """Prompt and authenticate."""
-    # Create a cookie manager.
-    cookie_manager = CookieManager()
-
     # Add auth to session state.
     if "authenticated" not in st.session_state:
         st.session_state["authenticated"] = False
@@ -249,6 +285,7 @@ def authenticate():
         return
 
     # Attempt to read the authenticated cookie.
+    cookie_manager = CookieManager()
     authenticated_cookie = cookie_manager.get(cookie="vgs_auth")
     if authenticated_cookie:
         # Cookie read successfully.
@@ -258,30 +295,35 @@ def authenticate():
 
     # No cookie present, authenticate.
     st.subheader("VGS Dashboard")
+    st.session_state["auth"] = AuthConfig()
 
     # Dropdown for selecting the VGS.
-    # TODO: Get list of VGS from the database using AuthConfig.
-    auth = AuthConfig()
-    vgs = st.selectbox("Select VGS", ["626VGS", "661VGS"], key="vgs")
-    # TODO: Start from here.
-    password = st.text_input("Password", type="password", key="password",
-                             on_change=auth.login())
+    st.text_input("Username", help="VGS e.g. '661VGS'", key="vgs")
+    st.text_input("Password", type="password", key="password")
 
     # Validate the password.
     if st.button("Enter"):
-        valid_login = check_password(password)
-        if valid_login:
+        # Login to the DB.
+        db_credentials = st.session_state["auth"].fetch_log_sheets_credentials(
+            st.session_state["vgs"],
+            st.session_state["password"]
+        )
+
+        if db_credentials:
             # User is authenticated remove the form.
             st.session_state["authenticated"] = True
+            st.session_state["log_sheet_db"] = LogSheetConfig(**db_credentials)
             st.toast("Login successful")
+            st.rerun()
 
+            # TODO: Store cookie as a TTLCache e.g. [session_id: 661VGS]
             # User is authenticated, set the authenticated cookie.
-            expires_at = datetime.now() + timedelta(days=90)
-            cookie_manager.set(
-                "vgs_auth",
-                "true",
-                expires_at=expires_at
-            )  # Expires in 90 days
+            # expires_at = datetime.now() + timedelta(days=90)
+            # cookie_manager.set(
+            #     "vgs_auth",
+            #     "true",
+            #     expires_at=expires_at
+            # )  # Expires in 90 days
 
         else:
             st.error("Invalid Password")
@@ -293,8 +335,8 @@ def main():
     authenticate()
 
     # User is authenticated display the dashboard.
-    if st.session_state.get("authenticated"):
-        show_data_dashboard()
+    if st.session_state["authenticated"]:
+        show_data_dashboard(st.session_state["log_sheet_db"])
 
 
 def display_dashboard():
