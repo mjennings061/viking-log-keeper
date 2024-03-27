@@ -175,6 +175,7 @@ def date_filter(df: pd.DataFrame) -> pd.DataFrame:
         pd.DataFrame: The filtered data.
     """
     # Add a date filter to the sidebar.
+    st.sidebar.markdown("<hr>", unsafe_allow_html=True)
     st.sidebar.markdown("## Date Filter")
 
     # Get the date range from the user.
@@ -219,8 +220,13 @@ def show_data_dashboard(db_credentials: LogSheetConfig):
     Args:
         db_credentials (dict): The database credentials."""
     # Set the page title.
-    st.markdown("# 661 VGS Dashboard")
-    st.sidebar.markdown("# Dashboard Filters")
+    vgs = db_credentials.db_name.upper()
+    st.markdown(f"# {vgs} Dashboard")
+
+    # Sidebar for page navigation
+    pages = ["📈 Statistics", "🌍 All Data"]
+    page = st.sidebar.selectbox("Select a Page:", pages)
+    st.sidebar.markdown("<hr>", unsafe_allow_html=True)
 
     # Fetch data from MongoDB
     if "df" not in st.session_state:
@@ -234,6 +240,9 @@ def show_data_dashboard(db_credentials: LogSheetConfig):
     # Get the data from the session state.
     df = st.session_state['df']
 
+    # Setup sidebar filters.
+    st.sidebar.markdown("# Dashboard Filters")
+
     # Filter by AircraftCommander.
     commander = st.sidebar.selectbox(
         "Filter by AircraftCommander",
@@ -246,6 +255,8 @@ def show_data_dashboard(db_credentials: LogSheetConfig):
     # Create a list of quarters from the data.
     quarters = df["Date"].dt.to_period("Q").unique()
 
+    # Filter by quarter.
+    st.sidebar.markdown("## Quarterly Summary")
     quarter = st.sidebar.selectbox(
         "Select Quarter",
         quarters,
@@ -256,29 +267,21 @@ def show_data_dashboard(db_credentials: LogSheetConfig):
     # Add a date filter to the sidebar.
     filtered_df = date_filter(df)
 
-    tabs = ["Statistics", "All Data"]
-    stats_tab, all_data_tab = st.tabs(tabs)
+    match page:
+        case "📈 Statistics":
 
-    with stats_tab:
+            # Plot the number of launches by unique AircraftCommander.
+            plot_launches_by_commander(filtered_df)
 
-        # Plot the number of launches by unique AircraftCommander.
-        plot_launches_by_commander(filtered_df)
+            # Logbook helper by AircraftCommander.
+            show_logbook_helper(filtered_df, commander)
 
-        # Logbook helper by AircraftCommander.
-        show_logbook_helper(filtered_df, commander)
+            # Filter the data by the selected quarter.
+            if quarter and commander:
+                quarterly_summary(filtered_df, commander, quarter)
 
-        # Show a quarterly summary of the number of launches
-        # for each AircraftCommander.
-        st.sidebar.markdown("## Quarterly Summary")
-
-        
-
-        # Filter the data by the selected quarter.
-        if quarter and commander:
-            quarterly_summary(filtered_df, commander, quarter)
-
-    with all_data_tab:
-        plot_all_launches(filtered_df)
+        case "🌍 All Data":
+            plot_all_launches(filtered_df)
 
 
 def authenticate():
@@ -351,8 +354,14 @@ def main():
             show_data_dashboard(st.session_state["log_sheet_db"])
         except Exception:  # pylint: disable=broad-except
             logging.error("Failed to display dashboard.", exc_info=True)
-            cookie_manager.delete("vgs_auth")
             st.error("Failed to display dashboard.")
+
+            # Clear the session state.
+            st.session_state.clear()
+            try:
+                cookie_manager.delete("vgs_auth")
+            except Exception:  # pylint
+                logging.error("Failed to delete cookie.", exc_info=True)
 
 
 def display_dashboard():
