@@ -4,6 +4,7 @@
 # Import modules.
 import subprocess
 from dataclasses import dataclass, field
+from datetime import datetime, timedelta
 from typing import Optional
 from pymongo.mongo_client import MongoClient
 from pymongo.server_api import ServerApi
@@ -22,6 +23,9 @@ from dashboard.plots import show_logbook_helper
 
 # Set up logging.
 logger = logging.getLogger(__name__)
+
+# Set up the cookie manager.
+cookie_manager = CookieManager()
 
 
 @dataclass
@@ -277,6 +281,7 @@ def show_data_dashboard(db_credentials: LogSheetConfig):
 
 def authenticate():
     """Prompt and authenticate."""
+
     # Add auth to session state.
     if "authenticated" not in st.session_state:
         st.session_state["authenticated"] = False
@@ -285,7 +290,6 @@ def authenticate():
         return
 
     # Attempt to read the authenticated cookie.
-    cookie_manager = CookieManager()
     authenticated_cookie = cookie_manager.get(cookie="vgs_auth")
     if authenticated_cookie:
         # Cookie read successfully.
@@ -297,36 +301,41 @@ def authenticate():
     st.subheader("VGS Dashboard")
     st.session_state["auth"] = AuthConfig()
 
-    # Dropdown for selecting the VGS.
-    st.text_input("Username", help="VGS e.g. '661VGS'", key="vgs")
-    st.text_input("Password", type="password", key="password")
+    # Login form.
+    with st.form(key="login_form"):
+        st.text_input("Username", help="VGS e.g. '661VGS'", key="vgs")
+        st.text_input("Password", type="password", key="password")
+        submitted = st.form_submit_button("Enter")
 
-    # Validate the password.
-    if st.button("Enter"):
-        # Login to the DB.
-        db_credentials = st.session_state["auth"].fetch_log_sheets_credentials(
-            st.session_state["vgs"],
-            st.session_state["password"]
-        )
+        # Validate the password.
+        if submitted:
+            # Login to the DB.
+            db_credentials = st.session_state["auth"].\
+                fetch_log_sheets_credentials(
+                    st.session_state["vgs"],
+                    st.session_state["password"]
+                )
 
-        if db_credentials:
-            # User is authenticated remove the form.
-            st.session_state["authenticated"] = True
-            st.session_state["log_sheet_db"] = LogSheetConfig(**db_credentials)
-            st.toast("Login successful")
-            st.rerun()
+            if db_credentials:
+                # User is authenticated remove the form.
+                st.session_state["authenticated"] = True
+                st.session_state["log_sheet_db"] = LogSheetConfig(
+                    **db_credentials
+                )
+                st.toast("Login successful")
 
-            # TODO: Store cookie as a TTLCache e.g. [session_id: 661VGS]
-            # User is authenticated, set the authenticated cookie.
-            # expires_at = datetime.now() + timedelta(days=90)
-            # cookie_manager.set(
-            #     "vgs_auth",
-            #     "true",
-            #     expires_at=expires_at
-            # )  # Expires in 90 days
+                # TODO: Store cookie as a TTLCache e.g. [session_id: 661VGS]
+                # User is authenticated, set the authenticated cookie.
+                # expires_at = datetime.now() + timedelta(days=90)
+                # cookie_manager.set(
+                #     "vgs_auth",
+                #     "true",
+                #     expires_at=expires_at
+                # )  # Expires in 90 days
+                st.rerun()
 
-        else:
-            st.error("Invalid Password")
+            else:
+                st.error("Invalid Password")
 
 
 def main():
