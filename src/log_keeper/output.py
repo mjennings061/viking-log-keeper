@@ -77,7 +77,8 @@ def launches_to_db(launches_df, db_config):
     """Save the master log dataframe to a MongoDB."""
     # Format dataframe to be saved.
     master_dict = launches_df.to_dict('records')
-    db = db_config.connect_to_db()
+    client = db_config.connect_to_db()
+    db = client[db_config.db_name]
 
     # Get all collections in the DB.
     collections = db.list_collection_names()
@@ -95,14 +96,12 @@ def launches_to_db(launches_df, db_config):
 
     # Rename the old collection.
     if db_config.db_collection_name in collections:
-        old_collection = db[db_config.db_collection_name]
-        old_collection.rename(collection_search_string)
+        db[db_config.db_collection_name].rename(collection_search_string)
 
     # Save to the DB.
     logger.info("Saving to DB.")
-    collection = db.create_collection(db_config.db_collection_name)
-    collection.insert_many(master_dict)
+    db[db_config.db_collection_name].insert_many(master_dict)
     logger.info("Saved to DB.")
 
     # Close DB session.
-    db.close()
+    client.close()

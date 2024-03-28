@@ -172,5 +172,4 @@ secret.key
 poetry.lock
 
 # Streamlit stuff
-.streamlit/
 secrets.toml

@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from typing import Optional
 from pymongo.mongo_client import MongoClient
 from pymongo.server_api import ServerApi
+import keyring as kr
 import pandas as pd
 import inquirer
 import logging
@@ -24,7 +25,7 @@ class LogSheetConfig:
         db_password (Optional[str]): The password of the MongoDB server.
         db_name (Optional[str]): The name of the MongoDB database.
         db_collection_name (Optional[str]): The name of the MongoDB collection.
-        log_sheets_dir (Optional[str]): The path to the directory containing 
+        log_sheets_dir (Optional[str]): The path to the directory containing
             the log sheets."""
     # Define fields with default values of None.
     db_hostname: Optional[str] = field(default=None)
@@ -62,7 +63,6 @@ class LogSheetConfig:
         db_hostname = self.db_hostname
         db_username = self.db_username
         db_password = self.db_password
-        db_name = self.db_name
 
         # Create the DB connection URL.
         db_url = (f"mongodb+srv://{db_username}:{db_password}@{db_hostname}"
@@ -82,9 +82,24 @@ class LogSheetConfig:
         else:
             raise ConnectionError("Could not connect to DB.")
 
-        # Get the database.
-        db = client[db_name]
-        return db
+        # Return the client.
+        return client
+
+    def fetch_log_sheet_dir(self):
+        """Fetch the log sheet directory from keyring.
+
+        Returns:
+            str: The log sheet directory."""
+        try:
+            self.log_sheets_dir = kr.get_password("log_keeper",
+                                                  "log_sheets_dir")
+        except Exception:
+            logger.warning("Could not fetch log_sheets_dir from keyring.",
+                           exc_info=True)
+
+        if not self.log_sheets_dir:
+            self.update_log_sheets_dir()
+        return self.log_sheets_dir
 
     def update_log_sheets_dir(self):
         """Update the log sheets directory."""
@@ -93,7 +108,7 @@ class LogSheetConfig:
         questions = [
             inquirer.Text(
                 "log_sheets_dir",
-                message="Enter the path to the Documents directory " +
+                message="Log sheets directory " +
                         "e.g. C:\\Users\\YOUR_USERNAME\\OneDrive\\Documents\n",
                 validate=lambda _, x: Path(x).is_dir(
                 ) or "Path does not exist or is not a directory.",
@@ -101,7 +116,14 @@ class LogSheetConfig:
         ]
         answers = inquirer.prompt(questions)
         self.log_sheets_dir = answers["log_sheets_dir"]
-        self.save_credentials()
+
+        # Save to keyring.
+        try:
+            kr.set_password("log_keeper", "log_sheets_dir",
+                            self.log_sheets_dir)
+        except Exception:
+            logger.error("Could not save log_sheets_dir to keyring.",
+                         exc_info=True)
 
     def fetch_data_from_mongodb(self):
         """Fetch data from MongoDB.
@@ -109,7 +131,8 @@ class LogSheetConfig:
         Returns:
             pandas.DataFrame: The data fetched from MongoDB."""
         try:
-            db = self.connect_to_db()
+            client = self.connect_to_db()
+            db = client[self.db_name]
             collection = db[self.db_collection_name]
 
             # Convert list of dictionaries to DataFrame
@@ -125,12 +148,6 @@ def update_log_sheets_dir_wrapper():
     """Wrapper function to update the log sheets directory."""
     config = LogSheetConfig()
     config.update_log_sheets_dir()
-
-
-def update_credentials_wrapper():
-    """Wrapper function to update the credentials."""
-    config = LogSheetConfig()
-    config.update_credentials()
 
 
 if __name__ == "__main__":

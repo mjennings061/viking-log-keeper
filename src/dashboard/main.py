@@ -4,8 +4,9 @@
 # Import modules.
 import subprocess
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta    # noqa: F401
 from typing import Optional
+import re
 from pymongo.mongo_client import MongoClient
 from pymongo.server_api import ServerApi
 import streamlit as st
@@ -13,6 +14,7 @@ from extra_streamlit_components import CookieManager
 import pandas as pd
 import keyring as kr
 import logging
+import inquirer
 
 # User defined modules.
 from log_keeper.get_config import LogSheetConfig
@@ -23,9 +25,6 @@ from dashboard.plots import show_logbook_helper
 
 # Set up logging.
 logger = logging.getLogger(__name__)
-
-# Set up the cookie manager.
-cookie_manager = CookieManager()
 
 
 @dataclass
@@ -50,23 +49,34 @@ class AuthConfig:
 
     def __post_init__(self):
         """Load db_url from secrets or keyring."""
-        self.load_auth_url()
+        self.load_secrets()
 
-    def load_auth_url(self):
-        """Load the db_url from secrets or keyring."""
+    def load_secrets(self):
+        """Load secrets from keyring or streamlit."""
         # Load auth password from secrets or keyring.
         try:
             auth_password = st.secrets["auth_password"]
-        except Exception:  # noqa: F841
-            auth_password = kr.get_password(PROJECT_NAME, "auth_password")
-
-        # TODO: Add config update.
-        if not auth_password:
-            logging.error("Failed to load auth password from secrets.")
+            self.auth_url = self.auth_url.replace("<password>", auth_password)
             return
+        except Exception:  # noqa: F841
+            # Load the config from keyring.
+            auth_password = kr.get_password(PROJECT_NAME, "auth_password")
+            self.auth_url = self.auth_url.replace("<password>", auth_password)
 
-        # Set the auth_url.
-        self.auth_url = self.auth_url.replace("<password>", auth_password)
+        # Get vgs and password from keyring.
+        self.vgs = kr.get_password(PROJECT_NAME, "vgs")
+        self.password = kr.get_password(PROJECT_NAME, "password")
+
+    def validate(self) -> bool:
+        """Validate the configuration values.
+
+        Returns:
+            bool: True if all values are present and valid, otherwise False."""
+        # Check if any of the values are None.
+        if not all([self.vgs, self.password]):
+            logging.warning("Configuration values are missing.")
+            return False
+        return True
 
     def _connect(self) -> bool:
         """Connect to the DB.
@@ -125,8 +135,8 @@ class AuthConfig:
                 logging.error("Invalid username or password.")
         return self.authenticated
 
-    def fetch_log_sheets_credentials(self, vgs: str,
-                                     password: str) -> dict:
+    def fetch_log_sheets_credentials(self, vgs: str = None,
+                                     password: str = None) -> dict:
         """Fetch the log_sheets DB credentials from MongoDB.
 
         Args:
@@ -136,6 +146,13 @@ class AuthConfig:
         Returns:
             dict: The log_sheets DB credentials."""
         # Connect to the DB.
+        if not vgs or not password:
+            # Entered via the CLI.
+            logging.info("Using stored auth DB credentials.")
+            vgs = self.vgs
+            password = self.password
+
+        # Entered via streamlit form.
         self._login(vgs, password)
 
         # Get the log_sheets credentials.
@@ -157,6 +174,45 @@ class AuthConfig:
         # Close the connection.
         self.close_connection()
         return credentials
+
+    def update_credentials(self):
+        """Use inquirer to update the credentials. Save to keyring."""
+        # Prompt the user to enter the credentials.
+        questions = [
+            inquirer.Text(
+                "vgs",
+                message="VGS",
+                default="661VGS"
+            ),
+            inquirer.Password(
+                "password",
+                message="Password"
+            ),
+            inquirer.Password(
+                "auth_password",
+                message="Auth database password (different from above)"
+            )
+        ]
+
+        # Update the credentials.
+        answers = inquirer.prompt(questions)
+        self.vgs = answers["vgs"]
+        self.password = answers["password"]
+
+        # Replace the password in the auth_url.
+        self.auth_url = re.sub(r"vgs_user:.*@",
+                               f"vgs_user:{answers['auth_password']}@",
+                               self.auth_url)
+
+        # Save credentials to keyring.
+        try:
+            kr.set_password(PROJECT_NAME, "vgs", answers["vgs"])
+            kr.set_password(PROJECT_NAME, "auth_password",
+                            answers["auth_password"])
+            kr.set_password(PROJECT_NAME, "password", answers["password"])
+        except Exception:
+            logging.error("Failed to save credentials to keyring.",
+                          exc_info=True)
 
     def close_connection(self):
         """Close the connection to the DB."""
@@ -286,6 +342,8 @@ def show_data_dashboard(db_credentials: LogSheetConfig):
 
 def authenticate():
     """Prompt and authenticate."""
+    # Set up the cookie manager.
+    cookie_manager = CookieManager()
 
     # Add auth to session state.
     if "authenticated" not in st.session_state:
@@ -368,6 +426,12 @@ def display_dashboard():
     """Run the Streamlit app."""
     subprocess.run(["streamlit", "run", "src/dashboard/main.py"],
                    check=True)
+
+
+def update_credentials_wrapper():
+    """Wrapper function to update the credentials."""
+    config = AuthConfig()
+    config.update_credentials()
 
 
 if __name__ == '__main__':
