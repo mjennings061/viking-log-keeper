@@ -22,7 +22,7 @@ keyring = "^24.3.0"
 logging = "^0.4.9.6"
 matplotlib = "^3.8.0"
 openpyxl = "^3.1.2"
-python = ">=3.9,<3.9.7 || >3.9.7,<4.0"
+python = ">=3.10,<4.0"
 pandas = "^2.2.0"
 pymongo = {extras = ["srv"], version = "^4.6.1"}
 streamlit = "^1.32.0"
@@ -34,7 +34,7 @@ repository = "https://github.com/mjennings061/viking-log-keeper.git"
 
 [tool.poetry.scripts]
 update-logs = "log_keeper.main:main"
-update-config = "log_keeper.get_config:update_credentials_wrapper"
+update-config = "dashboard.main:update_credentials_wrapper"
 update-log-sheet-location = "log_keeper.get_config:update_log_sheets_dir_wrapper"
 viking-dashboard = "dashboard.main:display_dashboard"
 
