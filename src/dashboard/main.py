@@ -417,6 +417,7 @@ def main():
             # Clear the session state.
             st.session_state.clear()
             try:
+                cookie_manager = CookieManager()
                 cookie_manager.delete("vgs_auth")
             except Exception:  # pylint
                 logging.error("Failed to delete cookie.", exc_info=True)
