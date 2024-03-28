@@ -57,6 +57,7 @@ update-logs
 ```bash
 update-config
 ```
+![image](https://github.com/mjennings061/viking-log-keeper/assets/24479573/575ae822-f805-4ccf-832d-0ba989076977)
 
 2. To update your log sheet location, run the following command:
 
@@ -72,6 +73,7 @@ The log keeper comes with a python dashboard for viewing statistics. To run the 
 viking-dashboard
 ```
 
+![image](https://github.com/mjennings061/viking-log-keeper/assets/24479573/5939a9e6-9dc9-41a2-ab27-60f929ff1214)
 
 
 ## Contribution
