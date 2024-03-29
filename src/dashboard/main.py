@@ -61,7 +61,11 @@ class AuthConfig:
         except Exception:  # noqa: F841
             # Load the config from keyring.
             auth_password = kr.get_password(PROJECT_NAME, "auth_password")
-            self.auth_url = self.auth_url.replace("<password>", auth_password)
+
+            # Replace the password in the auth_url if it exists.
+            if auth_password is not None:
+                self.auth_url = self.auth_url.replace("<password>",
+                                                      auth_password)
 
         # Get vgs and password from keyring.
         self.vgs = kr.get_password(PROJECT_NAME, "vgs")
@@ -75,6 +79,11 @@ class AuthConfig:
         # Check if any of the values are None.
         if not all([self.vgs, self.password]):
             logging.warning("Configuration values are missing.")
+            return False
+
+        # Validate if the auth_url is set.
+        if "<password>" in self.auth_url:
+            logging.warning("Auth URL is not set.")
             return False
         return True
 
