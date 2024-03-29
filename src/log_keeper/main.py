@@ -3,17 +3,30 @@
 """
 
 # Get packages.
+import sys
 import logging
 from pathlib import Path
 
 # Get modules.
-from log_keeper.get_config import Config
+from log_keeper.get_config import LogSheetConfig
 from log_keeper.ingest import collate_log_sheets
 from log_keeper.output import launches_to_excel, launches_to_db
+from dashboard.main import AuthConfig
 
 # Set logging level.
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+
+def adjust_streamlit_logging():
+    """Adjust the logging level of Streamlit to suppress warnings and
+    info messages."""
+    # Check if Streamlit is in the list of running modules
+    if 'streamlit' not in sys.modules:
+        # Get the logger for Streamlit
+        streamlit_logger = logging.getLogger('streamlit')
+        # Set the logging level to ERROR to suppress warnings and info messages
+        streamlit_logger.setLevel(logging.ERROR)
 
 
 def main():
@@ -27,15 +40,19 @@ def main():
     """
     # Initial comment.
     logger.info("Starting...")
+    adjust_streamlit_logging()
 
     # Load config.
-    db_config = Config()
-    if not db_config.validate():
+    auth_config = AuthConfig()
+    if not auth_config.validate():
         # Get the credentials from the user.
-        db_config.update_credentials()
+        auth_config.update_credentials()
+
+    # Load the log sheet config.
+    db_config = LogSheetConfig(**auth_config.fetch_log_sheets_credentials())
 
     # Output file path.
-    log_sheets_dir = Path(db_config.log_sheets_dir)
+    log_sheets_dir = Path(db_config.fetch_log_sheet_dir())
 
     # Create a dataframe of all log sheets.
     launches_df = collate_log_sheets(log_sheets_dir)
@@ -61,7 +78,7 @@ def main():
             logger.warning("Could not save to DB. " +
                            "Try changing the config.",
                            exc_info=True)
-            db_config.update_credentials()
+            auth_config.update_credentials()
             launches_to_db(launches_df, db_config)
 
     # Print success message.

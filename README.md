@@ -1,5 +1,5 @@
 # Log Keeper
-661 VGS - Function to collate 2965D log sheets into a single master log file and database.
+661 VGS - All-in-one log keeper for the Viking fleet. Records launches from 2965D log sheets, uploads to MongoDB Atlas, and provides a web interface for viewing statistics.
 
 ![image](https://github.com/mjennings061/viking-log-keeper/assets/24479573/cd4929e4-7a13-4d48-b4b6-1cd52f865b8d)
 
@@ -30,13 +30,7 @@
 
 ![image](https://github.com/mjennings061/viking-log-keeper/assets/24479573/0b826db1-fbf1-43e0-b07a-389521f9f697)
 
-6. Sign up to [MongoDB Atlas](https://cloud.mongodb.com) to create your organisation, project, database, and collection. It is free for 512 MB. An example below:
-- Organisation: RAFAC VGS
-- Project: 661 VGS
-- Database: 661vgs
-- Collection: log_sheets
-
-![image](https://github.com/mjennings061/viking-log-keeper/assets/24479573/a2991958-93c2-45c7-9406-8dbe913c32c2)
+6. Sign up to [MongoDB Atlas](https://cloud.mongodb.com). Contact the project owner for access to the database.
 
 7. Using powershell, git bash, or command prompt, run the following command:
 
@@ -54,9 +48,7 @@ python -m pip install viking-log-keeper
 update-logs
 ```
 
-2. Enter the credentials of your database. The URL can be found in the "Database > Overview > Connect" menu:
-
-![image](https://github.com/mjennings061/viking-log-keeper/assets/24479573/7b91cde7-aa26-4bc3-8f85-5c37893aceee)
+2. Enter the credentials of your database. These will be sent to you by the project owner.
 
 ### Debugging
 
@@ -65,12 +57,24 @@ update-logs
 ```bash
 update-config
 ```
+![image](https://github.com/mjennings061/viking-log-keeper/assets/24479573/575ae822-f805-4ccf-832d-0ba989076977)
 
 2. To update your log sheet location, run the following command:
 
 ```bash
 update-log-sheet-location
 ```
+
+## Python Dashboard
+
+The log keeper comes with a python dashboard for viewing statistics. To run the dashboard, run the following command:
+
+```bash
+viking-dashboard
+```
+
+![image](https://github.com/mjennings061/viking-log-keeper/assets/24479573/5939a9e6-9dc9-41a2-ab27-60f929ff1214)
+
 
 ## Contribution
 

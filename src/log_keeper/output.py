@@ -86,27 +86,8 @@ def launches_to_db(launches_df, db_config):
 
     # Format dataframe to be saved.
     master_dict = launches_df.to_dict('records')
-
-    # Create the DB connection URL
-    db_url = f"mongodb+srv://{db_username}:{db_password}@{db_hostname}" + \
-        "/?retryWrites=true&w=majority"
-
-    # Create a new client and connect to the server
-    client = MongoClient(
-        db_url,
-        server_api=ServerApi('1'),
-        tls=True,
-        tlsAllowInvalidCertificates=True
-    )
-
-    # Print success message if ping is successful.
-    if client.admin.command('ping')['ok'] == 1.0:
-        logger.info("Connected to DB.")
-    else:
-        raise ConnectionError("Could not connect to DB.")
-
-    # Get the database.
-    db = client[db_name]
+    client = db_config.connect_to_db()
+    db = client[db_config.db_name]
 
     # Get all collections in the DB.
     collections = db.list_collection_names()
@@ -123,14 +104,12 @@ def launches_to_db(launches_df, db_config):
         db.drop_collection(collection_search_string)
 
     # Rename the old collection.
-    if db_collection_name in collections:
-        old_collection = db[db_collection_name]
-        old_collection.rename(collection_search_string)
+    if db_config.db_collection_name in collections:
+        db[db_config.db_collection_name].rename(collection_search_string)
 
     # Save to the DB.
     logger.info("Saving to DB.")
-    collection = db.create_collection(db_collection_name)
-    collection.insert_many(master_dict)
+    db[db_config.db_collection_name].insert_many(master_dict)
     logger.info("Saved to DB.")
 
     # Close DB session.
