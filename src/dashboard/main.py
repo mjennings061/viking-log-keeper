@@ -3,7 +3,7 @@
 
 # Import modules.
 import subprocess
-from datetime import datetime, timedelta    # noqa: F401
+from datetime import datetime, timedelta
 import streamlit as st
 from extra_streamlit_components import CookieManager
 import pandas as pd
@@ -14,10 +14,16 @@ from log_keeper.get_config import LogSheetConfig
 from dashboard.plots import plot_launches_by_commander
 from dashboard.plots import plot_all_launches, quarterly_summary
 from dashboard.plots import show_logbook_helper
-from dashboard.auth import AuthConfig
+from dashboard.auth import AuthConfig, Session
 
 # Set up logging.
 logger = logging.getLogger(__name__)
+
+# Create a cookie manager.
+cookie_manager = CookieManager()
+
+# TODO:
+# Delete session ID after logout.
 
 
 def date_filter(df: pd.DataFrame) -> pd.DataFrame:
@@ -82,6 +88,19 @@ def fetch_log_sheets_mongodb(db_credentials: LogSheetConfig) \
     return db_credentials.fetch_data_from_mongodb()
 
 
+def logout():
+    """Log out."""
+    # Get session info.
+    # TODO: Use the session ID in auth_db_config to find and delete the 
+    # session DB entry.
+    st.session_state["authenticated"] = False
+    session = Session()
+    session.delete_cookie(cookie_manager=cookie_manager)
+    st.toast("Logged out.")
+    logging.info("Logged out.")
+    st.rerun()
+
+
 def show_data_dashboard(db_credentials: LogSheetConfig):
     """Display the dashboard.
 
@@ -137,6 +156,10 @@ def show_data_dashboard(db_credentials: LogSheetConfig):
     # Add a date filter to the sidebar.
     filtered_df = date_filter(df)
 
+    # Logout button.
+    st.sidebar.markdown("<hr>", unsafe_allow_html=True)
+    st.sidebar.button("🚪 Logout", on_click=logout)
+
     match page:
         case "📈 Statistics":
 
@@ -155,39 +178,45 @@ def show_data_dashboard(db_credentials: LogSheetConfig):
 
 
 def get_log_sheet_creds():
-    """Use AuthConfig to get log sheet DB credentials."""
-    # Login to the DB.
-    db_credentials = st.session_state["auth"].\
-        fetch_log_sheets_credentials(
-            st.session_state["vgs"],
-            st.session_state["password"]
-        )
+    """Use AuthConfig to get log sheet DB credentials.
 
-    # Check credentials were returned.
-    if db_credentials:
-        st.session_state["log_sheet_db"] = LogSheetConfig(
-            **db_credentials
-        )
+    Returns:
+        LogSheetConfig: The log sheet DB credentials."""
+    # Login to the DB.
+    if st.session_state["auth"].log_sheet_config is not None:
+        log_sheet_db = st.session_state["auth"].log_sheet_config
     else:
-        logging.warning("Unable to fetch log sheet DB credentials")
-    return db_credentials
+        # Get the VGS and password from the session state.
+        if "vgs" not in st.session_state:
+            vgs = password = None
+        else:
+            vgs = st.session_state["vgs"]
+            password = st.session_state["password"]
+        # Fetch the log sheet DB credentials.
+        log_sheet_db = st.session_state["auth"].\
+            fetch_log_sheets_credentials(vgs, password)
+    return log_sheet_db
 
 
 def authenticate():
     """Prompt and authenticate."""
-    # Set up the cookie manager.
-    cookie_manager = CookieManager()
-
     # Add auth to session state.
     if "authenticated" not in st.session_state:
         st.session_state["authenticated"] = False
 
     # Attempt to read the authenticated cookie.
-    # authenticated_cookie = cookie_manager.get(cookie="vgs_auth")
-    # if authenticated_cookie:
-    #     # Cookie read successfully.
-    #     st.session_state["authenticated"] = True
-    #     st.toast("Login successful", icon="🍪")
+    authenticated_cookie = cookie_manager.get(cookie="vgs_auth")
+    if authenticated_cookie:
+        # Create a new authenticated session.
+        user_session = Session()
+        user_session.retrieve_session_data(authenticated_cookie)
+
+        # Load auth db credentials.
+        st.session_state["auth"] = user_session.auth_db_config
+
+        # Cookie read successfully.
+        st.session_state["authenticated"] = True
+        st.toast("Login successful", icon="🍪")
 
     if st.session_state["authenticated"]:
         # Ensure the log sheet DB details are loaded.
@@ -211,17 +240,13 @@ def authenticate():
             db_credentials = get_log_sheet_creds()
 
             if db_credentials:
+                # Create a new authenticated session.
+                user_session = Session(st.session_state["auth"])
+                user_session.save_session()
+                # Save a cookie and rerun.
+                user_session.save_cookie(cookie_manager)
                 st.session_state["authenticated"] = True
                 st.toast("Login successful")
-
-                # TODO: Store cookie as a TTLCache e.g. [session_id: 661VGS]
-                # User is authenticated, set the authenticated cookie.
-                # expires_at = datetime.now() + timedelta(days=90)
-                # cookie_manager.set(
-                #     "vgs_auth",
-                #     "true",
-                #     expires_at=expires_at
-                # )  # Expires in 90 days
                 st.rerun()
 
             else:

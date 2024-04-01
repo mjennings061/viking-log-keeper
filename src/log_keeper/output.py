@@ -7,8 +7,6 @@ import logging
 from pathlib import Path
 import pandas as pd
 from datetime import datetime
-from pymongo.mongo_client import MongoClient
-from pymongo.server_api import ServerApi
 
 logger = logging.getLogger(__name__)
 
@@ -77,12 +75,8 @@ def launches_to_excel(launches_df, output_file_path):
 
 def launches_to_db(launches_df, db_config):
     """Save the master log dataframe to a MongoDB."""
-    # Get environment variables.
-    db_hostname = db_config.db_hostname
-    db_username = db_config.db_username
-    db_password = db_config.db_password
+    # Get DB config.
     db_collection_name = db_config.db_collection_name
-    db_name = db_config.db_name
 
     # Format dataframe to be saved.
     master_dict = launches_df.to_dict('records')

@@ -3,9 +3,12 @@
 # Import modules.
 import logging
 import re
-from dataclasses import dataclass, field
+from uuid import UUID, uuid4
+from dataclasses import dataclass, field, fields
 from typing import Optional
+from datetime import datetime, timedelta
 import streamlit as st
+from extra_streamlit_components import CookieManager
 from pymongo.mongo_client import MongoClient
 from pymongo.server_api import ServerApi
 import inquirer
@@ -20,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass
-class AuthConfig:
+class AuthConfig():
     """Data class to store the authentication configuration values."""
     # Constants.
     db_name: str = field(default="auth")
@@ -34,14 +37,32 @@ class AuthConfig:
     vgs: str = field(default=None)
     password: Optional[str] = field(default=None)
     authenticated: bool = field(default=False)
-    client: Optional[MongoClient] = field(default=None)
+    client: Optional[MongoClient] = field(default=None, repr=False)
     connected: bool = field(default=False)
     allowed_vgs: list = field(default_factory=list)
-    log_sheet_config: LogSheetConfig = field(default_factory=LogSheetConfig)
+    log_sheet_config: LogSheetConfig = field(default=None)
+    session_id: str = field(default=None)
 
     def __post_init__(self):
         """Load db_url from secrets or keyring."""
         self.load_secrets()
+
+    def to_dict(self):
+        """Remove unserialisable elements from the dictionary.
+
+        Returns:
+            dict: The serialised dictionary."""
+        dictionary = {}
+        for this_field in fields(self):
+            # Skip the client field.
+            if this_field.name == "client":
+                continue
+            elif this_field.name == "log_sheet_config":
+                dictionary[this_field.name] = getattr(self,
+                                                      this_field.name).__dict__
+            else:
+                dictionary[this_field.name] = getattr(self, this_field.name)
+        return dictionary
 
     def load_secrets(self):
         """Load secrets from keyring or streamlit."""
@@ -98,6 +119,10 @@ class AuthConfig:
             if self.client.admin.command('ping')['ok'] == 1.0:
                 logging.info("Connected to Auth DB.")
                 self.connected = True
+
+                # Update session ID if necessary.
+                if self.session_id is None:
+                    self.session_id = str(uuid4())
             else:
                 logging.error("Failed to connect to Auth DB.")
         except Exception:  # pylint: disable=broad-except
@@ -169,11 +194,14 @@ class AuthConfig:
             # Pop the _id and vgs fields.
             credentials.pop("_id", None)
             credentials.pop("vgs", None)
+
+            # Save credentials as LogSheetConfig.
+            self.log_sheet_config = LogSheetConfig(**credentials)
         else:
             logging.error("Failed to fetch log_sheets credentials.")
 
         # Close the connection.
-        self.close_connection()
+        self._close_connection()
         return credentials
 
     def update_credentials(self):
@@ -215,8 +243,121 @@ class AuthConfig:
             logging.error("Failed to save credentials to keyring.",
                           exc_info=True)
 
-    def close_connection(self):
+    def _close_connection(self):
         """Close the connection to the DB."""
         if self.client:
             self.client.close()
+            self.connected = False
             logging.info("Closed connection to Auth DB.")
+
+
+class Session():
+    """Store session information after authentication."""
+    session_collection = "sessions"
+    _cookie_lifetime = 30   # Days
+
+    def __init__(self, auth_db_config: AuthConfig = None):
+        """Initialize the session.
+
+        Args:
+            auth_db_config (AuthConfig): Authentication DB configuration."""
+        self.auth_db_config = auth_db_config
+        self.session_id = str(uuid4())
+        self.date_created = datetime.now()
+
+    def __str__(self):
+        return f"Session ID: {self.session_id}"
+
+    def save_session(self):
+        """Save session to MongodDB"""
+        # Connect to the DB.
+        self.auth_db_config._connect()
+
+        # Get the auth credentials from the DB.
+        if self.auth_db_config.connected:
+            db = self.auth_db_config.client[self.auth_db_config.db_name]
+            collection = db[self.session_collection]
+
+            # Format document.
+            document = {
+                "session_id": self.session_id,
+                "auth_config": self.auth_db_config.to_dict(),
+                "date_created": self.date_created,
+            }
+
+            # Insert into the DB.
+            logger.info("Saving session to DB.")
+            collection.insert_one(document=document)
+            logger.info("Saved session to DB.")
+            self.auth_db_config._close_connection()
+
+    def delete_session(self):
+        """Delete this session."""
+        # Connect to the DB.
+        self.auth_db_config._connect()
+
+        # Get the auth credentials from the DB.
+        if self.auth_db_config.connected:
+            db = self.auth_db_config.client[self.auth_db_config.db_name]
+            collection = db[self.session_collection]
+
+            # Delete the session.
+            logger.info("Deleting session from DB.")
+            collection.delete_one({"session_id": self.session_id})
+            logger.info("Deleted session from DB.")
+            self.auth_db_config._close_connection()
+
+            # Delete cookie.
+            self.delete_cookie()
+
+    def retrieve_session_data(self, session_id: str):
+        """Retrieve the session data from the DB.
+
+        Args:
+            session_id (str): The session ID to retrieve.
+
+        Returns:
+            dict: The session data."""
+        # Update the session ID if required.
+        if session_id != self.session_id:
+            self.session_id = session_id
+
+        # Connect to the DB.
+        if self.auth_db_config is None:
+            self.auth_db_config = AuthConfig()
+            self.auth_db_config.fetch_log_sheets_credentials()
+
+        # Get the auth credentials from the DB.
+        self.auth_db_config._connect()
+        if self.auth_db_config.connected:
+            db = self.auth_db_config.client[self.auth_db_config.db_name]
+            collection = db[self.session_collection]
+
+            # Fetch the session.
+            session_data = collection.find_one({"session_id": session_id})
+            logging.info("Fetched session data.")
+
+            # Close the connection.
+            self.auth_db_config.client.close()
+            return session_data
+        return None
+
+    def save_cookie(self, cookie_manager: CookieManager):
+        """Save the session to a cookie.
+
+        Args:
+            cookie_manager (CookieManager): The cookie manager."""
+        cookie_manager.set(
+            "vgs_auth",
+            self.session_id,
+            expires_at=datetime.now() + timedelta(days=self._cookie_lifetime)
+        )
+        logging.info("Saved session to cookie.")
+
+    def delete_cookie(self, cookie_manager: CookieManager):
+        """Delete the session cookie.
+
+        Args:
+            cookie_manager (CookieManager): The cookie manager."""
+        cookie_manager.delete("vgs_auth")
+        logging.info("Deleted session from cookie.")
