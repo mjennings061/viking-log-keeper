@@ -3,7 +3,6 @@
 
 # Import modules.
 import subprocess
-from datetime import datetime, timedelta
 import streamlit as st
 from extra_streamlit_components import CookieManager
 import pandas as pd
@@ -269,7 +268,6 @@ def main():
             # Clear the session state.
             st.session_state.clear()
             try:
-                cookie_manager = CookieManager()
                 cookie_manager.delete("vgs_auth")
             except Exception:  # pylint
                 logging.error("Failed to delete cookie.", exc_info=True)

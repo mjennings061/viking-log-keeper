@@ -3,7 +3,7 @@
 # Import modules.
 import logging
 import re
-from uuid import UUID, uuid4
+from uuid import uuid4
 from dataclasses import dataclass, field, fields
 from typing import Optional
 from datetime import datetime, timedelta
