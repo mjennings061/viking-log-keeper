@@ -18,9 +18,6 @@ from dashboard.auth import AuthConfig, Session
 # Set up logging.
 logger = logging.getLogger(__name__)
 
-# Create a cookie manager.
-cookie_manager = CookieManager()
-
 # TODO:
 # Delete session ID after logout.
 
@@ -90,11 +87,11 @@ def fetch_log_sheets_mongodb(db_credentials: LogSheetConfig) \
 def logout():
     """Log out."""
     # Get session info.
-    # TODO: Use the session ID in auth_db_config to find and delete the 
+    # TODO: Use the session ID in auth_db_config to find and delete the
     # session DB entry.
     st.session_state["authenticated"] = False
     session = Session()
-    session.delete_cookie(cookie_manager=cookie_manager)
+    session.delete_cookie(cookie_manager=st.session_state["cookie_manager"])
     st.toast("Logged out.")
     logging.info("Logged out.")
     st.rerun()
@@ -176,15 +173,24 @@ def show_data_dashboard(db_credentials: LogSheetConfig):
             plot_all_launches(filtered_df)
 
 
-def get_log_sheet_creds():
+@st.cache_data(ttl=None)
+def get_log_sheet_creds(auth_config: AuthConfig = None):
     """Use AuthConfig to get log sheet DB credentials.
+
+    Args:
+        AuthConfig: The authorisation DB configuration.
 
     Returns:
         LogSheetConfig: The log sheet DB credentials."""
-    # Login to the DB.
-    if st.session_state["auth"].log_sheet_config is not None:
-        log_sheet_db = st.session_state["auth"].log_sheet_config
+
+    # Try to get log sheet DB.
+    if auth_config is not None:
+        log_sheet_db = auth_config.log_sheet_config
     else:
+        log_sheet_db = None
+
+    # Login to the DB.
+    if not log_sheet_db:
         # Get the VGS and password from the session state.
         if "vgs" not in st.session_state:
             vgs = password = None
@@ -192,23 +198,27 @@ def get_log_sheet_creds():
             vgs = st.session_state["vgs"]
             password = st.session_state["password"]
         # Fetch the log sheet DB credentials.
-        log_sheet_db = st.session_state["auth"].\
+        log_sheet_db = auth_config.\
             fetch_log_sheets_credentials(vgs, password)
+
+    # Ensure output is a LogSheetConfig object.
+    if not isinstance(log_sheet_db, LogSheetConfig):
+        log_sheet_db = LogSheetConfig(**log_sheet_db)
     return log_sheet_db
 
 
 def authenticate():
     """Prompt and authenticate."""
-    # Add auth to session state.
-    if "authenticated" not in st.session_state:
-        st.session_state["authenticated"] = False
+    # Add cookie manager to session state.
+    cookie_manager = st.session_state.get("cookie_manager", CookieManager())
+    st.session_state["cookie_manager"] = cookie_manager
 
-    # Attempt to read the authenticated cookie.
-    authenticated_cookie = cookie_manager.get(cookie="vgs_auth")
-    if authenticated_cookie:
+    # Read cookie if it exists.
+    cookie = st.session_state.get("cookie")
+    if cookie and not st.session_state.get("authenticated"):
         # Create a new authenticated session.
         user_session = Session()
-        user_session.retrieve_session_data(authenticated_cookie)
+        user_session.retrieve_session_data(st.session_state["cookie"])
 
         # Load auth db credentials.
         st.session_state["auth"] = user_session.auth_db_config
@@ -216,40 +226,49 @@ def authenticate():
         # Cookie read successfully.
         st.session_state["authenticated"] = True
         st.toast("Login successful", icon="🍪")
+    else:
+        st.session_state["cookie"] = cookie_manager.get(
+            cookie="vgs_auth"
+        )
 
-    if st.session_state["authenticated"]:
+    if st.session_state.get("authenticated"):
         # Ensure the log sheet DB details are loaded.
         if "log_sheet_db" not in st.session_state:
-            st.session_state["log_sheet_db"] = get_log_sheet_creds()
+            auth_config = st.session_state.get("auth", AuthConfig())
+            st.session_state["log_sheet_db"] = get_log_sheet_creds(auth_config)
         return
 
     # No cookie present, authenticate.
     st.subheader("VGS Dashboard")
-    st.session_state["auth"] = AuthConfig()
 
     # Login form.
-    with st.form(key="login_form"):
-        st.text_input("Username", help="VGS e.g. '661VGS'", key="vgs")
-        st.text_input("Password", type="password", key="password")
-        submitted = st.form_submit_button("Enter")
+    if not st.session_state.get("authenticated"):
+        with st.form(key="login_form"):
+            st.text_input("Username", help="VGS e.g. '661VGS'", key="vgs")
+            st.text_input("Password", type="password", key="password")
+            submitted = st.form_submit_button("Enter")
 
-        # Validate the password.
-        if submitted:
-            # Login to the DB.
-            db_credentials = get_log_sheet_creds()
+            # Validate the password.
+            if submitted:
+                auth_config = st.session_state.get("auth", AuthConfig())
 
-            if db_credentials:
-                # Create a new authenticated session.
-                user_session = Session(st.session_state["auth"])
-                user_session.save_session()
-                # Save a cookie and rerun.
-                user_session.save_cookie(cookie_manager)
-                st.session_state["authenticated"] = True
-                st.toast("Login successful")
-                st.rerun()
+                # Login to the DB.
+                db_credentials = get_log_sheet_creds(auth_config)
+                st.session_state["log_sheet_db"] = db_credentials
 
-            else:
-                st.error("Invalid Password")
+                if db_credentials:
+                    # Create a new authenticated session.
+                    user_session = Session(auth_config)
+                    user_session.save_session()
+                    # Save a cookie and rerun.
+                    user_session.save_cookie(cookie_manager)
+                    st.session_state["authenticated"] = True
+                    st.session_state["cookie"] = user_session.session_id
+                    st.toast("Login successful")
+                    st.rerun()
+
+                else:
+                    st.error("Invalid Password")
 
 
 def main():
@@ -258,7 +277,7 @@ def main():
     authenticate()
 
     # User is authenticated display the dashboard.
-    if st.session_state["authenticated"]:
+    if st.session_state.get("authenticated"):
         try:
             show_data_dashboard(st.session_state["log_sheet_db"])
         except Exception:  # pylint: disable=broad-except
@@ -266,11 +285,11 @@ def main():
             st.error("Failed to display dashboard.")
 
             # Clear the session state.
-            st.session_state.clear()
             try:
-                cookie_manager.delete("vgs_auth")
+                st.session_state["cookie_manager"].delete("vgs_auth")
             except Exception:  # pylint
                 logging.error("Failed to delete cookie.", exc_info=True)
+            st.session_state.clear()
 
 
 def display_dashboard():

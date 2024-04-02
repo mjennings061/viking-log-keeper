@@ -54,13 +54,20 @@ class AuthConfig():
             dict: The serialised dictionary."""
         dictionary = {}
         for this_field in fields(self):
-            # Skip the client field.
+            # Skip the client field, its not serialisable.
             if this_field.name == "client":
                 continue
+            # Log sheet config has its own serialisation method.
             elif this_field.name == "log_sheet_config":
-                dictionary[this_field.name] = getattr(self,
-                                                      this_field.name).__dict__
+                # Ensure non-empty.
+                log_sheet_config = getattr(self, this_field.name)
+                if log_sheet_config:
+                    dictionary[this_field.name] = getattr(
+                        self,
+                        this_field.name
+                    ).__dict__
             else:
+                # Other fields are serialisable.
                 dictionary[this_field.name] = getattr(self, this_field.name)
         return dictionary
 
@@ -350,7 +357,8 @@ class Session():
         cookie_manager.set(
             "vgs_auth",
             self.session_id,
-            expires_at=datetime.now() + timedelta(days=self._cookie_lifetime)
+            expires_at=datetime.now() + timedelta(days=self._cookie_lifetime),
+            path="/",
         )
         logging.info("Saved session to cookie.")
 
