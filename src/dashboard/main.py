@@ -91,7 +91,7 @@ def logout():
     # session DB entry.
     st.session_state["authenticated"] = False
     session = Session()
-    session.delete_cookie(cookie_manager=st.session_state["cookie_manager"])
+    session.delete_cookie(cookie_manager=get_cookie_manager())
     st.toast("Logged out.")
     logging.info("Logged out.")
     st.rerun()
@@ -207,11 +207,21 @@ def get_log_sheet_creds(auth_config: AuthConfig = None):
     return log_sheet_db
 
 
+def get_cookie_manager():
+    """Get the cookie manager.
+
+    Returns:
+        CookieManager: The cookie manager."""
+    if "cookie_manager" not in st.session_state:
+        st.session_state["cookie_manager"] = CookieManager()
+    cookie_manager = st.session_state.get("cookie_manager")
+    return cookie_manager
+
+
 def authenticate():
     """Prompt and authenticate."""
     # Add cookie manager to session state.
-    cookie_manager = st.session_state.get("cookie_manager", CookieManager())
-    st.session_state["cookie_manager"] = cookie_manager
+    cookie_manager = get_cookie_manager()
 
     # Read cookie if it exists.
     cookie = st.session_state.get("cookie")
@@ -286,7 +296,7 @@ def main():
 
             # Clear the session state.
             try:
-                st.session_state["cookie_manager"].delete("vgs_auth")
+                get_cookie_manager().delete("vgs_auth")
             except Exception:  # pylint
                 logging.error("Failed to delete cookie.", exc_info=True)
             st.session_state.clear()

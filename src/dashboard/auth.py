@@ -367,5 +367,9 @@ class Session():
 
         Args:
             cookie_manager (CookieManager): The cookie manager."""
-        cookie_manager.delete("vgs_auth")
+        try:
+            cookie_manager.delete("vgs_auth")
+        except Exception:
+            logging.error("Failed to delete session from cookie.",
+                          exc_info=True)
         logging.info("Deleted session from cookie.")
