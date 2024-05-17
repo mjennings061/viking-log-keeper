@@ -228,11 +228,5 @@ def display_dashboard():
                    check=True)
 
 
-def update_credentials_wrapper():
-    """Wrapper function to update the credentials."""
-    config = AuthConfig()
-    config.update_credentials()
-
-
 if __name__ == '__main__':
     main()

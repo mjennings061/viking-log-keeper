@@ -18,6 +18,7 @@ from dashboard.utils import is_streamlit_running
 
 # Set up logging.
 logger = logging.getLogger(__name__)
+logging.getLogger('pymongo').setLevel(logging.WARNING)
 
 
 @dataclass
@@ -48,24 +49,20 @@ class AuthConfig:
         """Load secrets from keyring or streamlit."""
         # Load auth password from secrets or keyring.
         if is_streamlit_running():
-            try:
-                import streamlit as st
-                auth_password = st.secrets["auth_password"]
-                self.auth_url = self.auth_url.replace("<password>",
-                                                      auth_password)
-                return
-            except Exception:  # noqa: F841
-                # Load the config from keyring.
-                auth_password = kr.get_password(PROJECT_NAME, "auth_password")
+            import streamlit as st
+            auth_password = st.secrets["auth_password"]
+        else:
+            # Get vgs and password from keyring.
+            self.vgs = kr.get_password(PROJECT_NAME, "vgs")
+            self.password = kr.get_password(PROJECT_NAME, "password")
+            auth_password = kr.get_password(PROJECT_NAME, "auth_password")
 
-                # Replace the password in the auth_url if it exists.
-                if auth_password is not None:
-                    self.auth_url = self.auth_url.replace("<password>",
-                                                          auth_password)
-
-        # Get vgs and password from keyring.
-        self.vgs = kr.get_password(PROJECT_NAME, "vgs")
-        self.password = kr.get_password(PROJECT_NAME, "password")
+        # Replace the password in the auth_url. Note, this is different from
+        # the password used to authenticate with each individual user.
+        self.auth_url = self.auth_url.replace(
+            "<password>",
+            auth_password
+        )
 
     def validate(self) -> bool:
         """Validate the configuration values.
@@ -224,3 +221,16 @@ class AuthConfig:
         if self.client:
             self.client.close()
             logging.info("Closed connection to Auth DB.")
+
+
+def update_credentials_wrapper():
+    """Wrapper function to update the credentials."""
+    config = AuthConfig()
+    config.update_credentials()
+
+
+if __name__ == "__main__":
+    update_credentials_wrapper()
+    config = AuthConfig()
+    print(config.fetch_log_sheets_credentials())
+    config.close_connection()

@@ -31,7 +31,8 @@ def is_streamlit_running() -> bool:
 
 
 def main():
-    """Run utils as a Streamlit app."""
+    """Run utils as a Streamlit app e.g.
+    python -m streamlit run src/dashboard/utils.py"""
     # Create a Streamlit app.
     import streamlit as st
     st.title("Streamlit App")
