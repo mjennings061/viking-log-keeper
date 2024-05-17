@@ -11,7 +11,7 @@ from pathlib import Path
 from log_keeper.get_config import LogSheetConfig
 from log_keeper.ingest import collate_log_sheets
 from log_keeper.output import launches_to_excel, launches_to_db
-from dashboard.main import AuthConfig
+from dashboard.auth import AuthConfig
 
 # Set logging level.
 logging.basicConfig(level=logging.INFO)
