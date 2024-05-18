@@ -59,10 +59,11 @@ class AuthConfig:
 
         # Replace the password in the auth_url. Note, this is different from
         # the password used to authenticate with each individual user.
-        self.auth_url = self.auth_url.replace(
-            "<password>",
-            auth_password
-        )
+        if auth_password is not None:
+            self.auth_url = self.auth_url.replace(
+                "<password>",
+                auth_password,
+            )
 
     def validate(self) -> bool:
         """Validate the configuration values.
