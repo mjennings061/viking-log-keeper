@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "viking-log-keeper"
-version = "1.0.0"
+version = "1.1.0"
 description = "661 VGS - Function to collate 2965D log sheets into a master log, database, and dashboard."
 authors = ["Michael Jennings <mjennings061@gmail.com>"]
 license = "MIT"
@@ -34,7 +34,7 @@ repository = "https://github.com/mjennings061/viking-log-keeper.git"
 
 [tool.poetry.scripts]
 update-logs = "log_keeper.main:main"
-update-config = "dashboard.main:update_credentials_wrapper"
+update-config = "dashboard.auth:update_credentials_wrapper"
 update-log-sheet-location = "log_keeper.get_config:update_log_sheets_dir_wrapper"
 viking-dashboard = "dashboard.main:display_dashboard"
 

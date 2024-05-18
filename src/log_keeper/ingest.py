@@ -150,7 +150,7 @@ def collate_log_sheets(dir_path):
                 )
         except Exception:   # pylint: disable=broad-except
             if file_path.name != "2965D_YYMMDD_ZEXXX.xlsx":
-                logger.warning("Log sheet invalid: %s",
+                logger.warning("\n\nLog sheet invalid: %s\n\n",
                                file_path.name,
                                exc_info=True)
 
