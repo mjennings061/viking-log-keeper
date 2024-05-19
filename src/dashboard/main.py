@@ -188,12 +188,13 @@ def authenticate():
 
                 # TODO: Store cookie as a TTLCache e.g. [session_id: 661VGS]
                 # User is authenticated, set the authenticated cookie.
-                # expires_at = datetime.now() + timedelta(days=90)
-                # cookie_manager.set(
-                #     "vgs_auth",
-                #     "true",
-                #     expires_at=expires_at
-                # )  # Expires in 90 days
+                expires_at = datetime.now() + timedelta(days=90)
+                cookie_manager.set(
+                    "vgs_auth",
+                    "true",
+                    expires_at=expires_at.timestamp()
+                )  # Expires in 90 days
+                cookie_manager.save()
                 st.rerun()
 
             else:
@@ -224,7 +225,7 @@ def main():
 
 def display_dashboard():
     """Run the Streamlit app."""
-    subprocess.run(["streamlit", "run", "src/dashboard/dashboard.py"],
+    subprocess.run(["streamlit", "run", "src/dashboard/main.py"],
                    check=True)
 
 
