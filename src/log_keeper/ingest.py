@@ -3,10 +3,15 @@
 This file handles log sheet extraction and sanitisation.
 """
 
-import sys
+# Get packages.
 import logging
+from typing import Union
+from pathlib import Path
 import pandas as pd
+from tqdm import tqdm
 
+# Set up logging.
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
@@ -100,7 +105,7 @@ def sanitise_log_sheets(log_sheet_df):
     return log_sheet_df
 
 
-def collate_log_sheets(dir_path):
+def collate_log_sheets(dir_path: Union[str, Path]) -> pd.DataFrame:
     """
     Collate all log sheets into a single dataframe
     using the path to the log sheet directory.
@@ -116,6 +121,9 @@ def collate_log_sheets(dir_path):
         FileNotFoundError: If no log sheets are found in the
             specified directory.
     """
+    # Convert to Path object.
+    dir_path = Path(dir_path)
+
     # Get the directory contents.
     FILE_NAME = "2965D_*.xlsx"
     dir_contents = dir_path.glob(f"{FILE_NAME}")
@@ -126,37 +134,35 @@ def collate_log_sheets(dir_path):
         raise FileNotFoundError(f"No log sheets found in \n{dir_path}")
 
     # Log the number of log sheets found.
-    n_files = len(log_sheet_files)
-    logger.info("Found %d log sheets.", n_files)
+    logger.info("Found %d log sheets.", len(log_sheet_files))
 
     # Extract data from each log sheet.
-    log_sheet_df = pd.DataFrame()
-    for i_file, file_path in enumerate(log_sheet_files, start=1):
+    log_sheet_list = []
+    for file_path in tqdm(log_sheet_files,
+                          desc="Processing log sheets",
+                          unit="file"):
         # Get the log sheet data.
-        sys.stdout.write(f"\rProcessing file {i_file}/{n_files}")
-        sys.stdout.flush()
         try:
-            this_sheet_df = ingest_log_sheet(file_path)
             # TODO: Write a function to also ingest the launches
             # and hours CF for F724 if given.
-            if i_file == 1:
-                # Create a new dataframe based on the first file ingest.
-                log_sheet_df = this_sheet_df
-            else:
-                # Append to the master dataframe.
-                log_sheet_df = pd.concat(
-                    [log_sheet_df, this_sheet_df],
-                    ignore_index=True
-                )
+            this_sheet_df = ingest_log_sheet(file_path)
+            log_sheet_list.append(this_sheet_df)
         except Exception:   # pylint: disable=broad-except
             if file_path.name != "2965D_YYMMDD_ZEXXX.xlsx":
-                logger.warning("\n\nLog sheet invalid: %s\n\n",
-                               file_path.name,
-                               exc_info=True)
+                warning_msg = f"Log sheet invalid: {file_path.name}"
+                tqdm.write(warning_msg)
 
-    sys.stdout.write("\nDone processing files.\n")
-    sys.stdout.flush()
+    # Concatenate the log sheets.
+    log_sheet_df = pd.concat(log_sheet_list, ignore_index=True)
+    logger.info("Done importing log sheets.")
 
     # Sanitise the log sheets.
     collated_df = sanitise_log_sheets(log_sheet_df)
     return collated_df
+
+
+if __name__ == "__main__":
+    # Test the collate function.
+    test_dir_path = "C:\\Users\\Michael.Jennings\\Downloads\\Logs"
+    test_collated_df = collate_log_sheets(test_dir_path)
+    logger.info(test_collated_df.head())

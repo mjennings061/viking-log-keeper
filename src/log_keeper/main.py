@@ -64,7 +64,10 @@ def main():
     )
 
     # Save the launches to excel.
-    launches_to_excel(launches_df, master_log_filepath)
+    try:
+        launches_to_excel(launches_df, master_log_filepath)
+    except Exception:  # pylint: disable=broad-except
+        logger.warning("Could not save Master Log excel file.")
 
     # Save the master log to MongoDB Atlas.
     try:
