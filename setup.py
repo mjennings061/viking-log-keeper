@@ -4,18 +4,13 @@ import shutil
 from setuptools import setup, find_packages
 from setuptools.command.install import install
 from pathlib import Path
-import logging
-
-# Set up logging.
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 
 class PostInstallCommand(install):
     """Post-installation for installation mode."""
     def run(self):
         print("Running post-installation script.")
-        logger.info("Running post-installation script.")
+        print("Running post-installation script.")
         install.run(self)
         self.post_install()
 
@@ -25,7 +20,7 @@ class PostInstallCommand(install):
         try:
             self.copy_bat_file()
         except Exception:   # pylint: disable=broad-except
-            logger.warning("Could not create bat file.")
+            print("Could not create bat file.")
 
     def copy_bat_file():
         """Create a .bat file that will run the update-logs command."""
