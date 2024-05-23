@@ -58,17 +58,17 @@ setup(
     include_package_data=True,
     package_data={'': ['scripts/*.bat']},
     install_requires=[
-        "extra-streamlit-components==0.1.70",
-        "inquirer==3.2.0",
-        "keyring==24.3.0",
-        "logging==0.4.9.6",
-        "matplotlib==3.8.0",
-        "openpyxl==3.1.2",
-        "pandas==2.2.0",
-        "pymongo[srv]==4.6.1",
-        "streamlit==1.32.0",
-        "tqdm==4.66.0",
-        "xlsxwriter==3.2.0"
+        "extra-streamlit-components>=0.1.70",
+        "inquirer>=3.2.0",
+        "keyring>=24.3.0",
+        "logging>=0.4.9.0",
+        "matplotlib>=3.8.0",
+        "openpyxl>=3.1.0",
+        "pandas>=2.2.0",
+        "pymongo[srv]>=4.6.0",
+        "streamlit>=1.32.0",
+        "tqdm>=4.66.0",
+        "xlsxwriter>=3.2.0"
     ],
     entry_points={
         "console_scripts": [
