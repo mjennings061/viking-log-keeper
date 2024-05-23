@@ -66,28 +66,23 @@ def validate_log_sheet(log_sheet_df: pd.DataFrame):
 
     # Check if the dataframe is empty.
     if log_sheet_df.empty:
-        logger.error("Log sheet is empty.")
         raise ValueError("Log sheet is empty.")
 
     # Check for NaT (not a time).
     columns_to_check = ['Date', 'TakeOffTime', 'LandingTime']
     if log_sheet_df[columns_to_check].isna().any().any():
-        logger.error("Date or time columns contain NaT values.")
         raise ValueError("Date or time columns contain NaT values.")
 
     # Check if the LandingTime is before the TakeOffTime.
     if (log_sheet_df['LandingTime'] < log_sheet_df['TakeOffTime']).any():
-        logger.error("LandingTime is before TakeOffTime.")
         raise ValueError("LandingTime is before TakeOffTime.")
 
     # Check for wild values in the FlightTime column.
     if log_sheet_df['FlightTime'].max() > MAX_FLIGHT_TIME:
-        logger.error("FlightTime column contains huge value.")
         raise ValueError("FlightTime column contains huge value.")
 
     # Check there is an aircraft. Excel defaults to 0 if empty.
     if (log_sheet_df['Aircraft'] == '0').any():
-        logger.error("Aircraft column has no aircraft.")
         raise ValueError("Aircraft column has no aircraft.")
 
 

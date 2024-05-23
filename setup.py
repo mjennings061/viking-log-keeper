@@ -1,16 +1,20 @@
 """setup.py - This file is used to install the package and its dependencies."""
 
 import shutil
+import logging
 from setuptools import setup, find_packages
 from setuptools.command.install import install
 from pathlib import Path
 
+# Configure logging
+logging.basicConfig(level=logging.DEBUG)
+
 
 class PostInstallCommand(install):
-    """Post-installation for installation mode."""
+    """Install the package and run a post-installation script."""
     def run(self):
-        print("Running post-installation script.")
-        print("Running post-installation script.")
+        """Run the post-installation script."""
+        logging.info("Running post-installation script.")
         install.run(self)
         self.post_install()
 
@@ -18,20 +22,32 @@ class PostInstallCommand(install):
         """Run after the package is installed."""
         # Create the a run script for the user.
         try:
+            logging.info("Attempting to copy bat file.")
             self.copy_bat_file()
         except Exception:   # pylint: disable=broad-except
-            print("Could not create bat file.")
+            logging.error("Could not create bat file.")
 
-    def copy_bat_file():
+    def copy_bat_file(self):
         """Create a .bat file that will run the update-logs command."""
+        # Constants.
+        BAT_FILE_NAME = 'run_log_keeper.bat'
+
         # Define the source and destination paths
-        source = Path(__file__).parent / 'scripts' / 'run_log_keeper.bat'
+        source = Path(__file__).parent / 'scripts' / BAT_FILE_NAME
+
+        # Find the desktop. If the user has OneDrive, use that instead.
         desktop = Path.home() / 'Desktop'
-        destination = desktop / 'run_log_keeper.bat'
+        onedrive_desktop = Path.home() / 'OneDrive' / 'Desktop'
+        if not desktop.exists() and onedrive_desktop.exists():
+            desktop = onedrive_desktop
+        else:
+            logging.warning("Could not find desktop or OneDrive Desktop.")
+            raise FileNotFoundError("Could not find desktop.")
 
         # Copy the .bat file to the user's home directory
+        destination = desktop / BAT_FILE_NAME
         shutil.copyfile(source, destination)
-        print(f'run_log_keeper.bat has been copied to {destination}')
+        logging.info('%s has been copied to %s', BAT_FILE_NAME, str(desktop))
 
 
 setup(
