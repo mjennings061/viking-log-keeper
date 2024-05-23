@@ -38,7 +38,9 @@ class PostInstallCommand(install):
         # Find the desktop. If the user has OneDrive, use that instead.
         desktop = Path.home() / 'Desktop'
         onedrive_desktop = Path.home() / 'OneDrive' / 'Desktop'
-        if not desktop.exists() and onedrive_desktop.exists():
+        if desktop.exists():
+            desktop = desktop
+        elif onedrive_desktop.exists():
             desktop = onedrive_desktop
         else:
             logging.warning("Could not find desktop or OneDrive Desktop.")
