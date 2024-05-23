@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "viking-log-keeper"
-version = "1.1.0"
+version = "1.2.0"
 description = "661 VGS - Function to collate 2965D log sheets into a master log, database, and dashboard."
 authors = ["Michael Jennings <mjennings061@gmail.com>"]
 license = "MIT"
@@ -26,6 +26,7 @@ python = ">=3.10,<4.0"
 pandas = "^2.2.0"
 pymongo = {extras = ["srv"], version = "^4.6.1"}
 streamlit = "^1.32.0"
+tqdm = "^4.66.0"
 xlsxwriter = "^3.2.0"
 
 [tool.poetry.urls]
