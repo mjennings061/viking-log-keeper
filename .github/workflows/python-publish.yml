@@ -12,18 +12,19 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - name: Set up Python
-      uses: actions/setup-python@v3
+      uses: actions/setup-python@v5
       with:
         python-version: '3.11'
-    - name: Install Poetry
+    - name: Install Dependencies
       run: |
-        curl -sSL https://install.python-poetry.org | python3 -
-    - name: Configure Poetry
-      run: |
-        poetry config pypi-token.pypi ${{ secrets.PYPI_API_TOKEN }}
+        python -m pip install --upgrade pip
+        pip install setuptools wheel twine
     - name: Build and Publish
+      env:
+        TWINE_USERNAME: __token__
+        TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
       run: |
-        poetry build
-        poetry publish
+        python setup.py sdist bdist_wheel
+        twine upload dist/*

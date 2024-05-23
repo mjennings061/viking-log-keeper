@@ -49,7 +49,41 @@ def ingest_log_sheet(file_path: str) -> pd.DataFrame:
         }
     )
 
+    # Validate the log sheet. Raise an error if invalid.
+    validate_log_sheet(raw_df)
     return raw_df
+
+
+def validate_log_sheet(log_sheet_df: pd.DataFrame):
+    """
+    Validate the log sheet dataframe.
+
+    Parameters:
+    - log_sheet_df (pandas.DataFrame): The log sheet dataframe to be validated.
+    """
+    # Constants.
+    MAX_FLIGHT_TIME = 240   # [Minutes].
+
+    # Check if the dataframe is empty.
+    if log_sheet_df.empty:
+        raise ValueError("Log sheet is empty.")
+
+    # Check for NaT (not a time).
+    columns_to_check = ['Date', 'TakeOffTime', 'LandingTime']
+    if log_sheet_df[columns_to_check].isna().any().any():
+        raise ValueError("Date or time columns contain NaT values.")
+
+    # Check if the LandingTime is before the TakeOffTime.
+    if (log_sheet_df['LandingTime'] < log_sheet_df['TakeOffTime']).any():
+        raise ValueError("LandingTime is before TakeOffTime.")
+
+    # Check for wild values in the FlightTime column.
+    if log_sheet_df['FlightTime'].max() > MAX_FLIGHT_TIME:
+        raise ValueError("FlightTime column contains huge value.")
+
+    # Check there is an aircraft. Excel defaults to 0 if empty.
+    if (log_sheet_df['Aircraft'] == '0').any():
+        raise ValueError("Aircraft column has no aircraft.")
 
 
 def sanitise_log_sheets(log_sheet_df):
@@ -163,6 +197,6 @@ def collate_log_sheets(dir_path: Union[str, Path]) -> pd.DataFrame:
 
 if __name__ == "__main__":
     # Test the collate function.
-    test_dir_path = "C:\\Users\\Michael.Jennings\\Downloads\\Logs"
+    test_dir_path = "C:\\Users\\mjenn\\Downloads\\Logs"
     test_collated_df = collate_log_sheets(test_dir_path)
     logger.info(test_collated_df.head())
