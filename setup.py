@@ -61,7 +61,6 @@ setup(
         "extra-streamlit-components>=0.1.70",
         "inquirer>=3.2.0",
         "keyring>=24.3.0",
-        "logging>=0.4.9.0",
         "matplotlib>=3.8.0",
         "openpyxl>=3.1.0",
         "pandas>=2.2.0",
