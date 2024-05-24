@@ -1,5 +1,2 @@
 [global]
 showWarningOnDirectExecution = false
-
-[runner]
-pythonpath = "src"
