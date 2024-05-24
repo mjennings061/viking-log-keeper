@@ -79,7 +79,12 @@ class AuthConfig:
         if "<password>" in self.auth_url:
             logging.warning("Auth URL is not set.")
             return False
-        return True
+
+        # Connect to the DB.
+        self._login(self.vgs, self.password)
+        self.close_connection()
+
+        return self.authenticated
 
     def _connect(self) -> bool:
         """Connect to the DB.
@@ -106,10 +111,11 @@ class AuthConfig:
             logging.error("Connection error", exc_info=True)
         return self.connected
 
-    def _login(self, vgs, password: str) -> bool:
+    def _login(self, vgs: str, password: str) -> bool:
         """Login to the DB.
 
         Args:
+            vgs (str): The VGS to authenticate with.
             password (str): The password to check.
 
         Returns:

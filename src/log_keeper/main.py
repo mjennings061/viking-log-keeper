@@ -8,10 +8,11 @@ import logging
 from pathlib import Path
 
 # Get modules.
-from log_keeper.get_config import LogSheetConfig
-from log_keeper.ingest import collate_log_sheets
-from log_keeper.output import launches_to_excel, launches_to_db
-from dashboard.auth import AuthConfig
+sys.path.append(str(Path(__file__).resolve().parents[1]))
+from log_keeper.get_config import LogSheetConfig    # noqa: E402
+from log_keeper.ingest import collate_log_sheets    # noqa: E402
+from log_keeper.output import launches_to_excel, launches_to_db   # noqa: E402
+from dashboard.auth import AuthConfig   # noqa: E402
 
 # Set logging level.
 logging.basicConfig(level=logging.INFO)
@@ -29,28 +30,8 @@ def adjust_streamlit_logging():
         streamlit_logger.setLevel(logging.ERROR)
 
 
-def main():
-    """
-    This function is the entry point of the program.
-    It performs the following steps:
-    1. Loads DB and directory path config.
-    2. Collates all log sheets into a dataframe.
-    3. Saves the launches to an Excel file.
-    4. Saves the master log to MongoDB Atlas.
-    """
-    # Initial comment.
-    logger.info("Starting...")
-    adjust_streamlit_logging()
-
-    # Load config.
-    auth_config = AuthConfig()
-    if not auth_config.validate():
-        # Get the credentials from the user.
-        auth_config.update_credentials()
-
-    # Load the log sheet config.
-    db_config = LogSheetConfig(**auth_config.fetch_log_sheets_credentials())
-
+def update_logs(auth_config: AuthConfig, db_config: LogSheetConfig):
+    """Collate log sheets and update the master log."""
     # Output file path.
     log_sheets_dir = Path(db_config.fetch_log_sheet_dir())
 
@@ -83,6 +64,32 @@ def main():
                            exc_info=True)
             auth_config.update_credentials()
             launches_to_db(launches_df, db_config)
+
+
+def main():
+    """
+    This function is the entry point of the program.
+    It performs the following steps:
+    1. Loads DB and directory path config.
+    2. Collates all log sheets into a dataframe.
+    3. Saves the launches to an Excel file.
+    4. Saves the master log to MongoDB Atlas.
+    """
+    # Initial comment.
+    logger.info("Starting...")
+    adjust_streamlit_logging()
+
+    # Load config.
+    auth_config = AuthConfig()
+    if not auth_config.validate():
+        # Get the credentials from the user.
+        auth_config.update_credentials()
+
+    # Load the log sheet config.
+    db_config = LogSheetConfig(**auth_config.fetch_log_sheets_credentials())
+
+    # Collate log sheets and update the master log.
+    update_logs(auth_config, db_config)
 
     # Print success message.
     logger.info("Success!")
