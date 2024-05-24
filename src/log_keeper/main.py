@@ -79,6 +79,9 @@ def main():
     logger.info("Starting...")
     adjust_streamlit_logging()
 
+    # TODO: Update auth section to login once and grab the db_config.
+    # Compact all the below to a single db_config = authenticate()
+
     # Load config.
     auth_config = AuthConfig()
     if not auth_config.validate():
