@@ -10,6 +10,12 @@ from pathlib import Path
 logging.basicConfig(level=logging.DEBUG)
 
 
+def parse_requirements(file_path):
+    """Parse the requirements file."""
+    with open(file_path, 'r') as file:
+        return file.read().splitlines()
+
+
 class PostInstallCommand(install):
     """Install the package and run a post-installation script."""
     def run(self):
@@ -54,7 +60,7 @@ class PostInstallCommand(install):
 
 setup(
     name="viking-log-keeper",
-    version="1.3.0",
+    version="1.3.1",
     packages=find_packages(where="src"),
     package_dir={"": "src"},
     url="https://github.com/mjennings061/viking-log-keeper",
@@ -75,18 +81,7 @@ setup(
     },
     include_package_data=True,
     package_data={'': ['scripts/*.bat']},
-    install_requires=[
-        "extra-streamlit-components>=0.1.70",
-        "inquirer>=3.2.0",
-        "keyring>=24.3.0",
-        "matplotlib>=3.8.0",
-        "openpyxl>=3.1.0",
-        "pandas>=2.2.0",
-        "pymongo[srv]>=4.6.0",
-        "streamlit>=1.32.0",
-        "tqdm>=4.66.0",
-        "xlsxwriter>=3.2.0"
-    ],
+    install_requires=parse_requirements('requirements.txt'),
     entry_points={
         "console_scripts": [
             "update-logs=log_keeper.main:main",
