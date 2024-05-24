@@ -10,9 +10,10 @@ from pathlib import Path
 logging.basicConfig(level=logging.DEBUG)
 
 
-def parse_requirements(file_path):
+def parse_requirements(filename):
     """Parse the requirements file."""
-    with open(file_path, 'r') as file:
+    req_path = Path(__file__).parent / filename
+    with open(req_path, 'r') as file:
         return file.read().splitlines()
 
 
@@ -81,6 +82,7 @@ setup(
     },
     include_package_data=True,
     package_data={'': ['scripts/*.bat']},
+    data_files=[('', ['requirements.txt'])],
     install_requires=parse_requirements('requirements.txt'),
     entry_points={
         "console_scripts": [
