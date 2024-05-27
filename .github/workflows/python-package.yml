@@ -44,7 +44,7 @@ jobs:
 
     - name: Create secrets.toml file
       run: |
-        echo 'auth_password = "${{ secrets.AUTH_PASSWORD }}"'' >> .streamlit/secrets.toml
+        echo 'auth_password = "${{ secrets.AUTH_PASSWORD }}"' >> .streamlit/secrets.toml
 
     # TODO: Add deployment step to deploy streamlit app on current commit to public URL.continue-on-error: 
     - name: Deploy streamlit app
