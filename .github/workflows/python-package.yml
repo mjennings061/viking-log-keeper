@@ -41,3 +41,17 @@ jobs:
         flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
         # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
         flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+
+    # TODO: Add deployment step to deploy streamlit app on current commit to public URL.continue-on-error: 
+    - name: Deploy streamlit app
+      uses: streamlit/streamlit-app-action@v0.0.3
+      with:
+        app-path: "src/dashboard/main.py"
+        ruff: true
+
+    - name: Run functional tests
+      uses: OctoMind-dev/automagically-action-execute@v2
+      with:
+        url: https://viking.streamlit.app/
+        token: ${{ secrets.OCTOMIND_ORGANISATION_KEY }}
+        testTargetId: ${{ secrets.OCTOMIND_TEST_TARGET }}
