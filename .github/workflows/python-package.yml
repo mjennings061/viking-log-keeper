@@ -42,6 +42,11 @@ jobs:
         # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
         flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
 
+    - name: Create secrets.toml file
+      run: |
+        echo "[secrets]" > .streamlit/secrets.toml
+        echo "auth_password = '${{ secrets.AUTH_PASSWORD }}'" >> .streamlit/secrets.toml
+
     # TODO: Add deployment step to deploy streamlit app on current commit to public URL.continue-on-error: 
     - name: Deploy streamlit app
       uses: streamlit/streamlit-app-action@v0.0.3
