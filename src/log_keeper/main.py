@@ -12,22 +12,12 @@ sys.path.append(str(Path(__file__).resolve().parents[1]))
 from log_keeper.get_config import LogSheetConfig    # noqa: E402
 from log_keeper.ingest import collate_log_sheets    # noqa: E402
 from log_keeper.output import launches_to_excel, launches_to_db   # noqa: E402
-from dashboard.auth import AuthConfig   # noqa: E402
+from log_keeper.utils import adjust_streamlit_logging  # noqa: E402
+from dashboard.auth import authenticate_log_sheet_db  # noqa: E402
 
 # Set logging level.
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-
-def adjust_streamlit_logging():
-    """Adjust the logging level of Streamlit to suppress warnings and
-    info messages."""
-    # Check if Streamlit is in the list of running modules
-    if 'streamlit' not in sys.modules:
-        # Get the logger for Streamlit
-        streamlit_logger = logging.getLogger('streamlit')
-        # Set the logging level to ERROR to suppress warnings and info messages
-        streamlit_logger.setLevel(logging.ERROR)
 
 
 def update_logs(db_config: LogSheetConfig):
@@ -63,23 +53,7 @@ def update_logs(db_config: LogSheetConfig):
                          "Try changing the config.")
 
 
-def authenticate():
-    """Authenticate with the DB and return the db_config."""
-    # Load config.
-    auth_config = AuthConfig()
-    if not auth_config.validate():
-        # If the credentials are not valid, raise an error.
-        logger.error("Invalid credentials.")
-        raise ValueError(
-            "Invalid credentials. Please run 'update-config' or " +
-            "'dashboard.auth:update_credentials_wrapper' to update them.")
-
-    # Load the log sheet config.
-    db_config = LogSheetConfig(**auth_config.fetch_log_sheets_credentials())
-    return db_config
-
-
-def main():
+def update_logs_wrapper():
     """
     This function is the entry point of the program.
     It performs the following steps:
@@ -93,7 +67,9 @@ def main():
     adjust_streamlit_logging()
 
     # Authenticate with the DB.
-    db_config = authenticate()
+    db_config = authenticate_log_sheet_db()
+    if db_config is None:
+        raise ValueError("Could not authenticate with the DB.")
 
     # Collate log sheets and update the master log.
     update_logs(db_config)
@@ -105,4 +81,4 @@ def main():
 
 if __name__ == "__main__":
     # Run the log keeper.
-    main()
+    update_logs_wrapper()

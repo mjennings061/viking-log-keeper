@@ -2,8 +2,8 @@
 
 import shutil
 import logging
-from setuptools import setup, find_packages
-from setuptools.command.install import install
+from setuptools import setup, find_packages  # type: ignore
+from setuptools.command.install import install  # type: ignore
 from pathlib import Path
 
 # Configure logging
@@ -61,7 +61,7 @@ class PostInstallCommand(install):
 
 setup(
     name="viking-log-keeper",
-    version="1.5.0",
+    version="2.0.0",
     packages=find_packages(where="src"),
     package_dir={"": "src"},
     url="https://github.com/mjennings061/viking-log-keeper",
@@ -86,7 +86,7 @@ setup(
     install_requires=parse_requirements('requirements.txt'),
     entry_points={
         "console_scripts": [
-            "update-logs=log_keeper.main:main",
+            "update-logs=log_keeper.update_logs:update_logs_wrapper",
             "update-config=dashboard.auth:update_credentials_wrapper",
             "update-log-sheet-location=log_keeper.get_config:"
             "update_log_sheets_dir_wrapper",

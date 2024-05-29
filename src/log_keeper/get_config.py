@@ -1,6 +1,7 @@
 """get_config.py - Get the database configuration from keyring"""
 
 # Get packages.
+import sys
 from pathlib import Path
 from dataclasses import dataclass, field
 from typing import Optional
@@ -10,6 +11,10 @@ import keyring as kr
 import pandas as pd
 import inquirer
 import logging
+
+# User packages.
+sys.path.append(str(Path(__file__).resolve().parents[1]))
+from log_keeper.utils import validate_directory  # noqa: E402
 
 # Set up logging.
 logger = logging.getLogger(__name__)
@@ -111,8 +116,7 @@ class LogSheetConfig:
                     "log_sheets_dir",
                     message="Log sheets directory e.g. " +
                             "C:\\Users\\YOUR_USERNAME\\OneDrive\\Documents",
-                    validate=lambda _, x: Path(x).is_dir(
-                    ) or "Path does not exist or is not a directory.",
+                    validate=validate_directory,
                 )
             ]
             # Ask the user for the log sheets directory.

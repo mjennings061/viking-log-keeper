@@ -3,9 +3,11 @@
 This file contains utility functions and constants."""
 
 # Get packages.
+import sys
 import logging
 from pathlib import Path
 import inquirer
+from inquirer.errors import ValidationError
 
 # Constants.
 PROJECT_NAME = "viking-log-keeper"
@@ -14,24 +16,28 @@ PROJECT_NAME = "viking-log-keeper"
 logger = logging.getLogger(__name__)
 
 
-def verify_directory_path(path):
+def validate_directory(answers: dict, path_str: Path) -> bool:
     """
     Verify that the path is a directory.
 
     Args:
+        answers (dict): The answers from the user.
         path (Path): The path to verify.
 
     Returns:
         bool: True if the path is a directory, otherwise False.
     """
+    # Convert the path to a Path object.
+    path = Path(path_str)
     if path.is_dir() is False:
-        logger.warning("%s is not a directory.", path)
-        return False
-    else:
-        return True
+        raise ValidationError(
+            '',
+            reason="Path does not exist or is not a directory."
+        )
+    return True
 
 
-def prompt_directory_path():
+def prompt_directory_path() -> Path:
     """
     Prompt the user to enter a directory path.
 
@@ -43,7 +49,7 @@ def prompt_directory_path():
         inquirer.Text(
             'path',
             message="Enter the path to the Documents directory " +
-                    "e.g. C:\\Users\\YOUR_USERNAME\\OneDrive\\Documents\n",
+                    "e.g. C:\\Users\\YOUR_USERNAME\\OneDrive\\Documents",
             validate=lambda _, x: Path(x).is_dir(
             ) or "Path does not exist or is not a directory.",
         )
@@ -115,3 +121,14 @@ def get_log_sheets_path():
         log_sheets_dir = prompt_directory_path()
 
     return log_sheets_dir
+
+
+def adjust_streamlit_logging():
+    """Adjust the logging level of Streamlit to suppress warnings and
+    info messages."""
+    # Check if Streamlit is in the list of running modules
+    if 'streamlit' not in sys.modules:
+        # Get the logger for Streamlit
+        streamlit_logger = logging.getLogger('streamlit')
+        # Set the logging level to ERROR to suppress warnings and info messages
+        streamlit_logger.setLevel(logging.ERROR)
