@@ -47,12 +47,19 @@ jobs:
       run: |
         echo 'auth_password = "${{ secrets.AUTH_PASSWORD }}"' >> .streamlit/secrets.toml
 
-    # TODO: Add deployment step to deploy streamlit app on current commit to public URL.continue-on-error: 
-    - name: Deploy streamlit app
-      uses: streamlit/streamlit-app-action@v0.0.3
-      with:
-        app-path: "src/dashboard/main.py"
-        ruff: true
+    - name: Start Streamlit app
+      run: |
+        nohup streamlit run src/dashboard/main.py &
+
+    - name: Wait for Streamlit app to be accessible
+      run: |
+        # Wait for Streamlit to start
+        for i in {1..30}; do
+          if curl -s http://localhost:8501; then
+            break
+          fi
+          sleep 2
+        done
 
     - name: Run Playwright tests
       env:
