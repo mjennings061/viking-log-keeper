@@ -26,7 +26,33 @@ logging.getLogger('pymongo').setLevel(logging.WARNING)
 
 @dataclass
 class AuthConfig:
-    """Data class to store the authentication configuration values."""
+    """Data class to store the authentication configuration values.
+
+    Attributes:
+        db_name (str): The name of the MongoDB database.
+        db_collection_name (str): The name of the MongoDB collection.
+        db_credentials_name (str): The name of the MongoDB collection
+            containing the credentials.
+        auth_url (str): The URL to connect to the MongoDB server.
+        vgs (str): The VGS to authenticate with.
+        password (Optional[str]): The password to authenticate with.
+        authenticated (bool): True if the user is authenticated.
+        client (Optional[MongoClient]): The MongoDB client.
+        connected (bool): True if connected to the DB.
+        allowed_vgs (list): The list of allowed VGS.
+        log_sheet_config (LogSheetConfig): The log sheet configuration.
+
+    Methods (public):
+        load_secrets: Load secrets from keyring or streamlit.
+        validate: Validate the configuration values.
+        fetch_log_sheets_credentials: Fetch the log_sheets DB credentials.
+        update_credentials: Use inquirer to update the credentials.
+        close_connection: Close the connection to the DB.
+
+    Methods (private):
+        _post_init: Load db_url from secrets or keyring.
+        _connect: Connect to the DB.
+        _login: Login to the DB."""
     # Constants.
     db_name: str = field(default="auth")
     db_collection_name: str = field(default="auth")

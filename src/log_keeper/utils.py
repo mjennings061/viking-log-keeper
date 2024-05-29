@@ -117,7 +117,7 @@ def get_log_sheets_path():
                     exc_info=True)
 
     # Prompt the user to enter the path to the documents directory.
-    while verify_directory_path(log_sheets_dir) is False:
+    while validate_directory(None, log_sheets_dir) is False:
         log_sheets_dir = prompt_directory_path()
 
     return log_sheets_dir

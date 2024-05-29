@@ -31,7 +31,14 @@ class LogSheetConfig:
         db_name (Optional[str]): The name of the MongoDB database.
         db_collection_name (Optional[str]): The name of the MongoDB collection.
         log_sheets_dir (Optional[str]): The path to the directory containing
-            the log sheets."""
+            the log sheets.
+
+    Methods:
+        validate: Validate the configuration values.
+        connect_to_db: Connect to the MongoDB database.
+        fetch_log_sheet_dir: Fetch the log sheet directory from keyring.
+        update_log_sheets_dir: Update the log sheets directory.
+        fetch_data_from_mongodb: Fetch data from MongoDB."""
     # Define fields with default values of None.
     db_hostname: Optional[str] = field(default=None)
     db_username: Optional[str] = field(default=None)
