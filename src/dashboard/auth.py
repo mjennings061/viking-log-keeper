@@ -2,6 +2,8 @@
 """
 
 # Import modules.
+import sys
+from pathlib import Path
 from dataclasses import dataclass, field
 from typing import Optional
 import re
@@ -12,9 +14,10 @@ import inquirer
 import logging
 
 # User defined modules.
-from log_keeper.utils import PROJECT_NAME
-from log_keeper.get_config import LogSheetConfig
-from dashboard.utils import is_streamlit_running
+sys.path.append(str(Path(__file__).resolve().parents[1]))
+from log_keeper.utils import PROJECT_NAME   # noqa: E402
+from log_keeper.get_config import LogSheetConfig    # noqa: E402
+from dashboard.utils import is_streamlit_running    # noqa: E402
 
 # Set up logging.
 logger = logging.getLogger(__name__)
@@ -23,7 +26,33 @@ logging.getLogger('pymongo').setLevel(logging.WARNING)
 
 @dataclass
 class AuthConfig:
-    """Data class to store the authentication configuration values."""
+    """Data class to store the authentication configuration values.
+
+    Attributes:
+        db_name (str): The name of the MongoDB database.
+        db_collection_name (str): The name of the MongoDB collection.
+        db_credentials_name (str): The name of the MongoDB collection
+            containing the credentials.
+        auth_url (str): The URL to connect to the MongoDB server.
+        vgs (str): The VGS to authenticate with.
+        password (Optional[str]): The password to authenticate with.
+        authenticated (bool): True if the user is authenticated.
+        client (Optional[MongoClient]): The MongoDB client.
+        connected (bool): True if connected to the DB.
+        allowed_vgs (list): The list of allowed VGS.
+        log_sheet_config (LogSheetConfig): The log sheet configuration.
+
+    Methods (public):
+        load_secrets: Load secrets from keyring or streamlit.
+        validate: Validate the configuration values.
+        fetch_log_sheets_credentials: Fetch the log_sheets DB credentials.
+        update_credentials: Use inquirer to update the credentials.
+        close_connection: Close the connection to the DB.
+
+    Methods (private):
+        _post_init: Load db_url from secrets or keyring.
+        _connect: Connect to the DB.
+        _login: Login to the DB."""
     # Constants.
     db_name: str = field(default="auth")
     db_collection_name: str = field(default="auth")
@@ -79,7 +108,11 @@ class AuthConfig:
         if "<password>" in self.auth_url:
             logging.warning("Auth URL is not set.")
             return False
-        return True
+
+        # Connect to the DB.
+        self._login(self.vgs, self.password)
+        self.close_connection()
+        return self.authenticated
 
     def _connect(self) -> bool:
         """Connect to the DB.
@@ -103,13 +136,14 @@ class AuthConfig:
             else:
                 logging.error("Failed to connect to Auth DB.")
         except Exception:  # pylint: disable=broad-except
-            logging.error("Connection error", exc_info=True)
+            logging.error("Connection error - check configuration.")
         return self.connected
 
-    def _login(self, vgs, password: str) -> bool:
+    def _login(self, vgs: str, password: str) -> bool:
         """Login to the DB.
 
         Args:
+            vgs (str): The VGS to authenticate with.
             password (str): The password to check.
 
         Returns:
@@ -180,42 +214,51 @@ class AuthConfig:
 
     def update_credentials(self):
         """Use inquirer to update the credentials. Save to keyring."""
-        # Prompt the user to enter the credentials.
-        questions = [
-            inquirer.Text(
-                "vgs",
-                message="VGS",
-                default="661VGS"
-            ),
-            inquirer.Password(
-                "password",
-                message="Password"
-            ),
-            inquirer.Password(
-                "auth_password",
-                message="Auth database password (different from above)"
-            )
-        ]
-
-        # Update the credentials.
-        answers = inquirer.prompt(questions)
-        self.vgs = answers["vgs"]
-        self.password = answers["password"]
-
-        # Replace the password in the auth_url.
-        self.auth_url = re.sub(r"vgs_user:.*@",
-                               f"vgs_user:{answers['auth_password']}@",
-                               self.auth_url)
-
-        # Save credentials to keyring.
+        # Handle KeyboardInterrupt if the user cancels the operation.
         try:
-            kr.set_password(PROJECT_NAME, "vgs", answers["vgs"])
-            kr.set_password(PROJECT_NAME, "auth_password",
-                            answers["auth_password"])
-            kr.set_password(PROJECT_NAME, "password", answers["password"])
-        except Exception:
-            logging.error("Failed to save credentials to keyring.",
-                          exc_info=True)
+            # Prompt the user to enter the credentials.
+            questions = [
+                inquirer.Text(
+                    "vgs",
+                    message="VGS",
+                    default="661VGS"
+                ),
+                inquirer.Password(
+                    "password",
+                    message="Password"
+                ),
+                inquirer.Password(
+                    "auth_password",
+                    message="Auth database password (different from above)"
+                )
+            ]
+
+            # Update the credentials.
+            answers = inquirer.prompt(questions)
+            self.vgs = answers["vgs"]
+            self.password = answers["password"]
+
+            # Replace the password in the auth_url.
+            self.auth_url = re.sub(
+                r"vgs_user:.*@",
+                f"vgs_user:{answers['auth_password']}@",
+                self.auth_url
+            )
+
+            # Save credentials to keyring.
+            try:
+                kr.set_password(PROJECT_NAME, "vgs", answers["vgs"])
+                kr.set_password(PROJECT_NAME, "auth_password",
+                                answers["auth_password"])
+                kr.set_password(PROJECT_NAME, "password", answers["password"])
+                logging.info("Saved credentials to keyring.")
+            except Exception:
+                logging.error("Failed to save credentials to keyring.",
+                              exc_info=True)
+
+        except KeyboardInterrupt:
+            logging.info("Operation canceled by user.")
+            return
 
     def close_connection(self):
         """Close the connection to the DB."""
@@ -228,10 +271,35 @@ def update_credentials_wrapper():
     """Wrapper function to update the credentials."""
     config = AuthConfig()
     config.update_credentials()
+    config.validate()
+
+
+def authenticate_log_sheet_db() -> Optional[LogSheetConfig]:
+    """Authenticate with the DB and return the db_config.
+
+    Returns:
+        None or LogSheetConfig: The log sheet configuration."""
+    # Load config.
+    auth_config = AuthConfig()
+    if not auth_config.validate():
+        # If the credentials are not valid, raise an error.
+        logger.error(
+            "Invalid credentials. Run 'update-config' or " +
+            "'dashboard.auth:update_credentials_wrapper' to update them."
+        )
+        db_config = None
+    else:
+        # Load the log sheet config.
+        log_sheet_credentials = auth_config.fetch_log_sheets_credentials()
+        db_config = LogSheetConfig(**log_sheet_credentials)
+    return db_config
 
 
 if __name__ == "__main__":
+    # Update the credentials.
     update_credentials_wrapper()
+
+    # Fetch the log_sheets credentials.
     config = AuthConfig()
     print(config.fetch_log_sheets_credentials())
     config.close_connection()
