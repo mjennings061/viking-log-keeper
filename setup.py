@@ -61,7 +61,7 @@ class PostInstallCommand(install):
 
 setup(
     name="viking-log-keeper",
-    version="1.3.2",
+    version="1.5.0",
     packages=find_packages(where="src"),
     package_dir={"": "src"},
     url="https://github.com/mjennings061/viking-log-keeper",
