@@ -30,7 +30,7 @@ def adjust_streamlit_logging():
         streamlit_logger.setLevel(logging.ERROR)
 
 
-def update_logs(auth_config: AuthConfig, db_config: LogSheetConfig):
+def update_logs(db_config: LogSheetConfig):
     """Collate log sheets and update the master log."""
     # Output file path.
     log_sheets_dir = Path(db_config.fetch_log_sheet_dir())
@@ -59,11 +59,24 @@ def update_logs(auth_config: AuthConfig, db_config: LogSheetConfig):
             logger.error(exc_info=True)
         else:
             # Remove the config file and try again.
-            logger.warning("Could not save to DB. " +
-                           "Try changing the config.",
-                           exc_info=True)
-            auth_config.update_credentials()
-            launches_to_db(launches_df, db_config)
+            logger.error("Could not save to DB. " +
+                         "Try changing the config.")
+
+
+def authenticate():
+    """Authenticate with the DB and return the db_config."""
+    # Load config.
+    auth_config = AuthConfig()
+    if not auth_config.validate():
+        # If the credentials are not valid, raise an error.
+        logger.error("Invalid credentials.")
+        raise ValueError(
+            "Invalid credentials. Please run 'update-config' or " +
+            "'dashboard.auth:update_credentials_wrapper' to update them.")
+
+    # Load the log sheet config.
+    db_config = LogSheetConfig(**auth_config.fetch_log_sheets_credentials())
+    return db_config
 
 
 def main():
@@ -79,20 +92,11 @@ def main():
     logger.info("Starting...")
     adjust_streamlit_logging()
 
-    # TODO: Update auth section to login once and grab the db_config.
-    # Compact all the below to a single db_config = authenticate()
-
-    # Load config.
-    auth_config = AuthConfig()
-    if not auth_config.validate():
-        # Get the credentials from the user.
-        auth_config.update_credentials()
-
-    # Load the log sheet config.
-    db_config = LogSheetConfig(**auth_config.fetch_log_sheets_credentials())
+    # Authenticate with the DB.
+    db_config = authenticate()
 
     # Collate log sheets and update the master log.
-    update_logs(auth_config, db_config)
+    update_logs(db_config)
 
     # Print success message.
     logger.info("Success!")

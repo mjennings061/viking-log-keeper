@@ -103,27 +103,32 @@ class LogSheetConfig:
 
     def update_log_sheets_dir(self):
         """Update the log sheets directory."""
-        # Get the log sheets directory using CLI.
-        logging.info("Updating log sheets directory.")
-        questions = [
-            inquirer.Text(
-                "log_sheets_dir",
-                message="Log sheets directory " +
-                        "e.g. C:\\Users\\YOUR_USERNAME\\OneDrive\\Documents\n",
-                validate=lambda _, x: Path(x).is_dir(
-                ) or "Path does not exist or is not a directory.",
-            )
-        ]
-        answers = inquirer.prompt(questions)
-        self.log_sheets_dir = answers["log_sheets_dir"]
-
-        # Save to keyring.
         try:
+            # Get the log sheets directory using CLI.
+            logging.info("Updating log sheets directory.")
+            questions = [
+                inquirer.Text(
+                    "log_sheets_dir",
+                    message="Log sheets directory e.g. " +
+                            "C:\\Users\\YOUR_USERNAME\\OneDrive\\Documents",
+                    validate=lambda _, x: Path(x).is_dir(
+                    ) or "Path does not exist or is not a directory.",
+                )
+            ]
+            # Ask the user for the log sheets directory.
+            answers = inquirer.prompt(questions)
+
+            # Check if the user cancelled.
+            if not answers:
+                raise KeyboardInterrupt
+
+            # Save the log sheets directory to keyring.
+            self.log_sheets_dir = answers["log_sheets_dir"]
             kr.set_password("log_keeper", "log_sheets_dir",
                             self.log_sheets_dir)
-        except Exception:
-            logger.error("Could not save log_sheets_dir to keyring.",
-                         exc_info=True)
+        except KeyboardInterrupt:
+            logging.warning("User cancelled the log sheets directory update.")
+            return
 
     def fetch_data_from_mongodb(self):
         """Fetch data from MongoDB.
@@ -154,3 +159,4 @@ if __name__ == "__main__":
     # Get the config file.
     config = LogSheetConfig()
     print(config)
+    config.update_log_sheets_dir()

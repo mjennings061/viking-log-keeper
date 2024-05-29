@@ -83,7 +83,6 @@ class AuthConfig:
         # Connect to the DB.
         self._login(self.vgs, self.password)
         self.close_connection()
-
         return self.authenticated
 
     def _connect(self) -> bool:
@@ -186,42 +185,51 @@ class AuthConfig:
 
     def update_credentials(self):
         """Use inquirer to update the credentials. Save to keyring."""
-        # Prompt the user to enter the credentials.
-        questions = [
-            inquirer.Text(
-                "vgs",
-                message="VGS",
-                default="661VGS"
-            ),
-            inquirer.Password(
-                "password",
-                message="Password"
-            ),
-            inquirer.Password(
-                "auth_password",
-                message="Auth database password (different from above)"
-            )
-        ]
-
-        # Update the credentials.
-        answers = inquirer.prompt(questions)
-        self.vgs = answers["vgs"]
-        self.password = answers["password"]
-
-        # Replace the password in the auth_url.
-        self.auth_url = re.sub(r"vgs_user:.*@",
-                               f"vgs_user:{answers['auth_password']}@",
-                               self.auth_url)
-
-        # Save credentials to keyring.
+        # Handle KeyboardInterrupt if the user cancels the operation.
         try:
-            kr.set_password(PROJECT_NAME, "vgs", answers["vgs"])
-            kr.set_password(PROJECT_NAME, "auth_password",
-                            answers["auth_password"])
-            kr.set_password(PROJECT_NAME, "password", answers["password"])
-        except Exception:
-            logging.error("Failed to save credentials to keyring.",
-                          exc_info=True)
+            # Prompt the user to enter the credentials.
+            questions = [
+                inquirer.Text(
+                    "vgs",
+                    message="VGS",
+                    default="661VGS"
+                ),
+                inquirer.Password(
+                    "password",
+                    message="Password"
+                ),
+                inquirer.Password(
+                    "auth_password",
+                    message="Auth database password (different from above)"
+                )
+            ]
+
+            # Update the credentials.
+            answers = inquirer.prompt(questions)
+            self.vgs = answers["vgs"]
+            self.password = answers["password"]
+
+            # Replace the password in the auth_url.
+            self.auth_url = re.sub(
+                r"vgs_user:.*@",
+                f"vgs_user:{answers['auth_password']}@",
+                self.auth_url
+            )
+
+            # Save credentials to keyring.
+            try:
+                kr.set_password(PROJECT_NAME, "vgs", answers["vgs"])
+                kr.set_password(PROJECT_NAME, "auth_password",
+                                answers["auth_password"])
+                kr.set_password(PROJECT_NAME, "password", answers["password"])
+                logging.info("Saved credentials to keyring.")
+            except Exception:
+                logging.error("Failed to save credentials to keyring.",
+                              exc_info=True)
+
+        except KeyboardInterrupt:
+            logging.info("Operation canceled by user.")
+            return
 
     def close_connection(self):
         """Close the connection to the DB."""
