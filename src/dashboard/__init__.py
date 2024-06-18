@@ -23,5 +23,20 @@ from .plots import (    # noqa
 )
 
 # Set up package-wide logging.
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+log_format = "%(filename)s %(levelname)s: %(message)s"
+logging.basicConfig(
+    level=logging.INFO,
+    format=log_format,
+    handlers=[
+        logging.StreamHandler(sys.stdout)
+    ]
+)
+
+__all__ = [
+    "is_streamlit_running",
+    "AuthConfig",
+    "plot_launches_by_commander",
+    "plot_all_launches",
+    "quarterly_summary",
+    "show_logbook_helper",
+]
