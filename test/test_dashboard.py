@@ -17,8 +17,8 @@ def setup(page: Page):
     yield page
     # Close the page after the test.
     page.close()
-    
-    
+
+
 @pytest.fixture(scope="function")
 def login(setup: Page):
     page = setup
