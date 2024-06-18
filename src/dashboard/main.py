@@ -2,10 +2,8 @@
 """
 
 # Import modules.
-import sys
 import subprocess
 from datetime import datetime, timedelta    # noqa: F401
-from pathlib import Path
 import streamlit as st
 from extra_streamlit_components import CookieManager
 import pandas as pd
@@ -13,12 +11,11 @@ import logging
 
 # User defined modules. We need to add the parent directory to the path
 # to allow running the script from the command line (i.e what streamlit does).
-sys.path.append(str(Path(__file__).resolve().parents[1]))
-from log_keeper.get_config import LogSheetConfig    # noqa: E402
-from dashboard.plots import plot_launches_by_commander  # noqa: E402
-from dashboard.plots import plot_all_launches, quarterly_summary  # noqa: E402
-from dashboard.plots import show_logbook_helper   # noqa: E402
-from dashboard.auth import AuthConfig   # noqa: E402
+from log_keeper import LogSheetConfig    # noqa: E402
+from dashboard import plot_launches_by_commander  # noqa: E402
+from dashboard import plot_all_launches, quarterly_summary  # noqa: E402
+from dashboard import show_logbook_helper   # noqa: E402
+from dashboard import AuthConfig   # noqa: E402
 
 # Set up logging.
 logger = logging.getLogger(__name__)
