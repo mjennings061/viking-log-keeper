@@ -85,6 +85,80 @@ def plot_launches_by_commander(df: pd.DataFrame):
     # Display the chart in Streamlit.
     st.altair_chart(chart, use_container_width=True)
 
+def plot_longest_flight_times(df: pd.DataFrame):
+    """Plot the top ten longest flight times"""
+
+    # Sort the DataFrame by FlightTime in descending order
+    df = df.sort_values(by='FlightTime', ascending=False)
+
+    # Drop duplicates based on AircraftCommander, keeping the first occurrence
+    df = df.drop_duplicates(subset='AircraftCommander')
+
+    # Select the top 10 entries
+    top_10 = df.head(10)
+
+    # Create a horizontal bar plot with Altair
+    chart = alt.Chart(top_10).mark_bar().encode(
+        x='FlightTime:Q',
+        y=alt.Y('AircraftCommander:N', sort='-x'),
+        color=alt.value('blue'),  # Set bar color
+        tooltip=['AircraftCommander', 'FlightTime']
+    ).properties(
+        title='Top 10 Longest Flight Times'
+    ).interactive()
+
+    # Display the chart in Streamlit
+    st.altair_chart(chart, use_container_width=True)
+
+def plot_duty_pie_chart(df: pd.DataFrame):
+    """Plot the proportion of launches by duty"""
+
+    # Aggregate the data by duty
+    duty_counts = df['Duty'].value_counts().reset_index()
+    duty_counts.columns = ['Duty', 'Count']
+
+    # Create a pie chart with Altair
+    pie_chart = alt.Chart(duty_counts).mark_arc().encode(
+        theta=alt.Theta(field='Count', type='quantitative'),
+        color=alt.Color(field='Duty', type='nominal'),
+        tooltip=['Duty', 'Count']
+    ).properties(
+        title='Launches by Duty'
+    )
+
+    # Display the pie chart in Streamlit
+    st.altair_chart(pie_chart, use_container_width=True)
+
+def plot_monthly_launches(df: pd.DataFrame):
+    """Plot launches by month"""
+
+    # Convert launch date to datetime format if it's not already
+    if 'Date' in df.columns:
+        df['Date'] = pd.to_datetime(df['Date'])
+
+    # Extract month and year from LaunchDate and format as MMM YY
+    df['Month'] = df['Date'].dt.strftime('%b %y')
+
+    # Aggregate launches by month
+    monthly_launches = df['Month'].value_counts().reset_index()
+    monthly_launches.columns = ['Month', 'Launches']
+
+    # Sort months chronologically
+    months_order = pd.to_datetime(monthly_launches['Month'], format='%b %y').sort_values().dt.strftime('%b %y').tolist()
+    monthly_launches['Month'] = pd.Categorical(monthly_launches['Month'], categories=months_order, ordered=True)
+    monthly_launches = monthly_launches.sort_values('Month')
+
+    # Create a bar chart with Altair
+    bar_chart = alt.Chart(monthly_launches).mark_bar().encode(
+        x=alt.X('Month', title='Month'),
+        y=alt.Y('Launches', title='Number of Launches'),
+        tooltip=['Month', 'Launches']
+    ).properties(
+        title='Launches by Month'
+    )
+
+    # Display the bar chart in Streamlit
+    st.altair_chart(bar_chart, use_container_width=True)
 
 def plot_all_launches(df: pd.DataFrame):
     """ Plot all launches in the data.
