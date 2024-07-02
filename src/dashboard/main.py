@@ -18,6 +18,9 @@ from log_keeper.get_config import LogSheetConfig    # noqa: E402
 from dashboard.plots import plot_duty_pie_chart, plot_launches_by_commander, plot_longest_flight_times, plot_monthly_launches  # noqa: E402
 from dashboard.plots import plot_all_launches, quarterly_summary  # noqa: E402
 from dashboard.plots import show_logbook_helper   # noqa: E402
+from dashboard.plots import plot_firstlast_launch_table
+from dashboard.plots import generate_stats_helper_table
+from dashboard.plots import generate_gur_helper
 from dashboard.auth import AuthConfig   # noqa: E402
 
 # Set up logging.
@@ -93,7 +96,7 @@ def show_data_dashboard(db_credentials: LogSheetConfig):
     st.markdown(f"# {vgs} Dashboard")
     
     # Sidebar for page navigation
-    pages = ["📈 Statistics", "🌍 All Data"]
+    pages = ["📈 Statistics", "🌍 All Data", "Stats & GUR Helper"]
     page = st.sidebar.selectbox("Select a Page:", pages)
     st.sidebar.markdown("<hr>", unsafe_allow_html=True)
 
@@ -169,6 +172,16 @@ def show_data_dashboard(db_credentials: LogSheetConfig):
 
         case "🌍 All Data":
             plot_all_launches(filtered_df)
+        
+        case "Stats & GUR Helper":
+            # Show the First and Last Launch Time table
+            plot_firstlast_launch_table(filtered_df)
+
+            # Show the Stats Helper
+            generate_stats_helper_table(filtered_df)
+
+            # Show the GUR Helper
+            generate_gur_helper(filtered_df)
 
 
 def authenticate():
