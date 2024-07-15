@@ -9,8 +9,6 @@ pymongo[srv]~=4.7.0
 streamlit~=1.35.0
 tqdm~=4.66.0
 xlsxwriter~=3.2.0
-
-# Development.
 playwright~=1.44.0
 python-dotenv~=1.0.0
 pytest~=8.2.0

@@ -12,6 +12,25 @@ import pandas as pd
 import inquirer
 import logging
 
+# Patch the blessed library to handle NoneType streams
+import blessed
+
+original_init = blessed.Terminal.__init__
+
+
+def patched_init(self, *args, **kwargs):
+    try:
+        original_init(self, *args, **kwargs)
+    except AttributeError as e:
+        if 'fileno' in str(e):
+            self._stream = None
+        else:
+            raise
+
+
+# Patch the __init__ method of the Terminal class.
+blessed.Terminal.__init__ = patched_init
+
 # User packages.
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 from log_keeper.utils import validate_directory  # noqa: E402

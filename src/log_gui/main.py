@@ -1,4 +1,4 @@
-"""gui.py - Flet-based GUI for the log_keeper application."""
+"""main.py - Flet-based GUI for the log_keeper application."""
 
 import sys
 import logging
