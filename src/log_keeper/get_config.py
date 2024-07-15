@@ -1,6 +1,7 @@
 """get_config.py - Get the database configuration from keyring"""
 
 # Get packages.
+import sys
 from pathlib import Path
 from dataclasses import dataclass, field
 from typing import Optional
@@ -10,6 +11,29 @@ import keyring as kr
 import pandas as pd
 import inquirer
 import logging
+
+# Patch the blessed library to handle NoneType streams
+import blessed
+
+original_init = blessed.Terminal.__init__
+
+
+def patched_init(self, *args, **kwargs):
+    try:
+        original_init(self, *args, **kwargs)
+    except AttributeError as e:
+        if 'fileno' in str(e):
+            self._stream = None
+        else:
+            raise
+
+
+# Patch the __init__ method of the Terminal class.
+blessed.Terminal.__init__ = patched_init
+
+# User packages.
+sys.path.append(str(Path(__file__).resolve().parents[1]))
+from log_keeper.utils import validate_directory  # noqa: E402
 
 # Set up logging.
 logger = logging.getLogger(__name__)
@@ -26,7 +50,14 @@ class LogSheetConfig:
         db_name (Optional[str]): The name of the MongoDB database.
         db_collection_name (Optional[str]): The name of the MongoDB collection.
         log_sheets_dir (Optional[str]): The path to the directory containing
-            the log sheets."""
+            the log sheets.
+
+    Methods:
+        validate: Validate the configuration values.
+        connect_to_db: Connect to the MongoDB database.
+        fetch_log_sheet_dir: Fetch the log sheet directory from keyring.
+        update_log_sheets_dir: Update the log sheets directory.
+        fetch_data_from_mongodb: Fetch data from MongoDB."""
     # Define fields with default values of None.
     db_hostname: Optional[str] = field(default=None)
     db_username: Optional[str] = field(default=None)
@@ -103,27 +134,31 @@ class LogSheetConfig:
 
     def update_log_sheets_dir(self):
         """Update the log sheets directory."""
-        # Get the log sheets directory using CLI.
-        logging.info("Updating log sheets directory.")
-        questions = [
-            inquirer.Text(
-                "log_sheets_dir",
-                message="Log sheets directory " +
-                        "e.g. C:\\Users\\YOUR_USERNAME\\OneDrive\\Documents\n",
-                validate=lambda _, x: Path(x).is_dir(
-                ) or "Path does not exist or is not a directory.",
-            )
-        ]
-        answers = inquirer.prompt(questions)
-        self.log_sheets_dir = answers["log_sheets_dir"]
-
-        # Save to keyring.
         try:
+            # Get the log sheets directory using CLI.
+            logging.info("Updating log sheets directory.")
+            questions = [
+                inquirer.Text(
+                    "log_sheets_dir",
+                    message="Log sheets directory e.g. " +
+                            "C:\\Users\\YOUR_USERNAME\\OneDrive\\Documents",
+                    validate=validate_directory,
+                )
+            ]
+            # Ask the user for the log sheets directory.
+            answers = inquirer.prompt(questions)
+
+            # Check if the user cancelled.
+            if not answers:
+                raise KeyboardInterrupt
+
+            # Save the log sheets directory to keyring.
+            self.log_sheets_dir = answers["log_sheets_dir"]
             kr.set_password("log_keeper", "log_sheets_dir",
                             self.log_sheets_dir)
-        except Exception:
-            logger.error("Could not save log_sheets_dir to keyring.",
-                         exc_info=True)
+        except KeyboardInterrupt:
+            logging.warning("User cancelled the log sheets directory update.")
+            return
 
     def fetch_data_from_mongodb(self):
         """Fetch data from MongoDB.
@@ -154,3 +189,4 @@ if __name__ == "__main__":
     # Get the config file.
     config = LogSheetConfig()
     print(config)
+    config.update_log_sheets_dir()
