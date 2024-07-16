@@ -3,6 +3,7 @@
 import os
 import pytest
 import subprocess
+import time
 from dotenv import load_dotenv
 from pathlib import Path
 from playwright.sync_api import Page, expect
@@ -22,6 +23,11 @@ def start_streamlit():
     streamlit_command = ["streamlit", "run", str(path_to_streamlit_script)]
     streamlit_process = subprocess.Popen(streamlit_command)
 
+    # Wait for Streamlit to start.
+    wait_time = 3
+    start_time = time.time()
+    while time.time() < start_time + wait_time:
+        time.sleep(1)
     yield
 
     # Teardown code if needed.
