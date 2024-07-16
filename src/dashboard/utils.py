@@ -2,6 +2,7 @@
 
 import sys
 import logging
+import pandas as pd
 
 # Set up logging.
 logger = logging.getLogger(__name__)
@@ -44,6 +45,33 @@ def main():
     else:
         logger.info("Streamlit is not running.")
         st.write("Streamlit is not running.")
+
+
+def filter_by_financial_year(df, year):
+    """Filter DataFrame by financial year.
+
+    Args:
+        df (pd.DataFrame): The DataFrame to filter.
+        year (int): The year to filter by.
+
+    Returns:
+        pd.DataFrame: The filtered DataFrame"""
+    start_date = pd.Timestamp(year, 4, 1)  # Assuming FY starts from April 1st
+    end_date = pd.Timestamp(year + 1, 3, 31)  # Assuming FY ends on March 31st
+    return df[(df['Date'] >= start_date) & (df['Date'] <= end_date)]
+
+
+def total_launches_for_financial_year(df, year):
+    """Calculate total launches for a given financial year.
+
+    Args:
+        df (pd.DataFrame): The DataFrame to filter.
+        year (int): The year to filter by.
+
+    Returns:
+        int: The total number of launches for the financial year"""
+    filtered_df = filter_by_financial_year(df, year)
+    return filtered_df.shape[0]  # Count number of rows (launches)
 
 
 if __name__ == "__main__":

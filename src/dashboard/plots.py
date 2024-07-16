@@ -85,62 +85,81 @@ def plot_launches_by_commander(df: pd.DataFrame):
     # Display the chart in Streamlit.
     st.altair_chart(chart, use_container_width=True)
 
+
 def plot_firstlast_launch_table(df: pd.DataFrame):
-    # Ensure the TakeOffTime is in datetime format (if it's not already)
-    df['TakeOffTime'] = pd.to_datetime(df['TakeOffTime'])
+    """ Plot the first and last launch times for each date.
 
-    # Convert Date column to date-only format
-    df['Date'] = pd.to_datetime(df['Date']).dt.date
-
+    Args:
+        df (pd.DataFrame): The data to be plotted.
+    """
     # Group by Date and calculate the first and last launch times
-    first_last_launch = df.groupby('Date')['TakeOffTime'].agg(['min', 'max']).reset_index()
+    first_last_launch = df.groupby('Date')['TakeOffTime'].agg(
+        ['min', 'max']
+    ).reset_index()
 
     # Rename the columns to match the desired output
     first_last_launch.columns = ['Date', 'FirstLaunch', 'LastLaunch']
 
-    # Sort by Date in descending order
-    first_last_launch = first_last_launch.sort_values(by='Date', ascending=False).reset_index(drop=True)
+    # Sort by Date in descending order and limit to the first N rows.
+    n_rows_to_display = 20
+    first_last_launch = first_last_launch.sort_values(
+        by='Date',
+        ascending=False
+    ).reset_index(drop=True).head(n_rows_to_display)
 
     # Convert Date to the desired format
-    first_last_launch['Date'] = first_last_launch['Date'].apply(lambda x: x.strftime('%d %b %y'))
+    first_last_launch['Date'] = first_last_launch[
+        'Date'
+    ].dt.strftime('%d %b %y')
 
-    # Convert FirstLaunch and LastLaunch to time-only format
-    first_last_launch['FirstLaunch'] = first_last_launch['FirstLaunch'].apply(lambda x: x.strftime('%H:%M'))
-    first_last_launch['LastLaunch'] = first_last_launch['LastLaunch'].apply(lambda x: x.strftime('%H:%M'))
+    # Convert first and last launches to time-only format
+    first_last_launch['FirstLaunch'] = first_last_launch[
+        'FirstLaunch'
+    ].dt.strftime('%H:%M')
+    first_last_launch['LastLaunch'] = first_last_launch[
+        'LastLaunch'
+    ].dt.strftime('%H:%M')
 
-# Display the DataFrame in Streamlit
-    st.header("First & Last Launch Times")
+    # Display the DataFrame in Streamlit
+    st.subheader("First & Last Launch Times")
     st.dataframe(first_last_launch, hide_index=True)
 
-def plot_longest_flight_times(df: pd.DataFrame):
-    """Plot the top ten longest flight times"""
 
+def plot_longest_flight_times(df: pd.DataFrame):
+    """Plot the longest flight times
+
+    Args:
+        df (pd.DataFrame): The data to be plotted
+    """
     # Sort the DataFrame by FlightTime in descending order
     df = df.sort_values(by='FlightTime', ascending=False)
 
     # Drop duplicates based on AircraftCommander, keeping the first occurrence
     df = df.drop_duplicates(subset='AircraftCommander')
 
-    # Select the top 10 entries
-    top_10 = df.head(10)
+    # Select the top entries
+    n_rows_to_display = 10
+    top_flight_times = df.head(n_rows_to_display)
 
     # Create a horizontal bar plot with Altair
-    chart = alt.Chart(top_10).mark_bar().encode(
+    chart = alt.Chart(top_flight_times).mark_bar().encode(
         x='FlightTime:Q',
         y=alt.Y('AircraftCommander:N', sort='-x'),
         color=alt.value('blue'),  # Set bar color
         tooltip=['AircraftCommander', 'FlightTime']
-    ).properties(
-        title='Top 10 Longest Flight Times'
     ).interactive()
 
     # Display the chart in Streamlit
+    st.subheader('Longest Flight Times')
     st.altair_chart(chart, use_container_width=True)
 
-def generate_stats_helper_table(df: pd.DataFrame):
-    # Convert 'Date' column to datetime format
-    df['Date'] = pd.to_datetime(df['Date'])
 
+def launches_by_type_table(df: pd.DataFrame):
+    """Display the number of launches by type in a table for each day
+
+    Args:
+        df (pd.DataFrame): The data to be displayed
+    """
     # Group by 'Date' and 'Duty', count the number of launches
     grouped = df.groupby(['Date', 'Duty']).size().reset_index(name='Launches')
 
@@ -150,35 +169,40 @@ def generate_stats_helper_table(df: pd.DataFrame):
     # Convert 'Date' to format DD MMM YY
     grouped['Date'] = grouped['Date'].dt.strftime('%d %b %y')
 
-    # Limit to the first 15 rows
-    grouped = grouped.head(15)
+    # Limit to the first rows
+    n_rows_to_display = 30
+    grouped = grouped.head(n_rows_to_display)
 
     # Display in Streamlit app
-    st.header('Stats Helper')
+    st.subheader('Launches by Type')
     st.dataframe(grouped, hide_index=True)
 
-def generate_gur_helper(df: pd.DataFrame):
-    # Convert 'Date' column to datetime
-    df['Date'] = pd.to_datetime(df['Date'])
 
-    # Convert 'TakeOffTime' and 'LandingTime' to datetime if needed
-    # df['TakeOffTime'] = pd.to_datetime(df['TakeOffTime'])
-    # df['LandingTime'] = pd.to_datetime(df['LandingTime'])
+def generate_aircraft_weekly_summary(df: pd.DataFrame):
+    """Generate a summary of launches and flight time by week and aircraft
 
-    # Convert 'FlightTime' to numeric if needed
-    # df['FlightTime'] = pd.to_numeric(df['FlightTime'])
-
+    Args:
+        df (pd.DataFrame): The data to be summarized
+    """
     # Convert 'Date' to week start format
-    df['Week_Start'] = df['Date'] - pd.to_timedelta(df['Date'].dt.weekday, unit='D')
+    df['Week Start'] = df['Date'] - pd.to_timedelta(
+        df['Date'].dt.weekday,
+        unit='D'
+    )
 
     # Group by week start and Aircraft
-    gur_helper = df.groupby(['Week_Start', 'Aircraft']).agg({
+    gur_helper = df.groupby(['Week Start', 'Aircraft']).agg({
         'Date': 'count',             # Total launches
         'FlightTime': 'sum'          # Total flight time in minutes
     }).reset_index()
 
     # Rename columns
-    gur_helper.columns = ['Week Start', 'Aircraft', 'Total Launches', 'Total Flight Time (mins)']
+    gur_helper.columns = [
+        'Week Start',
+        'Aircraft',
+        'Total Launches',
+        'Total Flight Time'
+    ]
 
     # Sort by Week Start descending
     gur_helper = gur_helper.sort_values(by='Week Start', ascending=False)
@@ -186,49 +210,127 @@ def generate_gur_helper(df: pd.DataFrame):
     # Format 'Week Start' column to DD MMM YY format
     gur_helper['Week Start'] = gur_helper['Week Start'].dt.strftime('%d %b %y')
 
-    # Limit to last 16 rows
-    gur_helper = gur_helper.head(16)
+    # Format 'Total Flight Time' to HH:MM format
+    gur_helper['Total Flight Time'] = gur_helper['Total Flight Time'].apply(
+        lambda x: f"{x//60}:{x % 60:02d}"
+    )
+
+    # Limit to last rows
+    n_rows_to_display = 16
+    gur_helper = gur_helper.head(n_rows_to_display)
 
     # Display using Streamlit st.dataframe
-    st.title('GUR Helper')
+    st.subheader('Weekly Summary by Aircraft')
     st.dataframe(gur_helper, hide_index=True)
+
+
+def generate_aircraft_daily_summary(df: pd.DataFrame):
+    """Generate a summary of launches and flight time by day and aircraft
+
+    Args:
+        df (pd.DataFrame): The data to be summarized
+    """
+    # Group by 'Date' and 'Aircraft'
+    gur_helper = df.groupby(['Date', 'Aircraft']).agg(
+        Launches=('Date', 'count'),             # Total launches
+        TotalFlightTime=('FlightTime', 'sum')   # Total flight time in minutes
+    ).reset_index()
+
+    # Rename columns
+    gur_helper.columns = [
+        'Date',
+        'Aircraft',
+        'Launches',
+        'Flight Time'
+    ]
+
+    # Sort by 'Date' descending
+    gur_helper = gur_helper.sort_values(by='Date', ascending=False)
+
+    # Format 'Date' column to DD MMM YY format
+    gur_helper['Date'] = gur_helper['Date'].dt.strftime('%d %b %y')
+
+    # Format 'Flight Time' to HH:MM format
+    gur_helper['Flight Time'] = gur_helper['Flight Time'].apply(
+        lambda x: f"{x//60}:{x % 60:02d}"
+    )
+
+    # Limit to last rows
+    n_rows_to_display = 16
+    gur_helper = gur_helper.head(n_rows_to_display)
+
+    # Display using Streamlit st.dataframe
+    st.subheader('Daily Summary by Aircraft')
+    st.dataframe(gur_helper, hide_index=True)
+
 
 def plot_duty_pie_chart(df: pd.DataFrame):
     """Plot the proportion of launches by duty"""
 
-    # Aggregate the data by duty
+    # Aggregate the data by duty and percentage.
     duty_counts = df['Duty'].value_counts().reset_index()
     duty_counts.columns = ['Duty', 'Count']
+    duty_counts['Percentage'] = (
+        duty_counts['Count'] / duty_counts['Count'].sum()
+    ) * 100
+    duty_counts['Percentage'] = duty_counts['Percentage'].round(1)
 
-    # Create a pie chart with Altair
-    pie_chart = alt.Chart(duty_counts).mark_arc().encode(
-        theta=alt.Theta(field='Count', type='quantitative'),
-        color=alt.Color(field='Duty', type='nominal'),
-        tooltip=['Duty', 'Count']
-    ).properties(
-        title='Launches by Duty'
+    # Add a column for the percentage as text.
+    duty_counts['PercentageText'] = duty_counts['Percentage'].astype(str) + '%'
+
+    # Create base chart.
+    base = alt.Chart(duty_counts).encode(
+        theta=alt.Theta("Count:Q", stack=True),
+        color=alt.Color("Duty:N", legend=alt.Legend(title="Duty")),
+        order=alt.Order('Count:Q', sort='descending')
     )
 
+    # Create pie chart.
+    pie = base.mark_arc(outerRadius=120).encode(
+        tooltip=['Duty', 'Count', 'Percentage']
+    )
+
+    # Add text to the base chart.
+    text = base.mark_text(radius=140).encode(
+        text=alt.Text('PercentageText:N'),
+    )
+
+    # Combine pie and text.
+    chart = pie + text
+
     # Display the pie chart in Streamlit
-    st.altair_chart(pie_chart, use_container_width=True)
+    st.subheader('Launches by Duty')
+    st.altair_chart(chart, use_container_width=True)
+
 
 def plot_monthly_launches(df: pd.DataFrame):
-    """Plot launches by month"""
+    """Plot launches by month
 
-    # Convert launch date to datetime format if it's not already
-    if 'Date' in df.columns:
-        df['Date'] = pd.to_datetime(df['Date'])
-
-    # Extract month and year from LaunchDate and format as MMM YY
-    df['Month'] = df['Date'].dt.strftime('%b %y')
+    Args:
+        df (pd.DataFrame): The data to be plotted
+    """
+    
+    monthly_aggregated = df.set_index('Date', inplace=True)
+    monthly_aggregated = monthly_aggregated.resample('M').size()
+    
+    # Extract month and year.
+    df['Month'] = df['Date'].dt.to_period('M')
 
     # Aggregate launches by month
     monthly_launches = df['Month'].value_counts().reset_index()
     monthly_launches.columns = ['Month', 'Launches']
 
+    # TODO: Start here.
     # Sort months chronologically
-    months_order = pd.to_datetime(monthly_launches['Month'], format='%b %y').sort_values().dt.strftime('%b %y').tolist()
-    monthly_launches['Month'] = pd.Categorical(monthly_launches['Month'], categories=months_order, ordered=True)
+    months_order = pd.to_datetime(
+        monthly_launches['Month'],
+        format='%b %y'
+    ).sort_values().dt.strftime('%b %y').tolist()
+    monthly_launches['Month'] = pd.Categorical(
+        monthly_launches['Month'],
+        categories=months_order,
+        ordered=True
+    )
     monthly_launches = monthly_launches.sort_values('Month')
 
     # Create a bar chart with Altair
@@ -242,6 +344,7 @@ def plot_monthly_launches(df: pd.DataFrame):
 
     # Display the bar chart in Streamlit
     st.altair_chart(bar_chart, use_container_width=True)
+
 
 def plot_all_launches(df: pd.DataFrame):
     """ Plot all launches in the data.

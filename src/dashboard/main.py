@@ -15,27 +15,22 @@ import logging
 # to allow running the script from the command line (i.e what streamlit does).
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 from log_keeper.get_config import LogSheetConfig    # noqa: E402
-from dashboard.plots import plot_duty_pie_chart, plot_launches_by_commander, plot_longest_flight_times, plot_monthly_launches  # noqa: E402
+from dashboard.plots import plot_duty_pie_chart  # noqa: E402
+from dashboard.plots import plot_launches_by_commander  # noqa: E402
+from dashboard.plots import plot_longest_flight_times  # noqa: E402
+from dashboard.plots import plot_monthly_launches  # noqa: E402
 from dashboard.plots import plot_all_launches, quarterly_summary  # noqa: E402
 from dashboard.plots import show_logbook_helper   # noqa: E402
-from dashboard.plots import plot_firstlast_launch_table
-from dashboard.plots import generate_stats_helper_table
-from dashboard.plots import generate_gur_helper
+from dashboard.plots import plot_firstlast_launch_table  # noqa: E402
+from dashboard.plots import launches_by_type_table  # noqa: E402
+from dashboard.plots import generate_aircraft_weekly_summary  # noqa: E402
+from dashboard.plots import generate_aircraft_daily_summary  # noqa: E402
 from dashboard.auth import AuthConfig   # noqa: E402
+from dashboard.utils import total_launches_for_financial_year  # noqa: E402
 
 # Set up logging.
 logger = logging.getLogger(__name__)
 
-def filter_by_financial_year(df, year):
-    """Filter DataFrame by financial year."""
-    start_date = pd.Timestamp(year, 4, 1)  # Assuming financial year starts from April 1st
-    end_date = pd.Timestamp(year + 1, 3, 31)  # Assuming financial year ends on March 31st
-    return df[(df['Date'] >= start_date) & (df['Date'] <= end_date)]
-
-def total_launches_for_financial_year(df, year):
-    """Calculate total launches for a given financial year."""
-    filtered_df = filter_by_financial_year(df, year)
-    return filtered_df.shape[0]  # Count number of rows (launches)
 
 def date_filter(df: pd.DataFrame) -> pd.DataFrame:
     """Filter the data by date.
@@ -94,11 +89,10 @@ def show_data_dashboard(db_credentials: LogSheetConfig):
     # Set the page title.
     vgs = db_credentials.db_name.upper()
     st.markdown(f"# {vgs} Dashboard")
-    
+
     # Sidebar for page navigation
-    pages = ["📈 Statistics", "🌍 All Data", "Stats & GUR Helper"]
-    page = st.sidebar.selectbox("Select a Page:", pages)
-    st.sidebar.markdown("<hr>", unsafe_allow_html=True)
+    pages = ["📈 Statistics", "🧮 Stats & GUR Helper", "🌍 All Data"]
+    page = st.selectbox("Select a Page:", pages)
 
     # Fetch data from MongoDB
     if "df" not in st.session_state:
@@ -112,13 +106,17 @@ def show_data_dashboard(db_credentials: LogSheetConfig):
     # Get the data from the session state.
     df = st.session_state['df']
 
-    # Filter and calculate total launches for financial year 24-25
+    # Filter and calculate total launches for financial year 24-25.
     financial_year = '2024'
     total_launches = total_launches_for_financial_year(df, int(financial_year))
 
-    # Display total launches with title in a centered box in the sidebar
+    # Display total launches with title in a centered box in the sidebar.
+    # TODO: Convert to st.metric
     st.sidebar.markdown(
-        f'<div style="text-align: center;"><h3 style="margin-bottom: 0;">Total Launches FY 24-25</h3><p style="margin-top: 0;">{total_launches} launches</p></div>',
+        f'''<div style="text-align: center;">
+        <h3 style="margin-bottom: 0;">Total Launches FY 24-25</h3>
+        <p style="margin-top: 0;">{total_launches} launches</p>
+        </div>''',
         unsafe_allow_html=True
     )
 
@@ -171,17 +169,29 @@ def show_data_dashboard(db_credentials: LogSheetConfig):
                 quarterly_summary(filtered_df, commander, quarter)
 
         case "🌍 All Data":
+            # Plot all launches in a table.
             plot_all_launches(filtered_df)
-        
-        case "Stats & GUR Helper":
-            # Show the First and Last Launch Time table
-            plot_firstlast_launch_table(filtered_df)
 
-            # Show the Stats Helper
-            generate_stats_helper_table(filtered_df)
+        case "🧮 Stats & GUR Helper":
+            # Show statistics and glider utilisation return helpers.
 
-            # Show the GUR Helper
-            generate_gur_helper(filtered_df)
+            # Stats helpers.
+            st.header("Stats Helpers")
+            left, right = st.columns(2, gap="medium")
+            with left:
+                # Show the first and last launch time table.
+                plot_firstlast_launch_table(filtered_df)
+            with right:
+                # Show launches by sortie type.
+                launches_by_type_table(filtered_df)
+
+            # GUR helpers.
+            st.header("GUR Helpers")
+            left, right = st.columns(2, gap="medium")
+            with left:
+                generate_aircraft_weekly_summary(filtered_df)
+            with right:
+                generate_aircraft_daily_summary(filtered_df)
 
 
 def authenticate():
