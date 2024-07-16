@@ -74,5 +74,4 @@ def test_example(login: Page) -> None:
 
 
 if __name__ == "__main__":
-    test_root_page()
-    test_dashboard_login()
+    pytest.main()

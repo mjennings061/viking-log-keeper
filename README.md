@@ -81,6 +81,15 @@ viking-dashboard
 - Issue Tracker: https://github.com/mjennings061/viking-log-keeper/issues
 - Source Code: https://github.com/mjennings061/viking-log-keeper/tree/main
 
+### Testing
+
+To run the tests, run the following commands:
+
+```bash
+playwright install
+python -m pytest test/test_dashboard.py
+```
+
 ## Support
 
 For questions and assistance, consider raising an issue on the [issue tracker](https://github.com/mjennings061/viking-log-keeper/issues). All other queries can be directed to [mjennings061@gmail.com]()
