@@ -4,6 +4,7 @@
 import altair as alt
 import pandas as pd
 import streamlit as st
+from pathlib import Path
 
 # User-defined imports.
 from dashboard.utils import get_financial_year  # noqa: E402
@@ -580,3 +581,15 @@ def show_launch_delta_metric(df: pd.DataFrame):
         delta=delta_launches,
         help="Difference in launches between the last two days."
     )
+
+
+def show_logo(logo_path: Path):
+    """Add the logo to the page.
+
+    Args:
+        logo_path (Path): The path to the logo.
+    """
+    st.logo(str(logo_path))
+    _, centre, _ = st.columns(3)
+    with centre:
+        st.image(str(logo_path), use_column_width="auto")

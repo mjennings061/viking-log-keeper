@@ -3,6 +3,7 @@
 import sys
 import logging
 import pandas as pd
+from pathlib import Path
 
 # Set up logging.
 logger = logging.getLogger(__name__)
@@ -12,6 +13,9 @@ logger.setLevel(logging.INFO)
 console_handler = logging.StreamHandler(sys.stdout)
 console_handler.setLevel(logging.INFO)
 logger.addHandler(console_handler)
+
+# Set global variables.
+LOGO_PATH = Path(__file__).resolve().parents[0] / "media/2fts-logo.png"
 
 
 def is_streamlit_running() -> bool:

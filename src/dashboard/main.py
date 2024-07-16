@@ -27,6 +27,8 @@ from dashboard.plots import generate_aircraft_weekly_summary  # noqa: E402
 from dashboard.plots import generate_aircraft_daily_summary  # noqa: E402
 from dashboard.auth import AuthConfig   # noqa: E402
 from dashboard.plots import show_launch_delta_metric  # noqa: E402
+from dashboard.plots import show_logo  # noqa: E402
+from dashboard.utils import LOGO_PATH  # noqa: E402
 
 # Set up logging.
 logger = logging.getLogger(__name__)
@@ -88,7 +90,7 @@ def show_data_dashboard(db_credentials: LogSheetConfig):
         db_credentials (dict): The database credentials."""
     # Set the page title.
     vgs = db_credentials.db_name.upper()
-    st.markdown(f"# {vgs} Dashboard")
+    st.title(f"{vgs} Dashboard")
 
     # Sidebar for page navigation
     pages = ["📈 Statistics", "🧮 Stats & GUR Helper", "🌍 All Data"]
@@ -205,7 +207,7 @@ def authenticate():
         return
 
     # No cookie present, authenticate.
-    st.subheader("VGS Dashboard")
+    st.subheader("Volunteer Gliding Squadron Dashboard")
     st.session_state["auth"] = AuthConfig()
 
     # Login form.
@@ -245,8 +247,26 @@ def authenticate():
                 st.error("Invalid Password")
 
 
+def configure_app(LOGO_PATH: Path):
+    """Configure the Streamlit app.
+
+    Args:
+        LOGO_PATH (Path): The path to the logo."""
+    # Set the page title.
+    st.set_page_config(
+        page_title="VGS Dashboard",
+        page_icon=str(LOGO_PATH),
+        layout="centered",
+        initial_sidebar_state="expanded",
+    )
+
+
 def main():
     """Main Streamlit App Code."""
+    # Confiure the Streamlit app.
+    configure_app(LOGO_PATH)
+    show_logo(LOGO_PATH)
+
     # Authenticate the user.
     authenticate()
 
