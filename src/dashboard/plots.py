@@ -5,6 +5,11 @@ import altair as alt
 import pandas as pd
 import streamlit as st
 
+# User-defined imports.
+from dashboard.utils import get_financial_year  # noqa: E402
+from dashboard.utils import total_launches_for_financial_year  # noqa: E402
+from dashboard.utils import delta_launches_previous_day  # noqa: E402
+
 
 def format_data_for_table(raw_df: pd.DataFrame) -> pd.DataFrame:
     """Format the data for display in Streamlit.
@@ -405,7 +410,9 @@ def plot_monthly_launches(df: pd.DataFrame):
     final_chart = alt.hconcat(
         combined_chart,
         legend
-    ).resolve_legend(color='independent')
+    ).resolve_legend(
+        color='independent'
+    )
 
     # Display the bar chart in Streamlit
     st.subheader('Monthly Launches')
@@ -546,4 +553,26 @@ def quarterly_summary(df: pd.DataFrame,
     st.dataframe(
         data=summary,
         hide_index=True,
+    )
+
+
+def show_launch_delta_metric(df: pd.DataFrame):
+    """Show the difference in launches between the last two days.
+
+    Args:
+        df (pd.DataFrame): The data to be displayed.
+    """
+    financial_year = get_financial_year(df)
+    launches_fy = total_launches_for_financial_year(
+        df=df,
+        year=financial_year
+    )
+    delta_launches = delta_launches_previous_day(df)
+
+    # Display total launches.
+    st.metric(
+        f"Total Launches {financial_year}",
+        launches_fy,
+        delta=delta_launches,
+        help="Difference in launches between the last two days."
     )

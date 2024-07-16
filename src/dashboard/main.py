@@ -26,7 +26,7 @@ from dashboard.plots import launches_by_type_table  # noqa: E402
 from dashboard.plots import generate_aircraft_weekly_summary  # noqa: E402
 from dashboard.plots import generate_aircraft_daily_summary  # noqa: E402
 from dashboard.auth import AuthConfig   # noqa: E402
-from dashboard.utils import total_launches_for_financial_year  # noqa: E402
+from dashboard.plots import show_launch_delta_metric  # noqa: E402
 
 # Set up logging.
 logger = logging.getLogger(__name__)
@@ -106,20 +106,6 @@ def show_data_dashboard(db_credentials: LogSheetConfig):
     # Get the data from the session state.
     df = st.session_state['df']
 
-    # Filter and calculate total launches for financial year 24-25.
-    financial_year = '2024'
-    total_launches = total_launches_for_financial_year(df, int(financial_year))
-
-    # Display total launches with title in a centered box in the sidebar.
-    # TODO: Convert to st.metric
-    st.sidebar.markdown(
-        f'''<div style="text-align: center;">
-        <h3 style="margin-bottom: 0;">Total Launches FY 24-25</h3>
-        <p style="margin-top: 0;">{total_launches} launches</p>
-        </div>''',
-        unsafe_allow_html=True
-    )
-
     # Setup sidebar filters.
     st.sidebar.markdown("# Dashboard Filters")
 
@@ -149,6 +135,9 @@ def show_data_dashboard(db_credentials: LogSheetConfig):
 
     match page:
         case "📈 Statistics":
+            # Display metrics for financial year.
+            show_launch_delta_metric(filtered_df)
+
             left, right = st.columns(2, gap="medium")
             with left:
                 # Plot the number of launches by unique AircraftCommander.

@@ -47,6 +47,27 @@ def main():
         st.write("Streamlit is not running.")
 
 
+def get_financial_year(df) -> int:
+    """Get the financial year from the last df entry.
+
+    Args:
+        df (pd.DataFrame): The DataFrame to get the financial year from.
+
+    Returns:
+        int: The financial year"""
+    # Check if the DataFrame is empty.
+    if df.empty:
+        return 0
+
+    # Get the last date in the DataFrame
+    last_date = df['Date'].iloc[-1]
+    # Get the year from the last date
+    if last_date.month >= 4:
+        return last_date.year
+    else:
+        return last_date.year - 1
+
+
 def filter_by_financial_year(df, year):
     """Filter DataFrame by financial year.
 
@@ -61,7 +82,7 @@ def filter_by_financial_year(df, year):
     return df[(df['Date'] >= start_date) & (df['Date'] <= end_date)]
 
 
-def total_launches_for_financial_year(df, year):
+def total_launches_for_financial_year(df, year) -> int:
     """Calculate total launches for a given financial year.
 
     Args:
@@ -72,6 +93,30 @@ def total_launches_for_financial_year(df, year):
         int: The total number of launches for the financial year"""
     filtered_df = filter_by_financial_year(df, year)
     return filtered_df.shape[0]  # Count number of rows (launches)
+
+
+def delta_launches_previous_day(df) -> int:
+    """Calculate the number of launches in the last day.
+
+    Args:
+        df (pd.DataFrame): The DataFrame to filter.
+
+    Returns:
+        int: The difference in launches between the last day"""
+    # Check if the DataFrame is empty.
+    if df.empty:
+        return 0
+
+    # Check if there are at least two dates in the DataFrame.
+    if df['Date'].nunique() < 1:
+        return 0
+
+    # Sort the DataFrame by date and find numel of the last date.
+    dates = df['Date'].sort_values(ascending=False).reset_index(drop=True)
+    last_date = dates[0]
+    last_date_df = dates[dates == last_date]
+    delta = last_date_df.size
+    return delta
 
 
 if __name__ == "__main__":
