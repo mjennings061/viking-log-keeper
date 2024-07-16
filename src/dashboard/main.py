@@ -149,14 +149,15 @@ def show_data_dashboard(db_credentials: LogSheetConfig):
 
     match page:
         case "📈 Statistics":
-            # Plot the number of launches by unique AircraftCommander.
-            plot_launches_by_commander(filtered_df)
-
-            # Plot the ten unique longest flight times
-            plot_longest_flight_times(filtered_df)
-
-            # Plot the pie chart to show the proportion of launches per duty
-            plot_duty_pie_chart(filtered_df)
+            left, right = st.columns(2, gap="medium")
+            with left:
+                # Plot the number of launches by unique AircraftCommander.
+                plot_launches_by_commander(filtered_df)
+            with right:
+                # Plot the ten unique longest flight times
+                plot_longest_flight_times(filtered_df)
+                # Plot the pie chart to show launches per duty
+                plot_duty_pie_chart(filtered_df)
 
             # Plot the number of launches per month
             plot_monthly_launches(filtered_df)

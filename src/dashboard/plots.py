@@ -62,27 +62,43 @@ def plot_launches_by_commander(df: pd.DataFrame):
         df (pd.DataFrame): The data to be plotted.
     """
     # Group by AircraftCommander and count launches
-    launches_by_commander = df.groupby("AircraftCommander").size()
-    launches_by_commander = launches_by_commander.reset_index(
-        name='Number of Launches'
-    )
+    launches_by_commander = df.groupby("AircraftCommander").agg(
+        Launches=("Date", "count")
+    ).reset_index()
+
+    # Drop those with less than 5 launches.
+    min_launches = 5
+    launches_by_commander = launches_by_commander[
+        launches_by_commander["Launches"] >= min_launches]
 
     # Sort launches by commander in descending order explicitly in the chart
     chart = alt.Chart(launches_by_commander).mark_bar().encode(
         # Quantitative scale for Number of Launches
-        x=alt.X('Number of Launches:Q', sort=None),
+        x=alt.X('Launches:Q', sort=None),
         # Sort by Number of Launches in descending order
         y=alt.Y('AircraftCommander:N', sort='-x'),
         color=alt.value('blue'),  # Set bar color
-        tooltip=['AircraftCommander', 'Number of Launches']  # Tooltip on hover
+        tooltip=['AircraftCommander', 'Launches']  # Tooltip on hover
     ).properties(
-        title='Launches by Aircraft Commander'
-    ).configure_axis(
-        labelFontSize=12,
-        titleFontSize=14
+        # Adjust the height based on the number of commanders.
+        height=alt.Step(len(launches_by_commander) * 0.75)
     )
 
+    # Display the value of the bar on the chart.
+    text = chart.mark_text(
+        align='left',
+        baseline='middle',
+        dx=3  # Nudge text to right so it doesn't overlap with the bar
+    ).encode(
+        text='Launches:Q'  # Display the number of launches
+    )
+
+    # Combine the chart and text.
+    chart = chart + text
+
     # Display the chart in Streamlit.
+    st.subheader('Launches by Pilot')
+    st.text(f"Only pilots with {min_launches} or more launches shown.")
     st.altair_chart(chart, use_container_width=True)
 
 
@@ -147,7 +163,19 @@ def plot_longest_flight_times(df: pd.DataFrame):
         y=alt.Y('AircraftCommander:N', sort='-x'),
         color=alt.value('blue'),  # Set bar color
         tooltip=['AircraftCommander', 'FlightTime']
-    ).interactive()
+    )
+
+    # Display the value of the bar on the chart.
+    text = chart.mark_text(
+        align='left',
+        baseline='middle',
+        dx=3  # Nudge text to right so it doesn't overlap with the bar
+    ).encode(
+        text='FlightTime:Q'  # Display the flight time
+    )
+
+    # Combine the chart and text.
+    chart = chart + text
 
     # Display the chart in Streamlit
     st.subheader('Longest Flight Times')
@@ -281,22 +309,26 @@ def plot_duty_pie_chart(df: pd.DataFrame):
     # Create base chart.
     base = alt.Chart(duty_counts).encode(
         theta=alt.Theta("Count:Q", stack=True),
-        color=alt.Color("Duty:N", legend=alt.Legend(title="Duty")),
+        color=alt.Color("Duty:N", legend=None),
         order=alt.Order('Count:Q', sort='descending')
     )
 
     # Create pie chart.
-    pie = base.mark_arc(outerRadius=120).encode(
+    radius = 120
+    pie = base.mark_arc(outerRadius=radius).encode(
         tooltip=['Duty', 'Count', 'Percentage']
     )
 
     # Add text to the base chart.
-    text = base.mark_text(radius=140).encode(
+    duty_text = base.mark_text(radius=radius+25, dy=5).encode(
+        text=alt.Text('Duty:N'),
+    )
+    percentage_text = base.mark_text(radius=radius+25, dy=-5).encode(
         text=alt.Text('PercentageText:N'),
     )
 
     # Combine pie and text.
-    chart = pie + text
+    chart = pie + duty_text + percentage_text
 
     # Display the pie chart in Streamlit
     st.subheader('Launches by Duty')
@@ -309,41 +341,75 @@ def plot_monthly_launches(df: pd.DataFrame):
     Args:
         df (pd.DataFrame): The data to be plotted
     """
-    
-    monthly_aggregated = df.set_index('Date', inplace=True)
-    monthly_aggregated = monthly_aggregated.resample('M').size()
-    
     # Extract month and year.
-    df['Month'] = df['Date'].dt.to_period('M')
+    df['YearMonth'] = df['Date'].dt.to_period('M')
 
-    # Aggregate launches by month
-    monthly_launches = df['Month'].value_counts().reset_index()
-    monthly_launches.columns = ['Month', 'Launches']
+    # Aggregate launches and flight time by month.
+    month_df = df.groupby('YearMonth').agg(
+        Launches=('Date', 'count'),
+        FlightTime=('FlightTime', 'sum')
+    ).reset_index()
 
-    # TODO: Start here.
-    # Sort months chronologically
-    months_order = pd.to_datetime(
-        monthly_launches['Month'],
-        format='%b %y'
-    ).sort_values().dt.strftime('%b %y').tolist()
-    monthly_launches['Month'] = pd.Categorical(
-        monthly_launches['Month'],
-        categories=months_order,
-        ordered=True
+    # Melting the DataFrame to have a single column for the value.
+    melt_df = month_df.melt(
+        id_vars='YearMonth',
+        value_vars=['Launches', 'FlightTime'],
+        var_name='Metric',
+        value_name='Value'
+    ).sort_values(by=['YearMonth', 'Metric']).reset_index(drop=True)
+
+    # Convert year and month to string format.
+    melt_df['YearMonthText'] = melt_df['YearMonth'].dt.strftime('%b %Y')
+    year_month_order = melt_df['YearMonthText'].unique().tolist()
+
+    # Create the base chart.
+    base = alt.Chart(melt_df).encode(
+        x=alt.X('YearMonthText:O', title='Date', sort=year_month_order),
     )
-    monthly_launches = monthly_launches.sort_values('Month')
 
-    # Create a bar chart with Altair
-    bar_chart = alt.Chart(monthly_launches).mark_bar().encode(
-        x=alt.X('Month', title='Month'),
-        y=alt.Y('Launches', title='Number of Launches'),
-        tooltip=['Month', 'Launches']
-    ).properties(
-        title='Launches by Month'
+    # Create bar chart for launches.
+    bar_launches = base.transform_filter(
+        alt.datum.Metric == 'Launches'
+    ).mark_bar().encode(
+        y=alt.Y('Value:Q', title='Launches'),
+        color=alt.value('blue'),
+        xOffset='Metric:O',
+        tooltip=['YearMonthText', 'Metric', 'Value'],
     )
+
+    # Create bar chart for flight time.
+    bar_flight_time = base.transform_filter(
+        alt.datum.Metric == 'FlightTime'
+    ).mark_bar().encode(
+        y=alt.Y('Value:Q', title='Flight Time'),
+        color=alt.value('red'),
+        xOffset='Metric:O',
+        tooltip=['YearMonthText', 'Metric', 'Value'],
+    )
+
+    # Combine the two charts.
+    combined_chart = alt.layer(
+        bar_launches,
+        bar_flight_time
+    ).resolve_scale(y='independent')
+
+    # Create a legend for the chart.
+    legend_data = melt_df[['Metric']].drop_duplicates()
+    legend_data['Colour'] = ['red', 'blue']
+    legend = alt.Chart(legend_data).mark_point().encode(
+        y=alt.Y('Metric:N', axis=alt.Axis(orient='right'), title=None),
+        color=alt.Color('Colour:N', scale=None, legend=None),
+    )
+
+    # Combine the chart and legend.
+    final_chart = alt.hconcat(
+        combined_chart,
+        legend
+    ).resolve_legend(color='independent')
 
     # Display the bar chart in Streamlit
-    st.altair_chart(bar_chart, use_container_width=True)
+    st.subheader('Monthly Launches')
+    st.altair_chart(final_chart, use_container_width=True)
 
 
 def plot_all_launches(df: pd.DataFrame):
