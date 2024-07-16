@@ -152,6 +152,10 @@ def plot_longest_flight_times(df: pd.DataFrame):
     Args:
         df (pd.DataFrame): The data to be plotted
     """
+    # Convert ObjectId to string if present.
+    if '_id' in df.columns:
+        df['_id'] = df['_id'].astype(str)
+
     # Sort the DataFrame by FlightTime in descending order
     df = df.sort_values(by='FlightTime', ascending=False)
 
