@@ -87,7 +87,7 @@ To run the tests, run the following commands:
 
 ```bash
 playwright install
-python -m pytest test/test_dashboard.py
+python -m pytest
 ```
 
 ## Support

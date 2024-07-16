@@ -81,7 +81,6 @@ setup(
         'install': PostInstallCommand,
     },
     include_package_data=True,
-    package_data={'': ['scripts/*.bat']},
     data_files=[('', ['requirements.txt'])],
     install_requires=parse_requirements('requirements.txt'),
     entry_points={

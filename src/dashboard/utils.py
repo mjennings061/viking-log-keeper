@@ -15,7 +15,7 @@ console_handler.setLevel(logging.INFO)
 logger.addHandler(console_handler)
 
 # Set global variables.
-LOGO_PATH = Path(__file__).resolve().parents[0] / "media/2fts-logo.png"
+LOGO_PATH = Path(__file__).resolve().parent / "media/2fts-logo.png"
 
 
 def is_streamlit_running() -> bool:
