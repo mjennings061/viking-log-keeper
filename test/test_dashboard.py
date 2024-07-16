@@ -2,7 +2,9 @@
 
 import os
 import pytest
+import subprocess
 from dotenv import load_dotenv
+from pathlib import Path
 from playwright.sync_api import Page, expect
 
 # Load environment variables
@@ -11,14 +13,30 @@ dashboard_username = os.getenv("DASHBOARD_USERNAME")
 dashboard_password = os.getenv("DASHBOARD_PASSWORD")
 
 
+# Function to start Streamlit
+@pytest.fixture(scope="session", autouse=True)
+def start_streamlit():
+    # Replace with your actual Streamlit script path and command
+    path_to_streamlit_script = Path(__file__).parent.parent \
+        / "src" / "dashboard" / "main.py"
+    streamlit_command = ["streamlit", "run", str(path_to_streamlit_script)]
+    streamlit_process = subprocess.Popen(streamlit_command)
+
+    yield
+
+    # Teardown code if needed.
+    streamlit_process.terminate()
+    streamlit_process.wait(timeout=5)
+
+
 @pytest.fixture(scope="function")
 def setup(page: Page):
     page.goto("http://localhost:8501")
     yield page
     # Close the page after the test.
     page.close()
-    
-    
+
+
 @pytest.fixture(scope="function")
 def login(setup: Page):
     page = setup
