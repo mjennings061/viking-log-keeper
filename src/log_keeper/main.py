@@ -13,8 +13,7 @@ from log_keeper.ingest import collate_log_sheets
 from log_keeper.output import launches_to_excel, launches_to_db
 from dashboard.auth import AuthConfig
 
-# Set logging level.
-logging.basicConfig(level=logging.INFO)
+# Get the logger instance.
 logger = logging.getLogger(__name__)
 
 

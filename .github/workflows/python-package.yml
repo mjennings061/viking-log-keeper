@@ -51,4 +51,4 @@ jobs:
       env:
         DASHBOARD_USERNAME: ${{ secrets.DASHBOARD_USERNAME }}
         DASHBOARD_PASSWORD: ${{ secrets.DASHBOARD_PASSWORD }}
-      run: pytest test/test_dashboard.py
+      run: pytest

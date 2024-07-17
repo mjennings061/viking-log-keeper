@@ -12,9 +12,9 @@ import inquirer
 import logging
 
 # User defined modules.
+from dashboard.utils import is_streamlit_running
 from log_keeper.utils import PROJECT_NAME
 from log_keeper.get_config import LogSheetConfig
-from dashboard.utils import is_streamlit_running
 
 # Set up logging.
 logger = logging.getLogger(__name__)

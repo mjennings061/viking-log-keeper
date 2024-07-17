@@ -1,18 +1,11 @@
 """utils.py - Utility functions for the Streamlit app."""
 
-import sys
 import logging
 import pandas as pd
 from pathlib import Path
 
-# Set up logging.
+# Get the logger instance.
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
-
-# Create a console handler and set the level to INFO.
-console_handler = logging.StreamHandler(sys.stdout)
-console_handler.setLevel(logging.INFO)
-logger.addHandler(console_handler)
 
 # Set global variables.
 LOGO_PATH = Path(__file__).resolve().parent / "media/2fts-logo.png"
