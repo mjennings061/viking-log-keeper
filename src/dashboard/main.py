@@ -15,10 +15,20 @@ import logging
 # to allow running the script from the command line (i.e what streamlit does).
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 from log_keeper.get_config import LogSheetConfig    # noqa: E402
+from dashboard.plots import plot_duty_pie_chart  # noqa: E402
 from dashboard.plots import plot_launches_by_commander  # noqa: E402
+from dashboard.plots import plot_longest_flight_times  # noqa: E402
+from dashboard.plots import plot_monthly_launches  # noqa: E402
 from dashboard.plots import plot_all_launches, quarterly_summary  # noqa: E402
 from dashboard.plots import show_logbook_helper   # noqa: E402
+from dashboard.plots import plot_firstlast_launch_table  # noqa: E402
+from dashboard.plots import launches_by_type_table  # noqa: E402
+from dashboard.plots import generate_aircraft_weekly_summary  # noqa: E402
+from dashboard.plots import generate_aircraft_daily_summary  # noqa: E402
 from dashboard.auth import AuthConfig   # noqa: E402
+from dashboard.plots import show_launch_delta_metric  # noqa: E402
+from dashboard.plots import show_logo  # noqa: E402
+from dashboard.utils import LOGO_PATH  # noqa: E402
 
 # Set up logging.
 logger = logging.getLogger(__name__)
@@ -80,12 +90,11 @@ def show_data_dashboard(db_credentials: LogSheetConfig):
         db_credentials (dict): The database credentials."""
     # Set the page title.
     vgs = db_credentials.db_name.upper()
-    st.markdown(f"# {vgs} Dashboard")
+    st.title(f"{vgs} Dashboard")
 
     # Sidebar for page navigation
-    pages = ["📈 Statistics", "🌍 All Data"]
-    page = st.sidebar.selectbox("Select a Page:", pages)
-    st.sidebar.markdown("<hr>", unsafe_allow_html=True)
+    pages = ["📈 Statistics", "🧮 Stats & GUR Helper", "🌍 All Data"]
+    page = st.selectbox("Select a Page:", pages)
 
     # Fetch data from MongoDB
     if "df" not in st.session_state:
@@ -128,9 +137,21 @@ def show_data_dashboard(db_credentials: LogSheetConfig):
 
     match page:
         case "📈 Statistics":
+            # Display metrics for financial year.
+            show_launch_delta_metric(filtered_df)
 
-            # Plot the number of launches by unique AircraftCommander.
-            plot_launches_by_commander(filtered_df)
+            left, right = st.columns(2, gap="medium")
+            with left:
+                # Plot the number of launches by unique AircraftCommander.
+                plot_launches_by_commander(filtered_df)
+            with right:
+                # Plot the ten unique longest flight times
+                plot_longest_flight_times(filtered_df)
+                # Plot the pie chart to show launches per duty
+                plot_duty_pie_chart(filtered_df)
+
+            # Plot the number of launches per month
+            plot_monthly_launches(filtered_df)
 
             # Logbook helper by AircraftCommander.
             show_logbook_helper(filtered_df, commander)
@@ -140,7 +161,29 @@ def show_data_dashboard(db_credentials: LogSheetConfig):
                 quarterly_summary(filtered_df, commander, quarter)
 
         case "🌍 All Data":
+            # Plot all launches in a table.
             plot_all_launches(filtered_df)
+
+        case "🧮 Stats & GUR Helper":
+            # Show statistics and glider utilisation return helpers.
+
+            # Stats helpers.
+            st.header("Stats Helpers")
+            left, right = st.columns(2, gap="medium")
+            with left:
+                # Show the first and last launch time table.
+                plot_firstlast_launch_table(filtered_df)
+            with right:
+                # Show launches by sortie type.
+                launches_by_type_table(filtered_df)
+
+            # GUR helpers.
+            st.header("GUR Helpers")
+            left, right = st.columns(2, gap="medium")
+            with left:
+                generate_aircraft_weekly_summary(filtered_df)
+            with right:
+                generate_aircraft_daily_summary(filtered_df)
 
 
 def authenticate():
@@ -164,7 +207,7 @@ def authenticate():
         return
 
     # No cookie present, authenticate.
-    st.subheader("VGS Dashboard")
+    st.subheader("Volunteer Gliding Squadron Dashboard")
     st.session_state["auth"] = AuthConfig()
 
     # Login form.
@@ -204,8 +247,26 @@ def authenticate():
                 st.error("Invalid Password")
 
 
+def configure_app(LOGO_PATH: Path):
+    """Configure the Streamlit app.
+
+    Args:
+        LOGO_PATH (Path): The path to the logo."""
+    # Set the page title.
+    st.set_page_config(
+        page_title="VGS Dashboard",
+        page_icon=str(LOGO_PATH),
+        layout="centered",
+        initial_sidebar_state="expanded",
+    )
+
+
 def main():
     """Main Streamlit App Code."""
+    # Confiure the Streamlit app.
+    configure_app(LOGO_PATH)
+    show_logo(LOGO_PATH)
+
     # Authenticate the user.
     authenticate()
 
@@ -228,7 +289,7 @@ def main():
 
 def display_dashboard():
     """Run the Streamlit app."""
-    subprocess.run(["streamlit", "run", "src/dashboard/dashboard.py"],
+    subprocess.run(["streamlit", "run", "src/dashboard/main.py"],
                    check=True)
 
 
