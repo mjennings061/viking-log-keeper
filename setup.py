@@ -40,7 +40,8 @@ class PostInstallCommand(install):
         BAT_FILE_NAME = 'run_log_keeper.bat'
 
         # Define the source and destination paths
-        source = Path(__file__).parent / 'scripts' / BAT_FILE_NAME
+        source = Path(__file__).parent / 'log_keeper' / 'scripts' / \
+            BAT_FILE_NAME
 
         # Find the desktop. If the user has OneDrive, use that instead.
         desktop = Path.home() / 'Desktop'
@@ -81,7 +82,6 @@ setup(
         'install': PostInstallCommand,
     },
     include_package_data=True,
-    package_data={'': ['scripts/*.bat']},
     data_files=[('', ['requirements.txt'])],
     install_requires=parse_requirements('requirements.txt'),
     entry_points={

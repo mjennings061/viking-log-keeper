@@ -8,13 +8,10 @@ import logging
 from pathlib import Path
 
 # Get modules.
-from log_keeper import (
-    LogSheetConfig,
-    collate_log_sheets,
-    launches_to_excel,
-    launches_to_db
-)
-from dashboard import AuthConfig
+from log_keeper.get_config import LogSheetConfig
+from log_keeper.ingest import collate_log_sheets
+from log_keeper.output import launches_to_excel, launches_to_db
+from dashboard.auth import AuthConfig
 
 # Get the logger instance.
 logger = logging.getLogger(__name__)
