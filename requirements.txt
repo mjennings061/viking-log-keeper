@@ -5,6 +5,11 @@ matplotlib~=3.9.0
 openpyxl~=3.1.0
 pandas~=2.2.0
 pymongo[srv]~=4.7.0
-streamlit~=1.35.0
+streamlit~=1.36.0
 tqdm~=4.66.0
 xlsxwriter~=3.2.0
+
+# Development.
+python-dotenv~=1.0.0
+pytest~=8.2.0
+pytest-playwright~=0.5.0

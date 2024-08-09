@@ -1,0 +1,3 @@
+include src/dashboard/media/*.png
+include src/log_keeper/scripts/*.bat
+include requirements.txt
