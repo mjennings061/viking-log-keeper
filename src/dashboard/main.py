@@ -13,18 +13,16 @@ from pathlib import Path
 # User defined modules. We need to add the parent directory to the path
 # to allow running the script from the command line (i.e what streamlit does).
 from log_keeper.get_config import LogSheetConfig
-from dashboard.plots import plot_duty_pie_chart
-from dashboard.plots import plot_launches_by_commander
-from dashboard.plots import plot_longest_flight_times
-from dashboard.plots import plot_monthly_launches
+from log_keeper.ingest import ingest_log_sheet, sanitise_log_sheets
+from log_keeper.output import launches_to_db
+from dashboard.plots import plot_duty_pie_chart, plot_launches_by_commander
+from dashboard.plots import plot_longest_flight_times, plot_monthly_launches
 from dashboard.plots import plot_all_launches, quarterly_summary
-from dashboard.plots import show_logbook_helper
-from dashboard.plots import plot_firstlast_launch_table
+from dashboard.plots import show_logbook_helper, plot_firstlast_launch_table
 from dashboard.plots import launches_by_type_table
 from dashboard.plots import generate_aircraft_weekly_summary
 from dashboard.plots import generate_aircraft_daily_summary
-from dashboard.plots import show_launch_delta_metric
-from dashboard.plots import show_logo
+from dashboard.plots import show_launch_delta_metric, show_logo
 from dashboard.auth import AuthConfig
 from dashboard.utils import LOGO_PATH
 
@@ -91,7 +89,8 @@ def show_data_dashboard(db_credentials: LogSheetConfig):
     st.title(f"{vgs} Dashboard")
 
     # Sidebar for page navigation
-    pages = ["📈 Statistics", "🧮 Stats & GUR Helper", "🌍 All Data"]
+    pages = ["📈 Statistics", "📁 Upload Log Sheets",
+             "🧮 Stats & GUR Helper", "🌍 All Data"]
     page = st.selectbox("Select a Page:", pages)
 
     # Fetch data from MongoDB
@@ -182,6 +181,94 @@ def show_data_dashboard(db_credentials: LogSheetConfig):
                 generate_aircraft_weekly_summary(filtered_df)
             with right:
                 generate_aircraft_daily_summary(filtered_df)
+
+        case "📁 Upload Log Sheets":
+            # Display the upload log sheets page.
+            files = st.file_uploader(
+                "Upload Log Sheets",
+                type=["xlsx"],
+                accept_multiple_files=True,
+                key="upload_log_sheets",
+                on_change=None,
+                help="Upload the log sheets to update the dashboard.",
+            )
+
+            if files:
+                # Upload the log sheets.
+                upload_log_sheets(files)
+
+
+def upload_log_sheets(files):
+    """Upload multiple log sheets to the database.
+
+    Args:
+        files (List[BytesIO]): The log sheet files to upload."""
+    # TODO: Move this function to a separate module.
+
+    # Output preallocated list.
+    log_sheet_list = []
+
+    # Progress bar.
+    n_files = len(files)
+    logger.info("Processing %d log sheets...", int(n_files))
+    st.info(f"Processing {n_files} Log Sheets...", icon="⏳")
+    progress_bar = st.progress(0, f"Uploading 0/{n_files}")
+
+    for index, file in enumerate(files):
+        # Update the progress bar.
+        progress_bar.progress((index + 1) / n_files,
+                              text=f"Uploading {index + 1}/{n_files}")
+
+        # Validate the file is an Excel file.
+        if not file.name.endswith(".xlsx"):
+            error_msg = f"Invalid file: {file.name}"
+            st.error(error_msg)
+            logger.error(error_msg)
+            continue
+
+        try:
+            # Read the log sheet to a DataFrame.
+            sheet_df = ingest_log_sheet(file)
+            log_sheet_list.append(sheet_df)
+        except Exception:  # pylint
+            # Skip the invalid log sheet.
+            if file.name != "2965D_YYMMDD_ZEXXX.xlsx":
+                warning_msg = f"Log sheet invalid: {file.name}"
+                st.warning(warning_msg)
+                logger.warning(warning_msg)
+
+    # TODO: Delete the uploaded files.
+    # TODO: Load the data from the database and append the new data.
+    # TODO: Find which days are changed or missing and update the database.
+
+    # Update GUI elements.
+    progress_bar.empty()
+    with st.status("Uploading to Database...", expanded=True) as status_text:
+
+        # Concatenate the log sheets.
+        st.write("Concatenating log sheets...")
+        log_sheet_df = pd.concat(log_sheet_list, ignore_index=True)
+
+        # Sanitise the log sheets.
+        st.write("Santising log sheets...")
+        collated_df = sanitise_log_sheets(log_sheet_df)
+
+        try:
+            # Upload the log sheets to the database.
+            st.write("Uploading...")
+            launches_to_db(collated_df, st.session_state["log_sheet_db"])
+            status_text.update(label="Log Sheets Uploaded!",
+                               state="complete", expanded=False)
+        except Exception:  # pylint: disable=broad-except
+            # Log the error.
+            logger.error("Failed to upload log sheets.", exc_info=True)
+            st.error("Failed to upload log sheets.")
+            status_text.update(label="Failed to upload log sheets.",
+                               state="error", expanded=False)
+
+    # Display a success message.
+    logger.info("Done uploading log sheets.")
+    st.success("Log Sheets Uploaded!", icon="✅")
 
 
 def authenticate():
