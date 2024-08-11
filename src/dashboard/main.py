@@ -23,9 +23,9 @@ from dashboard.plots import plot_firstlast_launch_table
 from dashboard.plots import launches_by_type_table
 from dashboard.plots import generate_aircraft_weekly_summary
 from dashboard.plots import generate_aircraft_daily_summary
-from dashboard.auth import AuthConfig
 from dashboard.plots import show_launch_delta_metric
 from dashboard.plots import show_logo
+from dashboard.auth import AuthConfig
 from dashboard.utils import LOGO_PATH
 
 # Set up logging.

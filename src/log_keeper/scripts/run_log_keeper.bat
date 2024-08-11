@@ -1,6 +1,6 @@
 @echo off
 echo Checking for updates...
-powershell -NoProfile -ExecutionPolicy Bypass -Command "pip install --user --upgrade viking-log-keeper > $null"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "python -m pip install --user --upgrade viking-log-keeper > $null"
 
 if %errorlevel% neq 0 (
     echo An error occurred during the package installation.
@@ -9,7 +9,7 @@ if %errorlevel% neq 0 (
 ) else (
     echo Package installation completed successfully.
 )
-echo.
+echo .
 
 echo Running update-logs.exe...
 update-logs.exe

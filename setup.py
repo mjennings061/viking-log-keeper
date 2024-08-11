@@ -28,15 +28,10 @@ def parse_requirements(filename):
 
 
 class PostInstallCommand(install):
-    """Install the package and run a post-installation script."""
+    """Install the package and run a post-installation script.
+    NOTE: This scrip will only run during setup.py install and not pip."""
     # Constants.
     BAT_FILE_NAME = 'run_log_keeper.bat'
-    EXECUTABLES = [
-        "update-logs.exe",
-        "update-config.exe",
-        "update-log-sheet-location.exe",
-        "viking-dashboard.exe"
-    ]
 
     def run(self):
         """Run the post-installation script."""
@@ -52,13 +47,7 @@ class PostInstallCommand(install):
             self.copy_bat_to_desktop()
         except Exception:   # pylint: disable=broad-except
             logging.error("Could not create bat file.")
-
-        # Copy the executables to the user's desktop.
-        try:
-            logging.info("Attempting to copy executables to desktop.")
-            self.copy_executables_to_desktop()
-        except Exception:   # pylint: disable=broad-except
-            logging.error("Could not copy executables to desktop.")
+        logging.info("Post-installation script complete.")
 
     def get_desktop_path(self):
         """Get the path to the user's desktop."""
@@ -84,19 +73,6 @@ class PostInstallCommand(install):
         shutil.copyfile(source, destination)
         logging.info('%s has been copied to %s',
                      self.BAT_FILE_NAME, str(desktop))
-
-    def copy_executables_to_desktop(self):
-        """Copy the executables to the user's desktop."""
-        # Get source and destination paths.
-        scripts_dir = Path(sys.executable).parent
-        desktop = self.get_desktop_path()
-
-        # Copy the executables to the user's desktop.
-        for executable in self.EXECUTABLES:
-            source = scripts_dir / executable
-            destination = desktop / executable
-            shutil.copyfile(source, destination)
-            logging.info('%s has been copied to %s', executable, str(desktop))
 
 
 def run_setup():
