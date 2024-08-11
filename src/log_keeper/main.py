@@ -15,8 +15,7 @@ from log_keeper.output import launches_to_excel, launches_to_db   # noqa: E402
 from log_keeper.utils import adjust_streamlit_logging  # noqa: E402
 from dashboard.auth import authenticate_log_sheet_db  # noqa: E402
 
-# Set logging level.
-logging.basicConfig(level=logging.INFO)
+# Get the logger instance.
 logger = logging.getLogger(__name__)
 
 

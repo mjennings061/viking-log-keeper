@@ -28,7 +28,7 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         python -m pip install wheel build setuptools flake8 pytest pytest-playwright
-        python -m playwright install
+        playwright install
 
     - name: Build
       run: python -m build
@@ -47,22 +47,8 @@ jobs:
       run: |
         echo 'auth_password = "${{ secrets.AUTH_PASSWORD }}"' >> .streamlit/secrets.toml
 
-    - name: Start Streamlit app
-      run: |
-        nohup streamlit run src/dashboard/main.py &
-
-    - name: Wait for Streamlit app to be accessible
-      run: |
-        # Wait for Streamlit to start
-        for i in {1..30}; do
-          if curl -s http://localhost:8501; then
-            break
-          fi
-          sleep 2
-        done
-
     - name: Run Playwright tests
       env:
         DASHBOARD_USERNAME: ${{ secrets.DASHBOARD_USERNAME }}
         DASHBOARD_PASSWORD: ${{ secrets.DASHBOARD_PASSWORD }}
-      run: pytest test/test_dashboard.py
+      run: pytest

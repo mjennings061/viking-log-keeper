@@ -14,10 +14,9 @@ import inquirer
 import logging
 
 # User defined modules.
-sys.path.append(str(Path(__file__).resolve().parents[1]))
-from log_keeper.utils import PROJECT_NAME   # noqa: E402
-from log_keeper.get_config import LogSheetConfig    # noqa: E402
-from dashboard.utils import is_streamlit_running    # noqa: E402
+from dashboard.utils import is_streamlit_running
+from log_keeper.utils import PROJECT_NAME
+from log_keeper.get_config import LogSheetConfig
 
 # Set up logging.
 logger = logging.getLogger(__name__)
