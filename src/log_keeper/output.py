@@ -8,8 +8,7 @@ from pathlib import Path
 import pandas as pd
 from datetime import datetime
 
-# Set up logging.
-logging.basicConfig(level=logging.INFO)
+# Get the logger instance.
 logger = logging.getLogger(__name__)
 
 
