@@ -3,6 +3,13 @@
 import logging
 import pandas as pd
 from pathlib import Path
+import streamlit as st
+from typing import List
+from io import BytesIO
+
+# User defined modules.
+from log_keeper.ingest import ingest_log_sheet, sanitise_log_sheets
+from log_keeper.output import update_launches_collection
 
 # Get the logger instance.
 logger = logging.getLogger(__name__)
@@ -54,7 +61,7 @@ def get_financial_year(df) -> int:
         int: The financial year"""
     # Check if the DataFrame is empty.
     if df.empty:
-        return 0
+        return None
 
     # Get the last date in the DataFrame
     last_date = df['Date'].iloc[-1]
@@ -114,6 +121,110 @@ def delta_launches_previous_day(df) -> int:
     last_date_df = dates[dates == last_date]
     delta = last_date_df.size
     return delta
+
+
+def validate_log_sheet(file: BytesIO) -> bool:
+    """Validate the log sheet file.
+
+    Args:
+        file (BytesIO): The log sheet file to validate.
+
+    Returns:
+        bool: True if the log sheet is valid, False otherwise."""
+    # Contants.
+    TEMPLATE_LOG_SHEET = "2965D_YYMMDD_ZEXXX.xlsx"
+    MAX_FILE_SIZE = 1 * 1024 * 1024  # 1 MB
+
+    # Validate the file is an Excel file.
+    if not file.name.endswith(".xlsx"):
+        error_msg = f"Invalid file: {file.name}"
+        st.warning(error_msg)
+        logger.warning(error_msg)
+        return False
+
+    # Check for the template log sheet.
+    if file.name == TEMPLATE_LOG_SHEET:
+        error_msg = "Template log sheet detected."
+        st.warning(error_msg)
+        logger.warning(error_msg)
+        return False
+
+    # Check file size.
+    if file.size > MAX_FILE_SIZE:
+        error_msg = f"File size too large: {file.size} bytes."
+        st.warning(error_msg)
+        logger.warning(error_msg)
+        return False
+
+    # Checks pass.
+    return True
+
+
+def upload_log_sheets(files: List[BytesIO]):
+    """Upload multiple log sheets to the database.
+
+    Args:
+        files (List[BytesIO]): The log sheet files to upload."""
+    # Output preallocated list.
+    log_sheet_list = []
+
+    # Progress bar.
+    n_files = len(files)
+    logger.info("Processing %d log sheets...", int(n_files))
+    st.toast(f"Processing {n_files} Log Sheets...", icon="⏳")
+    progress_bar = st.progress(0, f"Uploading 0/{n_files}")
+
+    for index, file in enumerate(files):
+        # Update the progress bar.
+        progress_bar.progress((index + 1) / n_files,
+                              text=f"Uploading {index + 1}/{n_files}")
+
+        # Validate the file is an Excel file.
+        if not validate_log_sheet(file):
+            continue
+
+        try:
+            # Read the log sheet to a DataFrame.
+            sheet_df = ingest_log_sheet(file)
+            log_sheet_list.append(sheet_df)
+        except Exception:  # pylint
+            warning_msg = f"Log sheet invalid: {file.name}"
+            st.warning(warning_msg)
+            logger.warning(warning_msg)
+
+    # Update GUI elements.
+    progress_bar.empty()
+
+    # Process the uploaded log sheets.
+    with st.status("Uploading to Database...", expanded=True) as status_text:
+
+        # Concatenate the log sheets.
+        st.write("Concatenating log sheets...")
+        log_sheet_df = pd.concat(log_sheet_list, ignore_index=True)
+
+        # Sanitise the log sheets.
+        st.write("Santising log sheets...")
+        collated_df = sanitise_log_sheets(log_sheet_df)
+
+        try:
+            # Upload the log sheets to the database.
+            st.write("Uploading to DB...")
+            update_launches_collection(
+                launches_df=collated_df,
+                db_config=st.session_state["log_sheet_db"]
+            )
+            status_text.update(label="Log Sheets Uploaded!",
+                               state="complete", expanded=False)
+        except Exception:  # pylint: disable=broad-except
+            # Log the error.
+            logger.error("Failed to upload log sheets.", exc_info=True)
+            st.error("Failed to upload log sheets.")
+            status_text.update(label="Failed to upload log sheets.",
+                               state="error", expanded=True)
+
+    # Display a success message.
+    logger.info("Done uploading log sheets.")
+    st.toast("Log Sheets Uploaded!", icon="✅")
 
 
 if __name__ == "__main__":

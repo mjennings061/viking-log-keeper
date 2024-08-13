@@ -29,10 +29,9 @@ from dashboard.plots import plot_firstlast_launch_table  # noqa: E402
 from dashboard.plots import launches_by_type_table  # noqa: E402
 from dashboard.plots import generate_aircraft_weekly_summary  # noqa: E402
 from dashboard.plots import generate_aircraft_daily_summary  # noqa: E402
-from dashboard.plots import show_launch_delta_metric  # noqa: E402
-from dashboard.plots import show_logo  # noqa: E402
+from dashboard.plots import show_launch_delta_metric, show_logo  # noqa: E402
 from dashboard.auth import AuthConfig  # noqa: E402
-from dashboard.utils import LOGO_PATH  # noqa: E402
+from dashboard.utils import LOGO_PATH, upload_log_sheets  # noqa: E402
 
 # Set up logging.
 logger = logging.getLogger(__name__)
@@ -73,10 +72,10 @@ def date_filter(df: pd.DataFrame) -> pd.DataFrame:
 
     # Convert the date to a pandas datetime object.
     start_date = pd.to_datetime(start_date)
-    end_date = pd.to_datetime(end_date)
+    end_date = pd.to_datetime(end_date + timedelta(days=1))
 
     # Validate the date range.
-    if start_date <= end_date:
+    if start_date < end_date:
         # Filter the data by the date range.
         filtered_df = df[
             (df["Date"] >= start_date) & (df["Date"] <= end_date)
@@ -85,6 +84,55 @@ def date_filter(df: pd.DataFrame) -> pd.DataFrame:
         st.error("Error: End date must fall after start date.")
         filtered_df = df
     return filtered_df
+
+
+def get_launches_for_dashboard(db_credentials: LogSheetConfig) -> pd.DataFrame:
+    """Get the launches from the database.
+
+    Args:
+        db_credentials (LogSheetConfig): The database credentials.
+
+    Returns:
+        pd.DataFrame: The launches DataFrame."""
+    # Fetch data from MongoDB
+    if "df" not in st.session_state:
+        st.session_state['df'] = db_credentials.fetch_data_from_mongodb()
+
+    # Get the data from the session state.
+    df = st.session_state['df']
+
+    # Ensure the data is not empty by preallocating the DataFrame.
+    if df.empty:
+        # Make a dictionary of one row to display the columns.
+        logging.error("No data found in the database, using dummy data.")
+        st.error("No data found in the database, using dummy data.")
+        dummy_data = {
+            "Date": [datetime.now()],
+            "Aircraft": ["ZE123"],
+            "AircraftCommander": ["Sgt Smith"],
+            "SecondPilot": ["Cpl Jones"],
+            "Duty": ["Sesh"],
+            "FlightTime": [int(1)],
+            "TakeOffTime": [datetime.now()],
+            "LandingTime": [datetime.now()],
+            "SPC": [1],
+            "P1": False,
+            "P2": False,
+        }
+        # Repeat the dummy data to display the columns.
+        df = pd.DataFrame(dummy_data)
+        df = pd.concat([df] * 10, ignore_index=True)
+
+    return df
+
+
+def refresh_data():
+    """Refresh the data in the session state."""
+    del st.session_state['df']
+    st.session_state['df'] = get_launches_for_dashboard(
+        db_credentials=st.session_state["log_sheet_db"]
+    )
+    st.toast("Data Refreshed!", icon="✅")
 
 
 def show_data_dashboard(db_credentials: LogSheetConfig):
@@ -97,20 +145,12 @@ def show_data_dashboard(db_credentials: LogSheetConfig):
     st.title(f"{vgs} Dashboard")
 
     # Sidebar for page navigation
-    pages = ["📈 Statistics", "🧮 Stats & GUR Helper", "🌍 All Data"]
-    page = st.selectbox("Select a Page:", pages)
+    pages = ["📈 Statistics", "📁 Upload Log Sheets",
+             "🧮 Stats & GUR Helper", "🌍 All Data"]
+    page = st.selectbox("Select a Page:", pages, key="select_page")
 
-    # Fetch data from MongoDB
-    if "df" not in st.session_state:
-        st.session_state['df'] = db_credentials.fetch_data_from_mongodb()
-
-    # Refresh data button.
-    if st.button("🔃 Refresh Data"):
-        st.session_state.df = db_credentials.fetch_data_from_mongodb()
-        st.success("Data Refreshed!", icon="✅")
-
-    # Get the data from the session state.
-    df = st.session_state['df']
+    # Get dataframe of launches.
+    df = get_launches_for_dashboard(db_credentials)
 
     # Setup sidebar filters.
     st.sidebar.markdown("# Dashboard Filters")
@@ -122,6 +162,7 @@ def show_data_dashboard(db_credentials: LogSheetConfig):
         index=None,
         help="Select the AircraftCommander to filter by.",
         placeholder="All",
+        key="filter_commander"
     )
 
     # Create a list of quarters from the data.
@@ -133,7 +174,8 @@ def show_data_dashboard(db_credentials: LogSheetConfig):
         "Select Quarter",
         quarters,
         index=None,
-        help="Select the quarter to display."
+        help="Select the quarter to display.",
+        key="filter_quarter"
     )
 
     # Add a date filter to the sidebar.
@@ -141,6 +183,10 @@ def show_data_dashboard(db_credentials: LogSheetConfig):
 
     match page:
         case "📈 Statistics":
+            # Refresh data button.
+            if st.button("🔃 Refresh Data", key="refresh"):
+                refresh_data()
+
             # Display metrics for financial year.
             show_launch_delta_metric(filtered_df)
 
@@ -170,7 +216,6 @@ def show_data_dashboard(db_credentials: LogSheetConfig):
 
         case "🧮 Stats & GUR Helper":
             # Show statistics and glider utilisation return helpers.
-
             # Stats helpers.
             st.header("Stats Helpers")
             left, right = st.columns(2, gap="medium")
@@ -188,6 +233,24 @@ def show_data_dashboard(db_credentials: LogSheetConfig):
                 generate_aircraft_weekly_summary(filtered_df)
             with right:
                 generate_aircraft_daily_summary(filtered_df)
+
+        case "📁 Upload Log Sheets":
+            # Text to display the upload log sheets page.
+
+            # Display the upload log sheets page.
+            files = st.file_uploader(
+                "Upload log sheets below. Existing files will be updated.",
+                type=["xlsx"],
+                accept_multiple_files=True,
+                key="upload_log_sheets",
+                on_change=None,
+                help="Upload the log sheets to update the dashboard.",
+            )
+
+            if files:
+                # Upload the log sheets and refresh data.
+                upload_log_sheets(files)
+                refresh_data()
 
 
 def authenticate():
