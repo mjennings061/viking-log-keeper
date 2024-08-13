@@ -123,6 +123,43 @@ def delta_launches_previous_day(df) -> int:
     return delta
 
 
+def validate_log_sheet(file: BytesIO) -> bool:
+    """Validate the log sheet file.
+
+    Args:
+        file (BytesIO): The log sheet file to validate.
+
+    Returns:
+        bool: True if the log sheet is valid, False otherwise."""
+    # Contants.
+    TEMPLATE_LOG_SHEET = "2965D_YYMMDD_ZEXXX.xlsx"
+    MAX_FILE_SIZE = 1 * 1024 * 1024  # 1 MB
+
+    # Validate the file is an Excel file.
+    if not file.name.endswith(".xlsx"):
+        error_msg = f"Invalid file: {file.name}"
+        st.warning(error_msg)
+        logger.warning(error_msg)
+        return False
+
+    # Check for the template log sheet.
+    if file.name == TEMPLATE_LOG_SHEET:
+        error_msg = "Template log sheet detected."
+        st.warning(error_msg)
+        logger.warning(error_msg)
+        return False
+
+    # Check file size.
+    if file.size > MAX_FILE_SIZE:
+        error_msg = f"File size too large: {file.size} bytes."
+        st.warning(error_msg)
+        logger.warning(error_msg)
+        return False
+
+    # Checks pass.
+    return True
+
+
 def upload_log_sheets(files: List[BytesIO]):
     """Upload multiple log sheets to the database.
 
@@ -143,10 +180,7 @@ def upload_log_sheets(files: List[BytesIO]):
                               text=f"Uploading {index + 1}/{n_files}")
 
         # Validate the file is an Excel file.
-        if not file.name.endswith(".xlsx"):
-            error_msg = f"Invalid file: {file.name}"
-            st.warning(error_msg)
-            logger.warning(error_msg)
+        if not validate_log_sheet(file):
             continue
 
         try:
@@ -154,14 +188,14 @@ def upload_log_sheets(files: List[BytesIO]):
             sheet_df = ingest_log_sheet(file)
             log_sheet_list.append(sheet_df)
         except Exception:  # pylint
-            # Skip the invalid log sheet.
-            if file.name != "2965D_YYMMDD_ZEXXX.xlsx":
-                warning_msg = f"Log sheet invalid: {file.name}"
-                st.warning(warning_msg)
-                logger.warning(warning_msg)
+            warning_msg = f"Log sheet invalid: {file.name}"
+            st.warning(warning_msg)
+            logger.warning(warning_msg)
 
     # Update GUI elements.
     progress_bar.empty()
+
+    # Process the uploaded log sheets.
     with st.status("Uploading to Database...", expanded=True) as status_text:
 
         # Concatenate the log sheets.

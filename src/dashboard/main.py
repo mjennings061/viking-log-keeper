@@ -126,6 +126,15 @@ def get_launches_for_dashboard(db_credentials: LogSheetConfig) -> pd.DataFrame:
     return df
 
 
+def refresh_data():
+    """Refresh the data in the session state."""
+    del st.session_state['df']
+    st.session_state['df'] = get_launches_for_dashboard(
+        db_credentials=st.session_state["log_sheet_db"]
+    )
+    st.toast("Data Refreshed!", icon="✅")
+
+
 def show_data_dashboard(db_credentials: LogSheetConfig):
     """Display the dashboard.
 
@@ -176,8 +185,7 @@ def show_data_dashboard(db_credentials: LogSheetConfig):
         case "📈 Statistics":
             # Refresh data button.
             if st.button("🔃 Refresh Data", key="refresh"):
-                st.session_state.df = db_credentials.fetch_data_from_mongodb()
-                st.toast("Data Refreshed!", icon="✅")
+                refresh_data()
 
             # Display metrics for financial year.
             show_launch_delta_metric(filtered_df)
@@ -227,9 +235,11 @@ def show_data_dashboard(db_credentials: LogSheetConfig):
                 generate_aircraft_daily_summary(filtered_df)
 
         case "📁 Upload Log Sheets":
+            # Text to display the upload log sheets page.
+
             # Display the upload log sheets page.
             files = st.file_uploader(
-                "Upload Log Sheets",
+                "Upload log sheets below. Existing files will be updated.",
                 type=["xlsx"],
                 accept_multiple_files=True,
                 key="upload_log_sheets",
@@ -238,8 +248,9 @@ def show_data_dashboard(db_credentials: LogSheetConfig):
             )
 
             if files:
-                # Upload the log sheets.
+                # Upload the log sheets and refresh data.
                 upload_log_sheets(files)
+                refresh_data()
 
 
 def authenticate():
