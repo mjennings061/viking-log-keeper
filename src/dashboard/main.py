@@ -138,7 +138,7 @@ def show_data_dashboard(db_credentials: LogSheetConfig):
     # Sidebar for page navigation
     pages = ["📈 Statistics", "📁 Upload Log Sheets",
              "🧮 Stats & GUR Helper", "🌍 All Data"]
-    page = st.selectbox("Select a Page:", pages)
+    page = st.selectbox("Select a Page:", pages, key="select_page")
 
     # Get dataframe of launches.
     df = get_launches_for_dashboard(db_credentials)
@@ -153,6 +153,7 @@ def show_data_dashboard(db_credentials: LogSheetConfig):
         index=None,
         help="Select the AircraftCommander to filter by.",
         placeholder="All",
+        key="filter_commander"
     )
 
     # Create a list of quarters from the data.
@@ -164,7 +165,8 @@ def show_data_dashboard(db_credentials: LogSheetConfig):
         "Select Quarter",
         quarters,
         index=None,
-        help="Select the quarter to display."
+        help="Select the quarter to display.",
+        key="filter_quarter"
     )
 
     # Add a date filter to the sidebar.
@@ -173,7 +175,7 @@ def show_data_dashboard(db_credentials: LogSheetConfig):
     match page:
         case "📈 Statistics":
             # Refresh data button.
-            if st.button("🔃 Refresh Data"):
+            if st.button("🔃 Refresh Data", key="refresh"):
                 st.session_state.df = db_credentials.fetch_data_from_mongodb()
                 st.toast("Data Refreshed!", icon="✅")
 
@@ -206,7 +208,6 @@ def show_data_dashboard(db_credentials: LogSheetConfig):
 
         case "🧮 Stats & GUR Helper":
             # Show statistics and glider utilisation return helpers.
-
             # Stats helpers.
             st.header("Stats Helpers")
             left, right = st.columns(2, gap="medium")
