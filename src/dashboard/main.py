@@ -21,7 +21,7 @@ if src_path not in sys.path:
 from log_keeper.get_config import LogSheetConfig  # noqa: E402
 from log_keeper.ingest import ingest_log_sheet  # noqa: E402
 from log_keeper.ingest import sanitise_log_sheets  # noqa: E402
-from log_keeper.output import launches_to_db  # noqa: E402
+from log_keeper.output import update_launches_collection  # noqa: E402
 from dashboard.plots import plot_duty_pie_chart  # noqa: E402
 from dashboard.plots import plot_launches_by_commander  # noqa: E402
 from dashboard.plots import plot_longest_flight_times  # noqa: E402
@@ -75,10 +75,10 @@ def date_filter(df: pd.DataFrame) -> pd.DataFrame:
 
     # Convert the date to a pandas datetime object.
     start_date = pd.to_datetime(start_date)
-    end_date = pd.to_datetime(end_date)
+    end_date = pd.to_datetime(end_date + timedelta(days=1))
 
     # Validate the date range.
-    if start_date <= end_date:
+    if start_date < end_date:
         # Filter the data by the date range.
         filtered_df = df[
             (df["Date"] >= start_date) & (df["Date"] <= end_date)
@@ -87,6 +87,51 @@ def date_filter(df: pd.DataFrame) -> pd.DataFrame:
         st.error("Error: End date must fall after start date.")
         filtered_df = df
     return filtered_df
+
+
+def get_launches_for_dashboard(db_credentials: LogSheetConfig) -> pd.DataFrame:
+    """Get the launches from the database.
+
+    Args:
+        db_credentials (LogSheetConfig): The database credentials.
+
+    Returns:
+        pd.DataFrame: The launches DataFrame."""
+    # Fetch data from MongoDB
+    if "df" not in st.session_state:
+        st.session_state['df'] = db_credentials.fetch_data_from_mongodb()
+
+    # Refresh data button.
+    if st.button("🔃 Refresh Data"):
+        st.session_state.df = db_credentials.fetch_data_from_mongodb()
+        st.success("Data Refreshed!", icon="✅")
+
+    # Get the data from the session state.
+    df = st.session_state['df']
+
+    # Ensure the data is not empty by preallocating the DataFrame.
+    if df.empty:
+        # Make a dictionary of one row to display the columns.
+        logging.error("No data found in the database, using dummy data.")
+        st.error("No data found in the database, using dummy data.")
+        dummy_data = {
+            "Date": [datetime.now()],
+            "Aircraft": ["ZE123"],
+            "AircraftCommander": ["Sgt Smith"],
+            "SecondPilot": ["Cpl Jones"],
+            "Duty": ["Sesh"],
+            "FlightTime": [int(1)],
+            "TakeOffTime": [datetime.now()],
+            "LandingTime": [datetime.now()],
+            "SPC": [1],
+            "P1": False,
+            "P2": False,
+        }
+        # Repeat the dummy data to display the columns.
+        df = pd.DataFrame(dummy_data)
+        df = pd.concat([df] * 10, ignore_index=True)
+
+    return df
 
 
 def show_data_dashboard(db_credentials: LogSheetConfig):
@@ -103,17 +148,8 @@ def show_data_dashboard(db_credentials: LogSheetConfig):
              "🧮 Stats & GUR Helper", "🌍 All Data"]
     page = st.selectbox("Select a Page:", pages)
 
-    # Fetch data from MongoDB
-    if "df" not in st.session_state:
-        st.session_state['df'] = db_credentials.fetch_data_from_mongodb()
-
-    # Refresh data button.
-    if st.button("🔃 Refresh Data"):
-        st.session_state.df = db_credentials.fetch_data_from_mongodb()
-        st.success("Data Refreshed!", icon="✅")
-
-    # Get the data from the session state.
-    df = st.session_state['df']
+    # Get dataframe of launches.
+    df = get_launches_for_dashboard(db_credentials)
 
     # Setup sidebar filters.
     st.sidebar.markdown("# Dashboard Filters")
@@ -247,7 +283,6 @@ def upload_log_sheets(files):
                 st.warning(warning_msg)
                 logger.warning(warning_msg)
 
-    # TODO: Delete the uploaded files.
     # TODO: Load the data from the database and append the new data.
     # TODO: Find which days are changed or missing and update the database.
 
@@ -266,7 +301,10 @@ def upload_log_sheets(files):
         try:
             # Upload the log sheets to the database.
             st.write("Uploading...")
-            launches_to_db(collated_df, st.session_state["log_sheet_db"])
+            update_launches_collection(
+                launches_df=collated_df,
+                db_config=st.session_state["log_sheet_db"]
+            )
             status_text.update(label="Log Sheets Uploaded!",
                                state="complete", expanded=False)
         except Exception:  # pylint: disable=broad-except

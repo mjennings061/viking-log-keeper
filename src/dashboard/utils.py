@@ -54,7 +54,7 @@ def get_financial_year(df) -> int:
         int: The financial year"""
     # Check if the DataFrame is empty.
     if df.empty:
-        return 0
+        return None
 
     # Get the last date in the DataFrame
     last_date = df['Date'].iloc[-1]

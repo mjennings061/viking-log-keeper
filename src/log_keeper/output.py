@@ -76,13 +76,13 @@ def launches_to_excel(launches_df, output_file_path):
     logger.info("Saved to %s", output_file_path.name)
 
 
-def launches_to_db(launches_df, db_config):
-    """Save the master log dataframe to a MongoDB."""
-    # Get environment variables.
-    db_collection_name = db_config.db_collection_name
+def backup_launches_collection(db_config):
+    """Backup the launches collection in MongoDB.
 
-    # Format dataframe to be saved.
-    master_dict = launches_df.to_dict('records')
+    Args:
+        db_config (LogSheetConfig): The log sheet DB configuration.
+    """
+    # Connect to the DB.
     client = db_config.connect_to_db()
     db = client[db_config.db_name]
 
@@ -94,20 +94,81 @@ def launches_to_db(launches_df, db_config):
     today = datetime.today().strftime('%y%m%d')
 
     # Create collection search string.
-    collection_search_string = f"{db_collection_name}_{today}"
+    collection_search_string = f"{db_config.db_collection_name}_{today}"
 
     # Check if the backup exists and replace it.
     if collection_search_string in collections:
         db.drop_collection(collection_search_string)
 
-    # Rename the old collection.
-    if db_config.db_collection_name in collections:
-        db[db_config.db_collection_name].rename(collection_search_string)
+    # Clone the log_sheet collection to the backup.
+    db.command(
+        "cloneCollection",
+        db_config.db_collection_name,
+        to=collection_search_string
+    )
+
+    # Close the connection.
+    client.close()
+
+
+def launches_to_db(launches_df, db_config):
+    """Save the master log dataframe to a MongoDB.
+
+    Args:
+        launches_df (pd.DataFrame): The master log dataframe.
+        db_config (LogSheetConfig): The log sheet DB configuration.
+    """
+    # Backup the current collection.
+    backup_launches_collection(db_config)
+
+    # Connect to the DB.
+    client = db_config.connect_to_db()
+    db = client[db_config.db_name]
+
+    # Format dataframe to be saved.
+    master_dict = launches_df.to_dict('records')
 
     # Save to the DB.
     logger.info("Saving to DB.")
     db[db_config.db_collection_name].insert_many(master_dict)
     logger.info("Saved to DB.")
+
+    # Close DB session.
+    client.close()
+
+
+def update_launches_collection(launches_df, db_config):
+    """Update the master log collection in MongoDB by checking the date
+    and aircraft. Append new records and update existing records.
+
+    Args:
+        launches_df (pd.DataFrame): The master log dataframe.
+        db_config (LogSheetConfig): The log sheet DB configuration.
+    """
+    # Backup the current collection.
+    backup_launches_collection(db_config)
+
+    # Connect to the DB.
+    client = db_config.connect_to_db()
+    db = client[db_config.db_name]
+
+    # Get the current collection.
+    collection = db[db_config.db_collection_name]
+
+    # Update existing records and append new records.
+    for record in launches_df.to_dict('records'):
+        # Check if the record exists.
+        query = {
+            "Date": record["Date"],
+            "Aircraft": record["Aircraft"]
+        }
+        existing_record = collection.find_one(query)
+
+        # Update the record.
+        if existing_record:
+            collection.update_one(query, {"$set": record})
+        else:
+            collection.insert_one(record)
 
     # Close DB session.
     client.close()
