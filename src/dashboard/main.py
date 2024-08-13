@@ -101,11 +101,6 @@ def get_launches_for_dashboard(db_credentials: LogSheetConfig) -> pd.DataFrame:
     if "df" not in st.session_state:
         st.session_state['df'] = db_credentials.fetch_data_from_mongodb()
 
-    # Refresh data button.
-    if st.button("🔃 Refresh Data"):
-        st.session_state.df = db_credentials.fetch_data_from_mongodb()
-        st.success("Data Refreshed!", icon="✅")
-
     # Get the data from the session state.
     df = st.session_state['df']
 
@@ -132,6 +127,78 @@ def get_launches_for_dashboard(db_credentials: LogSheetConfig) -> pd.DataFrame:
         df = pd.concat([df] * 10, ignore_index=True)
 
     return df
+
+
+def upload_log_sheets(files):
+    """Upload multiple log sheets to the database.
+
+    Args:
+        files (List[BytesIO]): The log sheet files to upload."""
+    # TODO: Move this function to a separate module.
+
+    # Output preallocated list.
+    log_sheet_list = []
+
+    # Progress bar.
+    n_files = len(files)
+    logger.info("Processing %d log sheets...", int(n_files))
+    st.toast(f"Processing {n_files} Log Sheets...", icon="⏳")
+    progress_bar = st.progress(0, f"Uploading 0/{n_files}")
+
+    for index, file in enumerate(files):
+        # Update the progress bar.
+        progress_bar.progress((index + 1) / n_files,
+                              text=f"Uploading {index + 1}/{n_files}")
+
+        # Validate the file is an Excel file.
+        if not file.name.endswith(".xlsx"):
+            error_msg = f"Invalid file: {file.name}"
+            st.warning(error_msg)
+            logger.warning(error_msg)
+            continue
+
+        try:
+            # Read the log sheet to a DataFrame.
+            sheet_df = ingest_log_sheet(file)
+            log_sheet_list.append(sheet_df)
+        except Exception:  # pylint
+            # Skip the invalid log sheet.
+            if file.name != "2965D_YYMMDD_ZEXXX.xlsx":
+                warning_msg = f"Log sheet invalid: {file.name}"
+                st.warning(warning_msg)
+                logger.warning(warning_msg)
+
+    # Update GUI elements.
+    progress_bar.empty()
+    with st.status("Uploading to Database...", expanded=True) as status_text:
+
+        # Concatenate the log sheets.
+        st.write("Concatenating log sheets...")
+        log_sheet_df = pd.concat(log_sheet_list, ignore_index=True)
+
+        # Sanitise the log sheets.
+        st.write("Santising log sheets...")
+        collated_df = sanitise_log_sheets(log_sheet_df)
+
+        try:
+            # Upload the log sheets to the database.
+            st.write("Uploading to DB...")
+            update_launches_collection(
+                launches_df=collated_df,
+                db_config=st.session_state["log_sheet_db"]
+            )
+            status_text.update(label="Log Sheets Uploaded!",
+                               state="complete", expanded=False)
+        except Exception:  # pylint: disable=broad-except
+            # Log the error.
+            logger.error("Failed to upload log sheets.", exc_info=True)
+            st.error("Failed to upload log sheets.")
+            status_text.update(label="Failed to upload log sheets.",
+                               state="error", expanded=True)
+
+    # Display a success message.
+    logger.info("Done uploading log sheets.")
+    st.toast("Log Sheets Uploaded!", icon="✅")
 
 
 def show_data_dashboard(db_credentials: LogSheetConfig):
@@ -180,6 +247,11 @@ def show_data_dashboard(db_credentials: LogSheetConfig):
 
     match page:
         case "📈 Statistics":
+            # Refresh data button.
+            if st.button("🔃 Refresh Data"):
+                st.session_state.df = db_credentials.fetch_data_from_mongodb()
+                st.toast("Data Refreshed!", icon="✅")
+
             # Display metrics for financial year.
             show_launch_delta_metric(filtered_df)
 
@@ -242,81 +314,6 @@ def show_data_dashboard(db_credentials: LogSheetConfig):
             if files:
                 # Upload the log sheets.
                 upload_log_sheets(files)
-
-
-def upload_log_sheets(files):
-    """Upload multiple log sheets to the database.
-
-    Args:
-        files (List[BytesIO]): The log sheet files to upload."""
-    # TODO: Move this function to a separate module.
-
-    # Output preallocated list.
-    log_sheet_list = []
-
-    # Progress bar.
-    n_files = len(files)
-    logger.info("Processing %d log sheets...", int(n_files))
-    st.info(f"Processing {n_files} Log Sheets...", icon="⏳")
-    progress_bar = st.progress(0, f"Uploading 0/{n_files}")
-
-    for index, file in enumerate(files):
-        # Update the progress bar.
-        progress_bar.progress((index + 1) / n_files,
-                              text=f"Uploading {index + 1}/{n_files}")
-
-        # Validate the file is an Excel file.
-        if not file.name.endswith(".xlsx"):
-            error_msg = f"Invalid file: {file.name}"
-            st.error(error_msg)
-            logger.error(error_msg)
-            continue
-
-        try:
-            # Read the log sheet to a DataFrame.
-            sheet_df = ingest_log_sheet(file)
-            log_sheet_list.append(sheet_df)
-        except Exception:  # pylint
-            # Skip the invalid log sheet.
-            if file.name != "2965D_YYMMDD_ZEXXX.xlsx":
-                warning_msg = f"Log sheet invalid: {file.name}"
-                st.warning(warning_msg)
-                logger.warning(warning_msg)
-
-    # TODO: Load the data from the database and append the new data.
-    # TODO: Find which days are changed or missing and update the database.
-
-    # Update GUI elements.
-    progress_bar.empty()
-    with st.status("Uploading to Database...", expanded=True) as status_text:
-
-        # Concatenate the log sheets.
-        st.write("Concatenating log sheets...")
-        log_sheet_df = pd.concat(log_sheet_list, ignore_index=True)
-
-        # Sanitise the log sheets.
-        st.write("Santising log sheets...")
-        collated_df = sanitise_log_sheets(log_sheet_df)
-
-        try:
-            # Upload the log sheets to the database.
-            st.write("Uploading...")
-            update_launches_collection(
-                launches_df=collated_df,
-                db_config=st.session_state["log_sheet_db"]
-            )
-            status_text.update(label="Log Sheets Uploaded!",
-                               state="complete", expanded=False)
-        except Exception:  # pylint: disable=broad-except
-            # Log the error.
-            logger.error("Failed to upload log sheets.", exc_info=True)
-            st.error("Failed to upload log sheets.")
-            status_text.update(label="Failed to upload log sheets.",
-                               state="error", expanded=False)
-
-    # Display a success message.
-    logger.info("Done uploading log sheets.")
-    st.success("Log Sheets Uploaded!", icon="✅")
 
 
 def authenticate():
