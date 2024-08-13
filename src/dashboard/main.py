@@ -20,7 +20,8 @@ if src_path not in sys.path:
 
 from log_keeper.get_config import LogSheetConfig  # noqa: E402
 from log_keeper.ingest import ingest_log_sheet  # noqa: E402
-from log_keeper.output import launches_to_db, sanitise_log_sheets  # noqa: E402
+from log_keeper.ingest import sanitise_log_sheets  # noqa: E402
+from log_keeper.output import launches_to_db  # noqa: E402
 from dashboard.plots import plot_duty_pie_chart  # noqa: E402
 from dashboard.plots import plot_launches_by_commander  # noqa: E402
 from dashboard.plots import plot_longest_flight_times  # noqa: E402
