@@ -2,6 +2,8 @@
 """
 
 # Import modules.
+import sys
+import os
 import subprocess
 import logging
 from datetime import datetime, timedelta    # noqa: F401
@@ -10,21 +12,28 @@ from extra_streamlit_components import CookieManager
 import pandas as pd
 from pathlib import Path
 
-# User defined modules. We need to add the parent directory to the path
-# to allow running the script from the command line (i.e what streamlit does).
-from log_keeper.get_config import LogSheetConfig
-from log_keeper.ingest import ingest_log_sheet, sanitise_log_sheets
-from log_keeper.output import launches_to_db
-from dashboard.plots import plot_duty_pie_chart, plot_launches_by_commander
-from dashboard.plots import plot_longest_flight_times, plot_monthly_launches
-from dashboard.plots import plot_all_launches, quarterly_summary
-from dashboard.plots import show_logbook_helper, plot_firstlast_launch_table
-from dashboard.plots import launches_by_type_table
-from dashboard.plots import generate_aircraft_weekly_summary
-from dashboard.plots import generate_aircraft_daily_summary
-from dashboard.plots import show_launch_delta_metric, show_logo
-from dashboard.auth import AuthConfig
-from dashboard.utils import LOGO_PATH
+# User defined modules.
+# Ensure the src directory is in the sys.path.
+src_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+if src_path not in sys.path:
+    sys.path.append(src_path)
+
+from log_keeper.get_config import LogSheetConfig  # noqa: E402
+from log_keeper.ingest import ingest_log_sheet  # noqa: E402
+from log_keeper.output import launches_to_db, sanitise_log_sheets  # noqa: E402
+from dashboard.plots import plot_duty_pie_chart  # noqa: E402
+from dashboard.plots import plot_launches_by_commander  # noqa: E402
+from dashboard.plots import plot_longest_flight_times  # noqa: E402
+from dashboard.plots import plot_monthly_launches  # noqa: E402
+from dashboard.plots import plot_all_launches, quarterly_summary  # noqa: E402
+from dashboard.plots import show_logbook_helper  # noqa: E402
+from dashboard.plots import plot_firstlast_launch_table  # noqa: E402
+from dashboard.plots import launches_by_type_table  # noqa: E402
+from dashboard.plots import generate_aircraft_weekly_summary  # noqa: E402
+from dashboard.plots import generate_aircraft_daily_summary  # noqa: E402
+from dashboard.plots import show_launch_delta_metric, show_logo  # noqa: E402
+from dashboard.auth import AuthConfig  # noqa: E402
+from dashboard.utils import LOGO_PATH  # noqa: E402
 
 # Set up logging.
 logger = logging.getLogger(__name__)
