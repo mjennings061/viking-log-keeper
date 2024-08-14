@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from typing import Optional
 from pymongo.mongo_client import MongoClient
 from pymongo.server_api import ServerApi
+from pymongo.errors import OperationFailure
 import keyring as kr
 import pandas as pd
 import inquirer
@@ -13,6 +14,110 @@ import logging
 
 # Set up logging.
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class DbUser():
+    """Store the database user configuration values.
+
+    Attributes:
+        username (str): The username of the database user.
+        password (str): The password of the database user.
+        uri (str): The URI of the database."""
+    username: str
+    password: str
+    uri: str
+
+    def get_connection_string(self):
+        """Get the connection string to the database.
+
+        Returns:
+            str: The connection string."""
+        return f"mongodb+srv://{self.username}:{self.password}@{self.uri}"
+
+
+class Client(MongoClient):
+    def __init__(self, db_user: DbUser):
+        """Initialize the Client object to inherit from MongoClient."""
+        # Validate db_user.
+        super().__init__(
+            db_user.get_connection_string(),
+            server_api=ServerApi('1'),
+            tls=True,
+            tlsAllowInvalidCertificates=True,
+        )
+        self.db_user = db_user
+
+    def log_in(self):
+        """Log in to the database.
+
+        Returns:
+            bool: True if the user is logged in, otherwise False."""
+        try:
+            self.admin.command('ping')
+            logging.info("Logged in to DB.")
+            return True
+        except OperationFailure:
+            logging.error("Could not log in to DB.")
+            return False
+
+
+class Database:
+    """MongoDB database class to connect to a database."""
+    def __init__(self, client: Client, database_name: str):
+        # Set launches collection.
+        self.launches_collection = "log_sheets"
+        # Validate client.
+        if not client.log_in():
+            raise ConnectionError("Could not log in to the database.")
+        self.client = client
+
+        # Validate database name.
+        if not database_name:
+            raise ValueError("Database name is required.")
+        if database_name not in client.list_database_names():
+            raise ValueError("Database does not exist.")
+        self.database_name = database_name
+
+        # Connect to the database.
+        # Throw an error if the user does not have access.
+        try:
+            self.db = client[self.database_name]
+        except Exception:
+            logging.error("Could not connect to the database.")
+            raise ConnectionError("Could not connect to the database.")
+
+    def get_collection(self, collection_name: str):
+        """Get a collection from the database.
+
+        Args:
+            collection_name (str): The name of the collection.
+
+        Returns:
+            pymongo.collection.Collection: The collection."""
+        # Validate collection name.
+        if not collection_name:
+            raise ValueError("Collection name is required.")
+
+        # Check if the collection exists.
+        if collection_name not in self.db.list_collection_names():
+            logging.error("Collection does not exist.")
+            raise ValueError("Collection does not exist.")
+
+        # Get the collection.
+        collection = self.db[collection_name]
+
+        # Check if the collection has data.
+        if collection.count_documents({}) == 0:
+            logging.warning("Collection is empty.")
+        return collection
+
+    def get_launches_collection(self):
+        """Get the launches collection from the database.
+
+        Returns:
+            pymongo.collection.Collection: The launches collection."""
+        return self.get_collection("log_sheets")
 
 
 @dataclass

@@ -10,8 +10,8 @@ from playwright.sync_api import Page, expect
 
 # Load environment variables
 load_dotenv()
-dashboard_username = os.getenv("DASHBOARD_USERNAME")
-dashboard_password = os.getenv("DASHBOARD_PASSWORD")
+dashboard_username = os.getenv("TEST_USERNAME")
+dashboard_password = os.getenv("TEST_PASSWORD")
 
 
 #####################################################################
@@ -110,9 +110,10 @@ def test_dashboard_login(login: Page):
     page = login
 
     # Check if the dashboard page is loaded after login.
-    # TODO: Add a dummy user and check for the user's name.
+    dummy_user = dashboard_username.upper()
+    expected_heading = f"{dummy_user} Dashboard"
     expect(page.get_by_role(
-        "heading", name="661VGS Dashboard"
+        "heading", name=expected_heading
     )).to_be_visible()
 
 

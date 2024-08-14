@@ -3,11 +3,15 @@
 This file handles outputting the master log to excel and MongoDB Atlas.
 """
 
+# Standard library imports.
 import logging
 from pathlib import Path
 import pandas as pd
 from datetime import datetime
 from pymongo import DeleteMany
+
+# User defined modules.
+from log_keeper.get_config import Database
 
 # Get the logger instance.
 logger = logging.getLogger(__name__)
@@ -77,108 +81,100 @@ def launches_to_excel(launches_df, output_file_path):
     logger.info("Saved to %s", output_file_path.name)
 
 
-def backup_launches_collection(db_config):
+def backup_launches_collection(db: Database):
     """Backup the launches collection in MongoDB.
 
     Args:
-        db_config (LogSheetConfig): The log sheet DB configuration.
+        ddb (Database): The log sheet DB configuration.
     """
-    # Connect to the DB.
-    client = db_config.connect_to_db()
-    db = client[db_config.db_name]
-
     # Get all collections in the DB.
-    collections = db.list_collection_names()
+    collections = db.db.list_collection_names()
 
     # Backup the old collection with today's date as the suffix.
     # Get today's date as YYMMDD.
     today = datetime.today().strftime('%y%m%d')
 
     # Create collection search string.
-    collection_search_string = f"{db_config.db_collection_name}_{today}"
+    collection_search_string = f"{db.launches_collection}_{today}"
 
     # Check if the backup exists and replace it.
     if collection_search_string in collections:
-        db.drop_collection(collection_search_string)
+        db.db.drop_collection(collection_search_string)
 
     # Use aggregation with $out to backup the collection.
-    db[db_config.db_collection_name].aggregate([
+    db.get_launches_collection().aggregate([
         {"$match": {}},
         {"$out": collection_search_string},
     ])
 
-    # Close the connection.
-    client.close()
 
-
-def launches_to_db(launches_df, db_config):
+def launches_to_db(launches_df, db: Database):
     """Save the master log dataframe to a MongoDB.
 
     Args:
         launches_df (pd.DataFrame): The master log dataframe.
-        db_config (LogSheetConfig): The log sheet DB configuration.
+        db (Database): The log sheet DB configuration.
     """
     # Backup the current collection.
-    backup_launches_collection(db_config)
-
-    # Connect to the DB.
-    client = db_config.connect_to_db()
-    db = client[db_config.db_name]
+    backup_launches_collection(db=db)
 
     # Format dataframe to be saved.
     master_dict = launches_df.to_dict('records')
 
     # Save to the DB.
     logger.info("Saving to DB.")
-    db[db_config.db_collection_name].insert_many(master_dict)
+    db.get_launches_collection().insert_many(master_dict)
     logger.info("Saved to DB.")
 
-    # Close DB session.
-    client.close()
 
-
-def update_launches_collection(launches_df, db_config):
+def update_launches_collection(launches_df, db: Database):
     """Update the master log collection in MongoDB by checking the date
     and aircraft. Append new records and update existing records.
 
     Args:
         launches_df (pd.DataFrame): The master log dataframe.
-        db_config (LogSheetConfig): The log sheet DB configuration.
+        db (Database): VGS database.
     """
+    # Validate the dataframe is not empty.
+    if launches_df.empty:
+        logger.warning("Empty dataframe. Nothing to update.")
+        return
+
     # Backup the current collection.
-    backup_launches_collection(db_config)
+    backup_launches_collection(db=db)
 
     # Connect to the DB.
-    client = db_config.connect_to_db()
-    db = client[db_config.db_name]
-
-    # Get the current collection.
-    collection = db[db_config.db_collection_name]
+    collection = db.get_launches_collection()
 
     # Group by date and aircraft.
     grouped = launches_df.groupby(['Date', 'Aircraft'])
 
     # Prepare bulk delete and inset operations.
     delete_ops = []
+    deleted_launches = 0
 
     # Step 1: Prepare bulk delete operations.
-    for (date, aircraft), group_df in grouped:
+    for group_keys, _ in grouped:
         # We want to delete all launches with the same date and aircraft
         # as the records we are about to insert.
+        date, aircraft = group_keys
         delete_query = {
             "Date": date,
             "Aircraft": aircraft,
         }
+
+        # Count the number of records to delete.
+        deleted_launches += collection.count_documents(delete_query)
+
+        # Append the recursive delete operation.
         delete_ops.append(DeleteMany(delete_query))
 
+    # Delete the records if they exist.
     if delete_ops:
-        logging.info("Deleting %.0f sheets.", len(delete_ops))
+        logging.info("Deleting %.0f launches.", deleted_launches)
         collection.bulk_write(delete_ops)
 
     # Step 2: Insert all the records.
-    records = launches_df.to_dict('records')
-    logging.info("Inserting %.0f launches.", len(records))
-    collection.insert_many(records)
-
-    # Close DB session.
-    client.close()
+    documents = launches_df.to_dict('records')
+    logging.info("Inserting %.0f launches.", len(documents))
+    collection.insert_many(documents)
