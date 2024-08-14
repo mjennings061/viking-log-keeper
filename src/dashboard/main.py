@@ -252,11 +252,19 @@ def show_data_dashboard(db: Database):
 
 def login(username: str, password: str):
     """Login to the dashboard."""
+    # Get URI from secrets.
+    if st.secrets["URI"] is not None:
+        # Get the URI from Streamlit secrets.
+        uri = st.secrets["URI"]
+    else:
+        # Get the URI from the environment.
+        uri = os.getenv("URI")
+
     # Create the DB user.
     db_user = DbUser(
         username=username,
         password=password,
-        uri=st.secrets["URI"],
+        uri=uri,
     )
 
     # Validate the password.
