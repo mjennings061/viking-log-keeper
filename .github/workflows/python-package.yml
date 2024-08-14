@@ -49,6 +49,7 @@ jobs:
 
     - name: Run Playwright tests
       env:
-        DASHBOARD_USERNAME: ${{ secrets.DASHBOARD_USERNAME }}
-        DASHBOARD_PASSWORD: ${{ secrets.DASHBOARD_PASSWORD }}
+        MONGO_URI: ${{ secrets.MONGO_URI }}
+        TEST_USERNAME: ${{ secrets.TEST_USERNAME }}
+        TEST_PASSWORD: ${{ secrets.TEST_PASSWORD }}
       run: pytest
