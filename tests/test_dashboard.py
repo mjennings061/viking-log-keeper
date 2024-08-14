@@ -10,7 +10,6 @@ from playwright.sync_api import Page, expect
 
 # Load environment variables
 load_dotenv()
-mongodb_uri = os.getenv("MONGODB_URI")
 dashboard_username = os.getenv("TEST_USERNAME")
 dashboard_password = os.getenv("TEST_PASSWORD")
 

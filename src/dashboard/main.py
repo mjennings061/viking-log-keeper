@@ -256,7 +256,7 @@ def login(username: str, password: str):
     db_user = DbUser(
         username=username,
         password=password,
-        uri=st.secrets["uri"],
+        uri=st.secrets["URI"],
     )
 
     # Validate the password.
