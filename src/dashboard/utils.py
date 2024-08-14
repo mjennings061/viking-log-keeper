@@ -211,7 +211,7 @@ def upload_log_sheets(files: List[BytesIO]):
             st.write("Uploading to DB...")
             update_launches_collection(
                 launches_df=collated_df,
-                db_config=st.session_state["log_sheet_db"]
+                db=st.session_state["log_sheet_db"]
             )
             status_text.update(label="Log Sheets Uploaded!",
                                state="complete", expanded=False)

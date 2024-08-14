@@ -8,7 +8,6 @@ import subprocess
 import logging
 from datetime import datetime, timedelta    # noqa: F401
 import streamlit as st
-from extra_streamlit_components import CookieManager
 import pandas as pd
 from pathlib import Path
 
@@ -18,7 +17,7 @@ src_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 if src_path not in sys.path:
     sys.path.append(src_path)
 
-from log_keeper.get_config import LogSheetConfig  # noqa: E402
+from log_keeper.get_config import DbUser, Client, Database  # noqa: E402
 from dashboard.plots import plot_duty_pie_chart  # noqa: E402
 from dashboard.plots import plot_launches_by_commander  # noqa: E402
 from dashboard.plots import plot_longest_flight_times  # noqa: E402
@@ -30,7 +29,6 @@ from dashboard.plots import launches_by_type_table  # noqa: E402
 from dashboard.plots import generate_aircraft_weekly_summary  # noqa: E402
 from dashboard.plots import generate_aircraft_daily_summary  # noqa: E402
 from dashboard.plots import show_launch_delta_metric, show_logo  # noqa: E402
-from dashboard.auth import AuthConfig  # noqa: E402
 from dashboard.utils import LOGO_PATH, upload_log_sheets  # noqa: E402
 
 # Set up logging.
@@ -86,17 +84,19 @@ def date_filter(df: pd.DataFrame) -> pd.DataFrame:
     return filtered_df
 
 
-def get_launches_for_dashboard(db_credentials: LogSheetConfig) -> pd.DataFrame:
+def get_launches_for_dashboard(db: Database) -> pd.DataFrame:
     """Get the launches from the database.
 
     Args:
-        db_credentials (LogSheetConfig): The database credentials.
+        db (Database): The VGS database class.
 
     Returns:
         pd.DataFrame: The launches DataFrame."""
     # Fetch data from MongoDB
     if "df" not in st.session_state:
-        st.session_state['df'] = db_credentials.fetch_data_from_mongodb()
+        collection = db.get_launches_collection()
+        st.session_state['df'] = pd.DataFrame(list(collection.find()))
+        db.client.close()
 
     # Get the data from the session state.
     df = st.session_state['df']
@@ -129,19 +129,20 @@ def get_launches_for_dashboard(db_credentials: LogSheetConfig) -> pd.DataFrame:
 def refresh_data():
     """Refresh the data in the session state."""
     del st.session_state['df']
-    st.session_state['df'] = get_launches_for_dashboard(
+    collection = get_launches_for_dashboard(
         db_credentials=st.session_state["log_sheet_db"]
     )
+    st.session_state['df'] = pd.DataFrame(list(collection.find()))
     st.toast("Data Refreshed!", icon="✅")
 
 
-def show_data_dashboard(db_credentials: LogSheetConfig):
+def show_data_dashboard(db: Database):
     """Display the dashboard.
 
     Args:
-        db_credentials (dict): The database credentials."""
+        db (Database): Database class for the VGS."""
     # Set the page title.
-    vgs = db_credentials.db_name.upper()
+    vgs = db.client.db_user.username.upper()
     st.title(f"{vgs} Dashboard")
 
     # Sidebar for page navigation
@@ -150,7 +151,7 @@ def show_data_dashboard(db_credentials: LogSheetConfig):
     page = st.selectbox("Select a Page:", pages, key="select_page")
 
     # Get dataframe of launches.
-    df = get_launches_for_dashboard(db_credentials)
+    df = get_launches_for_dashboard(db)
 
     # Setup sidebar filters.
     st.sidebar.markdown("# Dashboard Filters")
@@ -253,11 +254,31 @@ def show_data_dashboard(db_credentials: LogSheetConfig):
                 refresh_data()
 
 
+def login(username: str, password: str):
+    """Login to the dashboard."""
+    # Create the DB user.
+    db_user = DbUser(
+        username=username,
+        password=password,
+        uri=st.secrets["uri"],
+    )
+
+    # Validate the password.
+    client = Client(db_user)
+    if client.log_in():
+        # User is authenticated remove the form.
+        st.session_state["authenticated"] = True
+        st.session_state["log_sheet_db"] = Database(
+            client=client,
+            database_name=username
+        )
+        st.toast("Login successful")
+    else:
+        st.error("Invalid Password")
+
+
 def authenticate():
     """Prompt and authenticate."""
-    # Set up the cookie manager.
-    cookie_manager = CookieManager()
-
     # Add auth to session state.
     if "authenticated" not in st.session_state:
         st.session_state["authenticated"] = False
@@ -265,53 +286,17 @@ def authenticate():
     if st.session_state["authenticated"]:
         return
 
-    # Attempt to read the authenticated cookie.
-    authenticated_cookie = cookie_manager.get(cookie="vgs_auth")
-    if authenticated_cookie:
-        # Cookie read successfully.
-        st.session_state["authenticated"] = True
-        st.toast("Login successful", icon="🍪")
-        return
-
-    # No cookie present, authenticate.
-    st.subheader("Volunteer Gliding Squadron Dashboard")
-    st.session_state["auth"] = AuthConfig()
-
     # Login form.
     with st.form(key="login_form"):
-        st.text_input("Username", help="VGS e.g. '661VGS'", key="vgs")
+        st.text_input("Username", help="VGS e.g. '661vgs'", key="username")
         st.text_input("Password", type="password", key="password")
         submitted = st.form_submit_button("Enter")
 
-        # Validate the password.
         if submitted:
-            # Login to the DB.
-            db_credentials = st.session_state["auth"].\
-                fetch_log_sheets_credentials(
-                    st.session_state["vgs"],
-                    st.session_state["password"]
-                )
-
-            if db_credentials:
-                # User is authenticated remove the form.
-                st.session_state["authenticated"] = True
-                st.session_state["log_sheet_db"] = LogSheetConfig(
-                    **db_credentials
-                )
-                st.toast("Login successful")
-
-                # TODO: Store cookie as a TTLCache e.g. [session_id: 661VGS]
-                # User is authenticated, set the authenticated cookie.
-                # expires_at = datetime.now() + timedelta(days=90)
-                # cookie_manager.set(
-                #     "vgs_auth",
-                #     "true",
-                #     expires_at=expires_at
-                # )  # Expires in 90 days
-                st.rerun()
-
-            else:
-                st.error("Invalid Password")
+            login(
+                username=st.session_state["username"],
+                password=st.session_state["password"],
+            )
 
 
 def configure_app(LOGO_PATH: Path):
@@ -333,6 +318,7 @@ def main():
     # Confiure the Streamlit app.
     configure_app(LOGO_PATH)
     show_logo(LOGO_PATH)
+    st.subheader("Volunteer Gliding Squadron Dashboard")
 
     # Authenticate the user.
     authenticate()
@@ -347,11 +333,6 @@ def main():
 
             # Clear the session state.
             st.session_state.clear()
-            try:
-                cookie_manager = CookieManager()
-                cookie_manager.delete("vgs_auth")
-            except Exception:  # pylint
-                logging.error("Failed to delete cookie.", exc_info=True)
 
 
 def display_dashboard():
