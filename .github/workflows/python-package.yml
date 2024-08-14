@@ -45,11 +45,10 @@ jobs:
 
     - name: Create secrets.toml file
       run: |
-        echo 'auth_password = "${{ secrets.AUTH_PASSWORD }}"' >> .streamlit/secrets.toml
+        echo 'MONGO_URI = "${{ secrets.MONGO_URI }}"' >> .streamlit/secrets.toml
 
     - name: Run Playwright tests
       env:
-        MONGO_URI: ${{ secrets.MONGO_URI }}
         TEST_USERNAME: ${{ secrets.TEST_USERNAME }}
         TEST_PASSWORD: ${{ secrets.TEST_PASSWORD }}
       run: pytest
