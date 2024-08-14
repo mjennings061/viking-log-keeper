@@ -7,6 +7,7 @@ import time
 from dotenv import load_dotenv
 from pathlib import Path
 from playwright.sync_api import Page, expect
+from unittest.mock import MagicMock
 
 # Load environment variables
 load_dotenv()
@@ -45,9 +46,23 @@ def setup(page: Page):
     page.close()
 
 
+@pytest.fixture(scope="function", autouse=True)
+def mock_secrets(mocker):
+    """Mock the secrets for the dashboard."""
+    # Mock st.secrets.
+    mock_st_secrets = mocker.patch(
+        "streamlit.secrets",
+        new_callable=MagicMock()
+    )
+
+    # Set the mock secret.
+    mock_st_secrets.get.return_value = os.getenv("MONGO_URI")
+    yield mock_st_secrets
+
+
 # Fixture to log in to the dashboard for each test.
 @pytest.fixture(scope="function")
-def login(setup: Page):
+def login(setup: Page, mock_secrets):
     """Log in to the dashboard for each test."""
     page = setup
     page.get_by_label("Username").click()
