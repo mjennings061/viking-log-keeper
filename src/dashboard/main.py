@@ -96,7 +96,6 @@ def get_launches_for_dashboard(db: Database) -> pd.DataFrame:
     if "df" not in st.session_state:
         collection = db.get_launches_collection()
         st.session_state['df'] = pd.DataFrame(list(collection.find()))
-        db.client.close()
 
     # Get the data from the session state.
     df = st.session_state['df']
@@ -128,11 +127,8 @@ def get_launches_for_dashboard(db: Database) -> pd.DataFrame:
 
 def refresh_data():
     """Refresh the data in the session state."""
-    del st.session_state['df']
-    collection = get_launches_for_dashboard(
-        db_credentials=st.session_state["log_sheet_db"]
-    )
-    st.session_state['df'] = pd.DataFrame(list(collection.find()))
+    db = st.session_state["log_sheet_db"]
+    st.session_state['df'] = get_launches_for_dashboard(db)
     st.toast("Data Refreshed!", icon="✅")
 
 
@@ -273,6 +269,7 @@ def login(username: str, password: str):
             database_name=username
         )
         st.toast("Login successful")
+        st.rerun()
     else:
         st.error("Invalid Password")
 

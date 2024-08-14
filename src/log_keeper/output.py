@@ -107,9 +107,6 @@ def backup_launches_collection(db: Database):
         {"$out": collection_search_string},
     ])
 
-    # Close the connection.
-    db.client.close()
-
 
 def launches_to_db(launches_df, db: Database):
     """Save the master log dataframe to a MongoDB.
@@ -129,9 +126,6 @@ def launches_to_db(launches_df, db: Database):
     db.get_launches_collection().insert_many(master_dict)
     logger.info("Saved to DB.")
 
-    # Close DB session.
-    db.client.close()
-
 
 def update_launches_collection(launches_df, db: Database):
     """Update the master log collection in MongoDB by checking the date
@@ -141,8 +135,13 @@ def update_launches_collection(launches_df, db: Database):
         launches_df (pd.DataFrame): The master log dataframe.
         db (Database): VGS database.
     """
+    # Validate the dataframe is not empty.
+    if launches_df.empty:
+        logger.warning("Empty dataframe. Nothing to update.")
+        return
+
     # Backup the current collection.
-    backup_launches_collection(db)
+    backup_launches_collection(db=db)
 
     # Connect to the DB.
     collection = db.get_launches_collection()
@@ -152,25 +151,30 @@ def update_launches_collection(launches_df, db: Database):
 
     # Prepare bulk delete and inset operations.
     delete_ops = []
+    deleted_launches = 0
 
     # Step 1: Prepare bulk delete operations.
-    for (date, aircraft) in grouped:
+    for group_keys, _ in grouped:
         # We want to delete all launches with the same date and aircraft
         # as the records we are about to insert.
+        date, aircraft = group_keys
         delete_query = {
             "Date": date,
             "Aircraft": aircraft,
         }
+
+        # Count the number of records to delete.
+        deleted_launches += collection.count_documents(delete_query)
+
+        # Append the recursive delete operation.
         delete_ops.append(DeleteMany(delete_query))
 
+    # Delete the records if they exist.
     if delete_ops:
-        logging.info("Deleting %.0f sheets.", len(delete_ops))
+        logging.info("Deleting %.0f launches.", deleted_launches)
         collection.bulk_write(delete_ops)
 
     # Step 2: Insert all the records.
-    records = launches_df.to_dict('records')
-    logging.info("Inserting %.0f launches.", len(records))
-    collection.insert_many(records)
-
-    # Close DB session.
-    db.client.close()
+    documents = launches_df.to_dict('records')
+    logging.info("Inserting %.0f launches.", len(documents))
+    collection.insert_many(documents)

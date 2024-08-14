@@ -215,16 +215,16 @@ def upload_log_sheets(files: List[BytesIO]):
             )
             status_text.update(label="Log Sheets Uploaded!",
                                state="complete", expanded=False)
+
+            # Display a success message.
+            logger.info("Done uploading log sheets.")
+            st.toast("Log Sheets Uploaded!", icon="✅")
         except Exception:  # pylint: disable=broad-except
             # Log the error.
             logger.error("Failed to upload log sheets.", exc_info=True)
             st.error("Failed to upload log sheets.")
             status_text.update(label="Failed to upload log sheets.",
                                state="error", expanded=True)
-
-    # Display a success message.
-    logger.info("Done uploading log sheets.")
-    st.toast("Log Sheets Uploaded!", icon="✅")
 
 
 if __name__ == "__main__":

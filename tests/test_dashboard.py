@@ -111,9 +111,10 @@ def test_dashboard_login(login: Page):
     page = login
 
     # Check if the dashboard page is loaded after login.
-    # TODO: Add a dummy user and check for the user's name.
+    dummy_user = dashboard_username.upper()
+    expected_heading = f"{dummy_user} Dashboard"
     expect(page.get_by_role(
-        "heading", name="661VGS Dashboard"
+        "heading", name=expected_heading
     )).to_be_visible()
 
 
