@@ -603,3 +603,26 @@ def show_logo(logo_path: Path):
         "Volunteer Gliding Squadron Dashboard</h1>",
         unsafe_allow_html=True
     )
+
+
+def aircraft_flown_per_day(df: pd.DataFrame):
+    """Plot a table of how many aircraft were flown each day.
+
+    Args:
+        df (pd.DataFrame): The data to be displayed."""
+    # Group by 'Date'. Count the number of unique 'Aircraft'.
+    grouped = df.groupby('Date')['Aircraft'].nunique()
+
+    # Sort by 'Date' in descending order.
+    grouped = grouped.sort_index(ascending=False).reset_index()
+
+    # Convert 'Date' to format DD MMM YY.
+    grouped['Date'] = grouped['Date'].dt.strftime('%d %b %y')
+
+    # Limit to the first rows.
+    n_rows_to_display = 30
+    grouped = grouped.head(n_rows_to_display)
+
+    # Display in Streamlit app.
+    st.subheader('Aircraft Flown per Day')
+    st.dataframe(grouped, hide_index=True)

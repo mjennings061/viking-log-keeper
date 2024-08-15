@@ -29,6 +29,7 @@ from dashboard.plots import launches_by_type_table  # noqa: E402
 from dashboard.plots import generate_aircraft_weekly_summary  # noqa: E402
 from dashboard.plots import generate_aircraft_daily_summary  # noqa: E402
 from dashboard.plots import show_launch_delta_metric, show_logo  # noqa: E402
+from dashboard.plots import aircraft_flown_per_day  # noqa: E402
 from dashboard.utils import LOGO_PATH, upload_log_sheets  # noqa: E402
 
 # Set up logging.
@@ -209,6 +210,7 @@ def show_data_dashboard(db: Database):
             left, right = st.columns(2, gap="medium")
             with left:
                 generate_aircraft_weekly_summary(filtered_df)
+                aircraft_flown_per_day(filtered_df)
             with right:
                 generate_aircraft_daily_summary(filtered_df)
 
