@@ -30,6 +30,9 @@ from dashboard.plots import generate_aircraft_weekly_summary  # noqa: E402
 from dashboard.plots import generate_aircraft_daily_summary  # noqa: E402
 from dashboard.plots import show_launch_delta_metric, show_logo  # noqa: E402
 from dashboard.plots import aircraft_flown_per_day  # noqa: E402
+from dashboard.plots import launches_daily_summary  # noqa: E402
+from dashboard.plots import table_gifs_per_date  # noqa: E402
+from dashboard.plots import plot_gif_bar_chart  # noqa: E402
 from dashboard.utils import LOGO_PATH, upload_log_sheets  # noqa: E402
 
 # Set up logging.
@@ -182,6 +185,9 @@ def show_data_dashboard(db: Database):
             # Plot the number of launches per month
             plot_monthly_launches(filtered_df)
 
+            # Plot number of GIFs flown.
+            plot_gif_bar_chart(filtered_df)
+
             # Logbook helper by AircraftCommander.
             show_logbook_helper(filtered_df, commander)
 
@@ -201,6 +207,8 @@ def show_data_dashboard(db: Database):
             with left:
                 # Show the first and last launch time table.
                 plot_firstlast_launch_table(filtered_df)
+                # Show number of GIFs flown by day.
+                table_gifs_per_date(filtered_df)
             with right:
                 # Show launches by sortie type.
                 launches_by_type_table(filtered_df)
@@ -213,6 +221,7 @@ def show_data_dashboard(db: Database):
                 aircraft_flown_per_day(filtered_df)
             with right:
                 generate_aircraft_daily_summary(filtered_df)
+                launches_daily_summary(filtered_df)
 
         case "📁 Upload Log Sheets":
             # Text to display the upload log sheets page.
