@@ -6,6 +6,7 @@ from pathlib import Path
 import streamlit as st
 from typing import List
 from io import BytesIO
+from datetime import datetime
 
 # User defined modules.
 from log_keeper.ingest import ingest_log_sheet, sanitise_log_sheets
@@ -61,7 +62,7 @@ def get_financial_year(df) -> int:
         int: The financial year"""
     # Check if the DataFrame is empty.
     if df.empty:
-        return None
+        return datetime.now().year
 
     # Get the last date in the DataFrame
     last_date = df['Date'].iloc[0]
