@@ -3,7 +3,8 @@
 # Get packages.
 import inquirer
 import logging
-from datetime import datetime
+import random
+from datetime import datetime, timedelta
 from pathlib import Path
 from dataclasses import dataclass, field
 from typing import Optional
@@ -162,23 +163,55 @@ class Database:
 
     @staticmethod
     def dummy_launches_dataframe():
-        """Create a dummy DataFrame."""
-        dummy_data = {
-            "Date": [datetime.now()],
-            "Aircraft": ["ZE123"],
-            "AircraftCommander": ["Sgt Smith"],
-            "SecondPilot": ["Cpl Jones"],
-            "Duty": ["Sesh"],
-            "FlightTime": [int(1)],
-            "TakeOffTime": [datetime.now()],
-            "LandingTime": [datetime.now()],
-            "SPC": [1],
-            "P1": False,
-            "P2": False,
-        }
-        # Repeat the dummy data to display the columns.
-        df = pd.DataFrame(dummy_data)
-        df = pd.concat([df] * 10, ignore_index=True)
+        """Create a dummy DataFrame with varied data."""
+        n_days = 10
+        n_rep = 30
+        base_date = datetime.now().replace(
+            hour=0, minute=0, second=0, microsecond=0
+        )
+        dates = [base_date - timedelta(days=i*7) for i in range(n_days)]
+
+        all_data = []
+
+        aircraft_list = ["ZE123", "ZE456", "ZE321", "ZE654", "ZE118"]
+        commanders = ["Jennings", "White, C", "Abbott", "MacGregor", "Philips"]
+        second_pilots = ["Jones", "Clarke", "Taylor", "White", "Green"]
+        duties = ["SCT U/T", "GIF", "SCT QGI", "AGT", "G/S"]
+
+        for day in sorted(dates):
+            take_off_times = [
+                day + timedelta(hours=random.randint(6, 12))
+                for _ in range(n_rep)
+            ]
+            flight_time = [random.randint(5, 10) for _ in range(n_rep)]
+            landing_times = [
+                take_off_times[i] + timedelta(minutes=flight_time[i])
+                for i in range(n_rep)
+            ]
+
+            daily_data = {
+                "Date": [day for _ in range(n_rep)],
+                "Aircraft": [
+                    random.choice(aircraft_list) for _ in range(n_rep)
+                ],
+                "AircraftCommander": [
+                    random.choice(commanders) for _ in range(n_rep)
+                ],
+                "SecondPilot": [
+                    random.choice(second_pilots) for _ in range(n_rep)
+                ],
+                "Duty": [random.choice(duties) for _ in range(n_rep)],
+                "FlightTime": flight_time,
+                "TakeOffTime": take_off_times,
+                "LandingTime": landing_times,
+                "SPC": [random.randint(0, 5) for _ in range(n_rep)],
+                "P1": [random.choice([True, False]) for _ in range(n_rep)],
+                "P2": [random.choice([True, False]) for _ in range(n_rep)],
+            }
+
+            all_data.append(pd.DataFrame(daily_data))
+
+        df = pd.concat(all_data, ignore_index=True)
         return df
 
 

@@ -6,6 +6,7 @@ from pathlib import Path
 import streamlit as st
 from typing import List
 from io import BytesIO
+from datetime import datetime
 
 # User defined modules.
 from log_keeper.ingest import ingest_log_sheet, sanitise_log_sheets
@@ -61,7 +62,7 @@ def get_financial_year(df) -> int:
         int: The financial year"""
     # Check if the DataFrame is empty.
     if df.empty:
-        return None
+        return datetime.now().year
 
     # Get the last date in the DataFrame
     last_date = df['Date'].iloc[0]
@@ -83,7 +84,10 @@ def filter_by_financial_year(df, year):
         pd.DataFrame: The filtered DataFrame"""
     start_date = pd.Timestamp(year, 4, 1)  # Assuming FY starts from April 1st
     end_date = pd.Timestamp(year + 1, 3, 31)  # Assuming FY ends on March 31st
-    return df[(df['Date'] >= start_date) & (df['Date'] <= end_date)]
+    filtered_df = df[
+        (df['Date'] >= start_date) & (df['Date'] <= end_date)
+    ].reset_index(drop=True)
+    return filtered_df
 
 
 def total_launches_for_financial_year(df, year) -> int:
@@ -225,6 +229,35 @@ def upload_log_sheets(files: List[BytesIO]):
             st.error("Failed to upload log sheets.")
             status_text.update(label="Failed to upload log sheets.",
                                state="error", expanded=True)
+
+
+def gifs_flown_per_day(df: pd.DataFrame) -> pd.DataFrame:
+    """Show a table of how many unique GIFs were flown each day
+
+    Args:
+        df (pd.DataFrame): The data to be displayed."""
+    # Filter the data to only include GIFs.
+    gif_df = df[df["Duty"] == "GIF"]
+
+    # Get the total number of GIFs flown each day.
+    grouped = gif_df.groupby([
+        'Date',
+        'Aircraft',
+        'AircraftCommander',
+        'SecondPilot'
+    ], as_index=False).size()
+
+    # Group by 'Date'. Count the number elements in the group.
+    grouped = grouped.groupby('Date').agg(
+        GIFsFlown=('size', 'count')
+    ).reset_index()
+
+    # Change the column name.
+    grouped.columns = ['Date', 'GIFs Flown']
+
+    # Sort by 'Date' in descending order.
+    grouped = grouped.sort_values(by='Date', ascending=False)
+    return grouped
 
 
 if __name__ == "__main__":

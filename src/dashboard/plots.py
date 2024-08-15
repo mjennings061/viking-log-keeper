@@ -7,9 +7,11 @@ import streamlit as st
 from pathlib import Path
 
 # User-defined imports.
-from dashboard.utils import get_financial_year  # noqa: E402
-from dashboard.utils import total_launches_for_financial_year  # noqa: E402
-from dashboard.utils import delta_launches_previous_day  # noqa: E402
+from dashboard.utils import get_financial_year
+from dashboard.utils import total_launches_for_financial_year
+from dashboard.utils import delta_launches_previous_day
+from dashboard.utils import gifs_flown_per_day
+from dashboard.utils import filter_by_financial_year
 
 
 def format_data_for_table(raw_df: pd.DataFrame) -> pd.DataFrame:
@@ -77,6 +79,11 @@ def plot_launches_by_commander(df: pd.DataFrame):
     launches_by_commander = launches_by_commander[
         launches_by_commander["Launches"] >= min_launches]
 
+    # Dynamically set label based on the number of commanders.
+    n_labels = len(launches_by_commander)
+    label_height = 30
+    height = n_labels * label_height
+
     # Sort launches by commander in descending order explicitly in the chart
     chart = alt.Chart(launches_by_commander).mark_bar().encode(
         # Quantitative scale for Number of Launches
@@ -87,14 +94,15 @@ def plot_launches_by_commander(df: pd.DataFrame):
         tooltip=['AircraftCommander', 'Launches']  # Tooltip on hover
     ).properties(
         # Adjust the height based on the number of commanders.
-        height=alt.Step(len(launches_by_commander) * 0.75)
+        height=height
     )
 
     # Display the value of the bar on the chart.
     text = chart.mark_text(
         align='left',
         baseline='middle',
-        dx=3  # Nudge text to right so it doesn't overlap with the bar
+        dx=6,  # Nudge text to right so it doesn't overlap with the bar
+        size=15
     ).encode(
         text='Launches:Q'  # Display the number of launches
     )
@@ -155,6 +163,7 @@ def plot_longest_flight_times(df: pd.DataFrame):
     """
     # Convert ObjectId to string if present.
     if '_id' in df.columns:
+        df = df.copy()
         df['_id'] = df['_id'].astype(str)
 
     # Sort the DataFrame by FlightTime in descending order
@@ -179,7 +188,8 @@ def plot_longest_flight_times(df: pd.DataFrame):
     text = chart.mark_text(
         align='left',
         baseline='middle',
-        dx=3  # Nudge text to right so it doesn't overlap with the bar
+        dx=5,  # Nudge text to right so it doesn't overlap with the bar
+        size=15
     ).encode(
         text='FlightTime:Q'  # Display the flight time
     )
@@ -352,7 +362,8 @@ def plot_monthly_launches(df: pd.DataFrame):
         df (pd.DataFrame): The data to be plotted
     """
     # Extract month and year.
-    df['YearMonth'] = df['Date'].dt.to_period('M')
+    df = df.copy()
+    df.loc[:, 'YearMonth'] = df['Date'].dt.to_period('M')
 
     # Aggregate launches and flight time by month.
     month_df = df.groupby('YearMonth').agg(
@@ -603,3 +614,152 @@ def show_logo(logo_path: Path):
         "Volunteer Gliding Squadron Dashboard</h1>",
         unsafe_allow_html=True
     )
+
+
+def aircraft_flown_per_day(df: pd.DataFrame):
+    """Plot a table of how many aircraft were flown each day.
+
+    Args:
+        df (pd.DataFrame): The data to be displayed."""
+    # Group by 'Date'. Count the number of unique 'Aircraft'.
+    grouped = df.groupby('Date')['Aircraft'].nunique()
+
+    # Sort by 'Date' in descending order.
+    grouped = grouped.sort_index(ascending=False).reset_index()
+
+    # Convert 'Date' to format DD MMM YY.
+    grouped['Date'] = grouped['Date'].dt.strftime('%d %b %y')
+
+    # Limit to the first rows.
+    n_rows_to_display = 30
+    grouped = grouped.head(n_rows_to_display)
+
+    # Display in Streamlit app.
+    st.subheader('Aircraft Flown per Day')
+    st.dataframe(grouped, hide_index=True)
+
+
+def launches_daily_summary(df: pd.DataFrame):
+    """Plot a table of the daily summary of launches and hours flown.
+
+    Args:
+        pd.DataFrame: The data to be displayed."""
+    # Group by 'Date'. Aggregate the number of launches and total flight time.
+    grouped = df.groupby('Date').agg(
+        Launches=('Date', 'count'),             # Total launches
+        TotalFlightTime=('FlightTime', 'sum')   # Total flight time in minutes
+    ).reset_index()
+
+    # Rename columns.
+    grouped.columns = ['Date', 'Launches', 'Flight Time']
+
+    # Sort by 'Date' in descending order.
+    grouped = grouped.sort_values(by='Date', ascending=False)
+
+    # Convert 'Date' to format DD MMM YY.
+    grouped['Date'] = grouped['Date'].dt.strftime('%d %b %y')
+
+    # Format 'Flight Time' to HH:MM format.
+    grouped['Flight Time'] = grouped['Flight Time'].apply(
+        lambda x: f"{x//60}:{x % 60:02d}"
+    )
+
+    # Limit to last rows.
+    n_rows_to_display = 16
+    grouped = grouped.head(n_rows_to_display)
+
+    # Display in Streamlit app.
+    st.subheader('Daily Summary')
+    st.dataframe(grouped, hide_index=True)
+
+
+def table_gifs_per_date(df: pd.DataFrame):
+    """Plot a table of GIFs flown per date.
+
+    Args:
+        df (pd.DataFrame): The data to be displayed."""
+    # Get the total number of GIFs flown each day.
+    gif_df = gifs_flown_per_day(df)
+
+    # Convert 'Date' to format DD MMM YY.
+    gif_df['Date'] = gif_df['Date'].dt.strftime('%d %b %y')
+
+    # Limit to the first rows.
+    n_rows_to_display = 15
+    gif_df = gif_df.head(n_rows_to_display)
+
+    # Display in Streamlit app.
+    st.subheader('GIFs Flown per Day')
+    st.dataframe(gif_df, hide_index=True)
+
+
+def plot_gif_bar_chart(df: pd.DataFrame):
+    """Plot cumulative chart of GIFs flown per day.
+
+    Args:
+        df (pd.DataFrame): The data to be displayed."""
+    # Get the total number of GIFs flown each day.
+    gif_df = gifs_flown_per_day(df)
+
+    # Filter by financial year.
+    year = get_financial_year(gif_df)
+    gif_year_df = filter_by_financial_year(gif_df, year)
+
+    # Add a week column to group by.
+    gif_year_df['WeekStart'] = gif_year_df['Date'] - pd.to_timedelta(
+        gif_year_df['Date'].dt.weekday,
+        unit='D'
+    )
+
+    # Group by week and sum the GIFs flown.
+    gif_year_df = gif_year_df.groupby('WeekStart').agg(
+        GIFsFlown=('GIFs Flown', 'sum')
+    ).reset_index()
+
+    # Produce a cumulative sum of GIFs flown for each day.
+    gif_year_df['GIFs Cumsum'] = gif_year_df['GIFsFlown'].cumsum()
+
+    # Tooltips.
+    x_tooltip = alt.Tooltip('WeekStart:T', format='%d %b %y')
+    y_tooltip = alt.Tooltip('GIFs Cumsum:Q', format=',d', title='GIFs Flown')
+
+    # Create an area chart with Altair.
+    base = alt.Chart(gif_year_df).mark_area(color='blue').encode(
+        x=alt.X(
+            'WeekStart:T',
+            title='Week Start',
+            axis=alt.Axis(labelAngle=-90, format='%d %b %y', grid=True)
+        ),
+        y=alt.Y('GIFs Cumsum:Q', title='Total GIFs Flown'),
+        tooltip=[x_tooltip, y_tooltip]
+    ).properties(
+        width=600  # Adjust width as needed
+    )
+
+    # Create the line chart to show the cumulative GIFs flown over time.
+    line = base.mark_line(color='blue').encode()
+
+    # Create the scatter plot (dots) to highlight each data point.
+    points = base.mark_circle(color='red', size=100).encode()
+
+    # Add text to the chart.
+    text = base.mark_text(
+        align='center',
+        baseline='middle',
+        dx=20,  # Nudge up so it doesn't overlap with the bar.
+        size=12,
+        angle=270,
+        color='blue'
+    ).encode(
+        text='GIFs Cumsum:Q'  # Display the number of GIFs flown
+    )
+
+    # Combine the line and dots into one chart.
+    chart = (base + line + points + text).properties(
+        width=600  # Adjust width as needed
+    )
+
+    # Display the chart in Streamlit.
+    st.subheader('Cumulative GIFs Flown per Week')
+    st.text(f"Financial Year: {year}")
+    st.altair_chart(chart, use_container_width=True)
