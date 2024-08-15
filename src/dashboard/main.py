@@ -85,7 +85,7 @@ def date_filter(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def get_launches_for_dashboard(db: Database) -> pd.DataFrame:
-    """Get the launches from the database.
+    """Get the launches from the database. Store in session state.
 
     Args:
         db (Database): The VGS database class.
@@ -94,41 +94,22 @@ def get_launches_for_dashboard(db: Database) -> pd.DataFrame:
         pd.DataFrame: The launches DataFrame."""
     # Fetch data from MongoDB
     if "df" not in st.session_state:
-        collection = db.get_launches_collection()
-        st.session_state['df'] = pd.DataFrame(list(collection.find()))
-
-    # Get the data from the session state.
-    df = st.session_state['df']
+        st.session_state['df'] = db.get_launches_dataframe()
 
     # Ensure the data is not empty by preallocating the DataFrame.
-    if df.empty:
+    if st.session_state['df'].empty:
         # Make a dictionary of one row to display the columns.
+        st.session_state['df'] = db.dummy_launches_dataframe()
         logging.error("No data found in the database, using dummy data.")
         st.error("No data found in the database, using dummy data.")
-        dummy_data = {
-            "Date": [datetime.now()],
-            "Aircraft": ["ZE123"],
-            "AircraftCommander": ["Sgt Smith"],
-            "SecondPilot": ["Cpl Jones"],
-            "Duty": ["Sesh"],
-            "FlightTime": [int(1)],
-            "TakeOffTime": [datetime.now()],
-            "LandingTime": [datetime.now()],
-            "SPC": [1],
-            "P1": False,
-            "P2": False,
-        }
-        # Repeat the dummy data to display the columns.
-        df = pd.DataFrame(dummy_data)
-        df = pd.concat([df] * 10, ignore_index=True)
-
-    return df
+    return st.session_state['df']
 
 
 def refresh_data():
     """Refresh the data in the session state."""
+    logger.info("Refreshing data.")
     db = st.session_state["log_sheet_db"]
-    st.session_state['df'] = get_launches_for_dashboard(db)
+    get_launches_for_dashboard(db)
     st.toast("Data Refreshed!", icon="✅")
 
 
@@ -252,12 +233,17 @@ def show_data_dashboard(db: Database):
 
 def login(username: str, password: str):
     """Login to the dashboard."""
-    # Create the DB user.
-    db_user = DbUser(
-        username=username,
-        password=password,
-        uri=st.secrets["MONGO_URI"],
-    )
+    try:
+        # Create the DB user.
+        db_user = DbUser(
+            username=username,
+            password=password,
+            uri=st.secrets["MONGO_URI"],
+        )
+    except ValueError as e:
+        # Handle where username or password is empty.
+        st.error(str(e))
+        return
 
     # Validate the password.
     client = Client(db_user)
@@ -315,7 +301,6 @@ def main():
     # Confiure the Streamlit app.
     configure_app(LOGO_PATH)
     show_logo(LOGO_PATH)
-    st.subheader("Volunteer Gliding Squadron Dashboard")
 
     # Authenticate the user.
     authenticate()

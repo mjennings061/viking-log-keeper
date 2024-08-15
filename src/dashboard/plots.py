@@ -449,6 +449,9 @@ def plot_all_launches(df: pd.DataFrame):
     # Make date the first column.
     df = df[["Date"] + [col for col in df.columns if col != "Date"]]
 
+    # Reset the index.
+    df = df.reset_index(drop=True)
+
     # Plot all data.
     st.dataframe(df, use_container_width=True)
 
@@ -593,3 +596,9 @@ def show_logo(logo_path: Path):
     _, centre, _ = st.columns(3)
     with centre:
         st.image(str(logo_path), use_column_width="auto")
+
+    # Show centred text.
+    st.markdown(
+        "<h2 style='text-align: center;'>Volunteer Gliding Squadron Dashboard</h1>",
+        unsafe_allow_html=True
+    )

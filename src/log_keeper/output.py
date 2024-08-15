@@ -171,10 +171,12 @@ def update_launches_collection(launches_df, db: Database):
 
     # Delete the records if they exist.
     if delete_ops:
-        logging.info("Deleting %.0f launches.", deleted_launches)
+        logging.info("Deleting %.0f launches from %.0f days/aircraft.",
+                     deleted_launches, len(delete_ops))
         collection.bulk_write(delete_ops)
 
     # Step 2: Insert all the records.
     documents = launches_df.to_dict('records')
-    logging.info("Inserting %.0f launches.", len(documents))
+    logging.info("Inserting %.0f launches from %.0f days/aircraft.",
+                 len(documents), len(grouped))
     collection.insert_many(documents)

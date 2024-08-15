@@ -1,6 +1,9 @@
 """get_config.py - Get the database configuration from keyring"""
 
 # Get packages.
+import inquirer
+import logging
+from datetime import datetime
 from pathlib import Path
 from dataclasses import dataclass, field
 from typing import Optional
@@ -9,8 +12,7 @@ from pymongo.server_api import ServerApi
 from pymongo.errors import OperationFailure
 import keyring as kr
 import pandas as pd
-import inquirer
-import logging
+
 
 # Set up logging.
 logger = logging.getLogger(__name__)
@@ -27,6 +29,18 @@ class DbUser():
     username: str
     password: str
     uri: str
+
+    def __post_init__(self):
+        """Post-initialization method to validate the attributes."""
+        # Validate the username.
+        if not self.username:
+            raise ValueError("Username is required.")
+        # Validate the password.
+        if not self.password:
+            raise ValueError("Password is required.")
+        # Validate the URI.
+        if not self.uri:
+            raise ValueError("URI is required.")
 
     def get_connection_string(self):
         """Get the connection string to the database.
@@ -47,6 +61,7 @@ class Client(MongoClient):
             tlsAllowInvalidCertificates=True,
         )
         self.db_user = db_user
+        self._authenticated = False
 
     def log_in(self):
         """Log in to the database.
@@ -55,11 +70,20 @@ class Client(MongoClient):
             bool: True if the user is logged in, otherwise False."""
         try:
             self.admin.command('ping')
+            self._authenticated = True
             logging.info("Logged in to DB.")
             return True
         except OperationFailure:
+            self._authenticated = False
             logging.error("Could not log in to DB.")
             return False
+
+    def authenticated(self):
+        """Check if the user is authenticated.
+
+        Returns:
+            bool: True if the user is authenticated, otherwise False."""
+        return self._authenticated
 
 
 class Database:
@@ -68,7 +92,7 @@ class Database:
         # Set launches collection.
         self.launches_collection = "log_sheets"
         # Validate client.
-        if not client.log_in():
+        if not client.authenticated():
             raise ConnectionError("Could not log in to the database.")
         self.client = client
 
@@ -110,6 +134,7 @@ class Database:
         # Check if the collection has data.
         if collection.count_documents({}) == 0:
             logging.warning("Collection is empty.")
+        logging.info("Collection %s fetched.", collection_name)
         return collection
 
     def get_launches_collection(self):
@@ -117,7 +142,44 @@ class Database:
 
         Returns:
             pymongo.collection.Collection: The launches collection."""
-        return self.get_collection("log_sheets")
+        return self.get_collection(self.launches_collection)
+
+    def get_launches_dataframe(self):
+        """Get log sheets collection as a DataFrame.
+
+        Returns:
+            pandas.DataFrame: The log sheets collection as a DataFrame."""
+        try:
+            # Get the collection and convert it to a DataFrame.
+            collection = self.get_launches_collection()
+            df = pd.DataFrame(collection.find())
+            df = df.sort_values(by="Date", ascending=False)
+        except Exception:  # pylint: disable=broad-except
+            # Log error and return an empty DataFrame.
+            logging.error("Could not fetch data from the collection.")
+            df = pd.DataFrame()
+        return df
+
+    @staticmethod
+    def dummy_launches_dataframe():
+        """Create a dummy DataFrame."""
+        dummy_data = {
+            "Date": [datetime.now()],
+            "Aircraft": ["ZE123"],
+            "AircraftCommander": ["Sgt Smith"],
+            "SecondPilot": ["Cpl Jones"],
+            "Duty": ["Sesh"],
+            "FlightTime": [int(1)],
+            "TakeOffTime": [datetime.now()],
+            "LandingTime": [datetime.now()],
+            "SPC": [1],
+            "P1": False,
+            "P2": False,
+        }
+        # Repeat the dummy data to display the columns.
+        df = pd.DataFrame(dummy_data)
+        df = pd.concat([df] * 10, ignore_index=True)
+        return df
 
 
 @dataclass

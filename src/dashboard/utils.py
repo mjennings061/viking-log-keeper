@@ -64,7 +64,7 @@ def get_financial_year(df) -> int:
         return None
 
     # Get the last date in the DataFrame
-    last_date = df['Date'].iloc[-1]
+    last_date = df['Date'].iloc[0]
     # Get the year from the last date
     if last_date.month >= 4:
         return last_date.year
