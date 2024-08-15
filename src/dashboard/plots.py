@@ -599,6 +599,7 @@ def show_logo(logo_path: Path):
 
     # Show centred text.
     st.markdown(
-        "<h2 style='text-align: center;'>Volunteer Gliding Squadron Dashboard</h1>",
+        "<h2 style='text-align: center;'>"
+        "Volunteer Gliding Squadron Dashboard</h1>",
         unsafe_allow_html=True
     )
