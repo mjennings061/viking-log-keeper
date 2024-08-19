@@ -14,7 +14,7 @@ from tqdm import tqdm
 logger = logging.getLogger(__name__)
 
 
-def ingest_log_sheet(file_path: str) -> pd.DataFrame:
+def ingest_log_sheet(file_path: str) -> tuple[pd.DataFrame, dict]:
     """
     Extract data from an excel log sheet.
     Output a pandas dataframe.
@@ -25,12 +25,37 @@ def ingest_log_sheet(file_path: str) -> pd.DataFrame:
     Returns:
     - raw_df (pandas.DataFrame): The extracted data as a pandas dataframe.
     """
+    # Validate the file path.
+    if not Path(file_path).is_file():
+        raise FileNotFoundError(f"File not found: {file_path}")
+    # Validate the file extension.
+    if Path(file_path).suffix != ".xlsx":
+        raise ValueError("Invalid file extension. Expected .xlsx")
+
+    # Read the excel file.
+    with pd.ExcelFile(file_path) as xls:
+        # Extract the launches.
+        raw_df = extract_launches(xls)
+
+        # Extract the aircraft information.
+        aircraft_info = extract_aircraft_info(xls)
+    return raw_df, aircraft_info
+
+
+def extract_launches(xls: pd.ExcelFile) -> pd.DataFrame:
+    """Extract the launches from the excel file.
+
+    Args:
+        xls (pd.ExcelFile): The excel file object.
+
+    Returns:
+        pd.DataFrame: The extracted launches dataframe."""
     # Constants.
     SHEET_NAME = "FORMATTED"
 
     # Read from the log sheet.
     raw_df = pd.read_excel(
-        file_path,
+        xls,
         sheet_name=SHEET_NAME,
         dtype={
             'AircraftCommander': 'string',
@@ -51,6 +76,38 @@ def ingest_log_sheet(file_path: str) -> pd.DataFrame:
     # Validate the log sheet. Raise an error if invalid.
     validate_log_sheet(raw_df)
     return raw_df
+
+
+def extract_aircraft_info(xls: pd.ExcelFile) -> dict:
+    """Extract aircraft information from the excel file.
+
+    Args:
+        xls (pd.ExcelFile): The excel file object.
+
+    Returns:
+        dict: The extracted aircraft information."""
+    # Constants.
+    SHEET_NAME = "2965D"
+
+    # Read from the log sheet.
+    raw_df = pd.read_excel(
+        xls,
+        sheet_name=SHEET_NAME,
+        usecols="F,O,C,C",
+        skiprows=[1, 3, 4],
+        nrows=1,
+        dtype={
+            'Aircraft': 'string',
+            'Date': 'datetime64[ns]',
+            'Hours Before': 'datetime64[ns]',
+            'Launches Before': 'UInt32'
+        }
+    )
+
+    # Validate the log sheet. Raise an error if invalid.
+    # TODO: Write a validation function.
+    # TODO: return the extracted data.
+
 
 
 def validate_log_sheet(log_sheet_df: pd.DataFrame):
@@ -176,8 +233,6 @@ def collate_log_sheets(dir_path: Union[str, Path]) -> pd.DataFrame:
                           unit="file"):
         # Get the log sheet data.
         try:
-            # TODO: Write a function to also ingest the launches
-            # and hours CF for F724 if given.
             this_sheet_df = ingest_log_sheet(file_path)
             log_sheet_list.append(this_sheet_df)
         except Exception:   # pylint: disable=broad-except

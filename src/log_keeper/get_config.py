@@ -11,6 +11,7 @@ from typing import Optional
 from pymongo.mongo_client import MongoClient
 from pymongo.server_api import ServerApi
 from pymongo.errors import OperationFailure
+from pymongo.collection import Collection
 import keyring as kr
 import pandas as pd
 
@@ -92,6 +93,7 @@ class Database:
     def __init__(self, client: Client, database_name: str):
         # Set launches collection.
         self.launches_collection = "log_sheets"
+        self.aircraft_info_collection = "aircraft"
         # Validate client.
         if not client.authenticated():
             raise ConnectionError("Could not log in to the database.")
@@ -138,7 +140,7 @@ class Database:
         logging.info("Collection %s fetched.", collection_name)
         return collection
 
-    def get_launches_collection(self):
+    def get_launches_collection(self) -> Collection:
         """Get the launches collection from the database.
 
         Returns:
@@ -155,6 +157,29 @@ class Database:
             collection = self.get_launches_collection()
             df = pd.DataFrame(collection.find())
             df = df.sort_values(by="Date", ascending=False)
+        except Exception:  # pylint: disable=broad-except
+            # Log error and return an empty DataFrame.
+            logging.error("Could not fetch data from the collection.")
+            df = pd.DataFrame()
+        return df
+
+    def get_aircraft_info_collection(self) -> Collection:
+        """Get the aircraft information collection from the database.
+
+        Returns:
+            pymongo.collection.Collection: The aircraft information
+            collection."""
+        return self.get_collection(self.aircraft_info_collection)
+
+    def get_aircraft_info(self) -> pd.DataFrame:
+        """Get the aircraft information as a dictionary.
+
+        Returns:
+            pd.DataFrame: The aircraft information as a dataframe."""
+        try:
+            # Get the collection and convert it to a DataFrame.
+            collection = self.get_aircraft_info_collection()
+            df = pd.DataFrame(collection.find())
         except Exception:  # pylint: disable=broad-except
             # Log error and return an empty DataFrame.
             logging.error("Could not fetch data from the collection.")
@@ -212,6 +237,36 @@ class Database:
             all_data.append(pd.DataFrame(daily_data))
 
         df = pd.concat(all_data, ignore_index=True)
+        return df
+
+    @staticmethod
+    def dummy_aircraft_info_dataframe() -> pd.DataFrame:
+        """Create a dummy DataFrame with varied data.
+
+        Returns:
+            pd.DataFrame: The dummy DataFrame."""
+        # Constants.
+        keys = ["Aircraft", "Date", "Hours Before", "Launches Before",
+                "Hours After", "Launches After"]
+        aircraft_choices = ["ZE123", "ZE456", "ZE321", "ZE654", "ZE118"]
+        n_reps = 10
+
+        aircraft = [random.choice(aircraft_choices) for i in range(n_reps)]
+        date = [datetime.now() - timedelta(weeks=1) for i in range(n_reps)]
+        launches_before = [random.randint(22000, 23000) for _ in range(n_reps)]
+        launches_after = launches_before + [random.randint(5, 30)]
+        hours_before = [timedelta(hours=random.randint(10000, 15000))
+                        for _ in range(n_reps)]
+        hours_after = hours_before + [
+            timedelta(minutes=random.randint(20, 360))
+        ]
+
+        # Create the DataFrame.
+        df = pd.DataFrame(
+            data=[aircraft, date, hours_before, launches_before,
+                  hours_after, launches_after],
+            index=keys,
+        ).T
         return df
 
 
