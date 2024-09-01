@@ -9,7 +9,7 @@ from io import BytesIO
 from datetime import datetime
 
 # User defined modules.
-from log_keeper.ingest import ingest_log_sheet, sanitise_log_sheets
+from log_keeper.ingest import ingest_log_sheet_from_upload, sanitise_log_sheets
 from log_keeper.output import update_launches_collection
 
 # Get the logger instance.
@@ -190,9 +190,11 @@ def upload_log_sheets(files: List[BytesIO]):
 
         try:
             # Read the log sheet to a DataFrame.
-            sheet_df, aircraft_info = ingest_log_sheet(file)
+            sheet_df, aircraft_info = ingest_log_sheet_from_upload(file)
             log_sheet_list.append(sheet_df)
-            # TODO: Add aircraft info to a list of dicts.
+
+            # Add aircraft info to a list of dicts.
+            aircraft_info_list.append(aircraft_info)
         except Exception:  # pylint
             warning_msg = f"Log sheet invalid: {file.name}"
             st.warning(warning_msg)

@@ -5,8 +5,8 @@ This file handles log sheet extraction and sanitisation.
 
 # Get packages.
 import logging
-from typing import Union
 from pathlib import Path
+from typing import Tuple
 import pandas as pd
 from tqdm import tqdm
 
@@ -14,7 +14,7 @@ from tqdm import tqdm
 logger = logging.getLogger(__name__)
 
 
-def ingest_log_sheet(file_path: str) -> tuple[pd.DataFrame, dict]:
+def ingest_log_sheet(file_path: str) -> pd.DataFrame:
     """
     Extract data from an excel log sheet.
     Output a pandas dataframe.
@@ -34,6 +34,28 @@ def ingest_log_sheet(file_path: str) -> tuple[pd.DataFrame, dict]:
 
     # Read the excel file.
     with pd.ExcelFile(file_path) as xls:
+        # Extract the launches.
+        raw_df = extract_launches(xls)
+    return raw_df
+
+
+def ingest_log_sheet_from_upload(file) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    """Extract data from an uploaded excel log sheet.
+
+    Parameters:
+        file (UploadedFile/BytesIO): The uploaded excel log sheet file.
+
+    Returns:
+        raw_df (pandas.DataFrame): The extracted data as a pandas dataframe.
+        aircraft_info (pandas.DataFrame): The extracted aircraft information
+            e.g. launches/hours.
+    """
+    # Validate the file extension.
+    if Path(file.name).suffix != ".xlsx":
+        raise ValueError("Invalid file extension. Expected .xlsx")
+
+    # Read the excel file.
+    with pd.ExcelFile(file) as xls:
         # Extract the launches.
         raw_df = extract_launches(xls)
 
@@ -90,6 +112,7 @@ def extract_aircraft_info(xls: pd.ExcelFile) -> dict:
     SHEET_NAME = "2965D"
 
     # Read from the log sheet.
+    # TODO: Catch where no data is found and allow empty.
     raw_df = pd.read_excel(
         xls,
         sheet_name=SHEET_NAME,
@@ -107,7 +130,6 @@ def extract_aircraft_info(xls: pd.ExcelFile) -> dict:
     # Validate the log sheet. Raise an error if invalid.
     # TODO: Write a validation function.
     # TODO: return the extracted data.
-
 
 
 def validate_log_sheet(log_sheet_df: pd.DataFrame):
