@@ -6,7 +6,7 @@ This file handles log sheet extraction and sanitisation.
 # Get packages.
 import logging
 from pathlib import Path
-from typing import Tuple
+from typing import Tuple, Union
 import pandas as pd
 from tqdm import tqdm
 
@@ -109,21 +109,18 @@ def extract_aircraft_info(xls: pd.ExcelFile) -> dict:
     Returns:
         dict: The extracted aircraft information."""
     # Constants.
-    SHEET_NAME = "2965D"
+    SHEET_NAME = "_AIRCRAFT"
 
     # Read from the log sheet.
     # TODO: Catch where no data is found and allow empty.
     raw_df = pd.read_excel(
         xls,
         sheet_name=SHEET_NAME,
-        usecols="F,O,C,C",
-        skiprows=[1, 3, 4],
-        nrows=1,
         dtype={
             'Aircraft': 'string',
             'Date': 'datetime64[ns]',
-            'Hours Before': 'datetime64[ns]',
-            'Launches Before': 'UInt32'
+            'Hours After': 'datetime64[ns]',
+            'Hours Before': 'UInt32'
         }
     )
 
@@ -273,6 +270,6 @@ def collate_log_sheets(dir_path: Union[str, Path]) -> pd.DataFrame:
 
 if __name__ == "__main__":
     # Test the collate function.
-    test_dir_path = "C:\\Users\\mjenn\\Downloads\\Logs"
+    test_dir_path = "/home/michaeljennings/Downloads"
     test_collated_df = collate_log_sheets(test_dir_path)
     logger.info(test_collated_df.head())
