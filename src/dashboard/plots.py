@@ -29,7 +29,8 @@ def format_data_for_table(raw_df: pd.DataFrame) -> pd.DataFrame:
 
     # Aggregate to sum the FlightTime for each group
     flight_time_sum = grouped.agg(
-        FlightTime=("FlightTime", "sum")
+        FlightTime=("FlightTime", "sum"),
+        PLFs=("PLF", "sum")
     ).reset_index()
 
     # Calculate the size of each group (number of launches)
@@ -53,9 +54,15 @@ def format_data_for_table(raw_df: pd.DataFrame) -> pd.DataFrame:
         lambda x: f"{x//60}:{x % 60:02d}"
     )
 
+    # Make PLF column blank if the value is zero.
+    data_df["PLFs"] = data_df["PLFs"].apply(
+        lambda x: "" if x == 0 else x
+    )
+
     # Reorder the columns
     desired_order = ["Date", "Aircraft", "AircraftCommander",
-                     "SecondPilot", "Duty", "Launches", "FlightTime"]
+                     "SecondPilot", "Duty", "Launches", "FlightTime",
+                     "PLFs"]
     # Ensure all desired columns are in the DataFrame before
     # reordering to avoid KeyError. This also implicitly filters
     # out any columns not listed in `desired_order`
