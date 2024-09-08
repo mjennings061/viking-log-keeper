@@ -207,6 +207,7 @@ class Database:
                 "SPC": [random.randint(0, 5) for _ in range(n_rep)],
                 "P1": [random.choice([True, False]) for _ in range(n_rep)],
                 "P2": [random.choice([True, False]) for _ in range(n_rep)],
+                "PLF": [random.choice([True, False]) for _ in range(n_rep)],
             }
 
             all_data.append(pd.DataFrame(daily_data))
