@@ -117,10 +117,10 @@ def extract_aircraft_info(xls: pd.ExcelFile) -> dict:
         xls,
         sheet_name=SHEET_NAME,
         dtype={
-            'Aircraft': 'string',
             'Date': 'datetime64[ns]',
-            'Hours After': 'datetime64[ns]',
-            'Hours Before': 'UInt32'
+            'Aircraft': 'string',
+            'Hours After': 'object',
+            'Launches After': 'UInt32'
         }
     )
 
@@ -273,3 +273,7 @@ if __name__ == "__main__":
     test_dir_path = "/home/michaeljennings/Downloads"
     test_collated_df = collate_log_sheets(test_dir_path)
     logger.info(test_collated_df.head())
+
+    # Test the ingest function from an upload.
+    upload_collated_df = ingest_log_sheet_from_upload(test_dir_path)
+    logger.info(upload_collated_df.head())
