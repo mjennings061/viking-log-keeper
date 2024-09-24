@@ -201,6 +201,11 @@ def sanitise_log_sheets(log_sheet_df):
         log_sheet_df['AircraftCommander'].str.title()
     log_sheet_df.loc[:, '2ndPilot'] = log_sheet_df['2ndPilot'].str.title()
 
+    # Remove trailing whitespace in AircraftCommander and 2ndPilot.
+    log_sheet_df.loc[:, 'AircraftCommander'] = \
+        log_sheet_df['AircraftCommander'].str.strip()
+    log_sheet_df.loc[:, '2ndPilot'] = log_sheet_df['2ndPilot'].str.strip()
+
     # Sort by takeofftime.
     log_sheet_df = log_sheet_df.sort_values(
         by="TakeOffTime",
