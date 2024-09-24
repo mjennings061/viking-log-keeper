@@ -10,7 +10,7 @@ from datetime import datetime
 
 # User defined modules.
 from log_keeper.ingest import ingest_log_sheet_from_upload, sanitise_log_sheets
-from log_keeper.output import update_launches_collection
+from log_keeper.output import update_launches_collection, update_aircraft_info
 
 # Get the logger instance.
 logger = logging.getLogger(__name__)
@@ -221,6 +221,10 @@ def upload_log_sheets(files: List[BytesIO]):
             # TODO: Update the database with aircraft info.
             update_launches_collection(
                 launches_df=collated_df,
+                db=st.session_state["log_sheet_db"]
+            )
+            update_aircraft_info(
+                aircraft_info=aircraft_info_df,
                 db=st.session_state["log_sheet_db"]
             )
             status_text.update(label="Log Sheets Uploaded!",

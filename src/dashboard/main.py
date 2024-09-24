@@ -33,6 +33,7 @@ from dashboard.plots import aircraft_flown_per_day  # noqa: E402
 from dashboard.plots import launches_daily_summary  # noqa: E402
 from dashboard.plots import table_gifs_per_date  # noqa: E402
 from dashboard.plots import plot_gif_bar_chart  # noqa: E402
+from dashboard.plots import table_aircraft_totals  # noqa: E402
 from dashboard.utils import LOGO_PATH, upload_log_sheets  # noqa: E402
 
 # Set up logging.
@@ -217,6 +218,8 @@ def show_data_dashboard(db: Database):
             st.header("GUR Helpers")
             left, right = st.columns(2, gap="medium")
             with left:
+                # TODO: Get aircraft DF from DB.
+                table_aircraft_totals(aircraft_df)
                 generate_aircraft_weekly_summary(filtered_df)
                 aircraft_flown_per_day(filtered_df)
             with right:

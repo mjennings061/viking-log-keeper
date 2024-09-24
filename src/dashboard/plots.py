@@ -770,3 +770,32 @@ def plot_gif_bar_chart(df: pd.DataFrame):
     st.subheader('Cumulative GIFs Flown per Week')
     st.text(f"Financial Year: {year}")
     st.altair_chart(chart, use_container_width=True)
+
+
+def table_aircraft_totals(aircraft_df: pd.DataFrame):
+    """"Show the number of launches by aircraft in a table.
+
+    Args:
+        aircraft_df (pd.DataFrame): The data to be displayed.
+    """
+    # TODO: Add a function to show aircraft hours and launches in a table.
+    # Handle an empty dataframe.
+    if aircraft_df is None:
+        st.warning("No aircraft data to display.")
+        return
+
+    # Get unique aircraft.
+    aircraft_list = aircraft_df['Aircraft'].unique()
+
+    # Get a list of the last entry for each aircraft.
+    last_entry_list = []
+    for aircraft in aircraft_list:
+        last_entry = aircraft_df[aircraft_df['Aircraft'] == aircraft].iloc[-1]
+        last_entry_list.append(last_entry)
+
+    # Put the data into a DataFrame.
+    last_entry_df = pd.DataFrame(last_entry_list)
+
+    # Display the data in Streamlit.
+    st.subheader('Aircraft Totals')
+    st.dataframe(last_entry_df, hide_index=True)
