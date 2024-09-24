@@ -100,6 +100,27 @@ def extract_launches(xls: pd.ExcelFile) -> pd.DataFrame:
     return raw_df
 
 
+def parse_hours_after(s):
+    """Parse the hours after string into number of minutes.
+
+    Args:
+        s (str): The hours after string.
+
+    Returns:
+        int: The total minutes."""
+    if pd.isna(s):
+        logging.warning("Hours after is NaT.")
+        return pd.NA
+    try:
+        total_minutes = s.days * 24 * 60 + s.seconds // 60
+        return total_minutes
+    except (ValueError, AttributeError):
+        # Handle cases where the format is incorrect or the value
+        # is not a string.
+        logging.warning("Invalid hours after format: %s", s)
+        return pd.NA
+
+
 def extract_aircraft_info(xls: pd.ExcelFile) -> dict:
     """Extract aircraft information from the excel file.
 
@@ -112,21 +133,56 @@ def extract_aircraft_info(xls: pd.ExcelFile) -> dict:
     SHEET_NAME = "_AIRCRAFT"
 
     # Read from the log sheet.
-    # TODO: Catch where no data is found and allow empty.
     raw_df = pd.read_excel(
         xls,
         sheet_name=SHEET_NAME,
         dtype={
             'Date': 'datetime64[ns]',
             'Aircraft': 'string',
-            'Hours After': 'object',
             'Launches After': 'UInt32'
+        },
+        converters={
+            'Hours After': parse_hours_after
         }
     )
 
     # Validate the log sheet. Raise an error if invalid.
-    # TODO: Write a validation function.
-    # TODO: return the extracted data.
+    validate_aircraft_info(raw_df)
+    return raw_df
+
+
+def validate_aircraft_info(aircraft_info_df: pd.DataFrame):
+    """Validate the aircraft information dataframe.
+
+    Args:
+        aircraft_info_df (pd.DataFrame): The aircraft information dataframe."""
+    # Check if the dataframe is empty.
+    if aircraft_info_df.empty:
+        raise ValueError("Aircraft information is empty.")
+
+    # Check for an empty cell.
+    if aircraft_info_df.isna().any().any():
+        raise ValueError("Aircraft information contains empty values.")
+
+    # Check aircraft name does not contain "ZEXXX".
+    if not any("ZE" in aircraft for aircraft in aircraft_info_df['Aircraft']):
+        raise ValueError("Aircraft name does not contain 'ZE'.")
+
+    # Check for NaT (not a time).
+    columns_to_check = ['Date']
+    if aircraft_info_df[columns_to_check].isna().any().any():
+        raise ValueError("Date column contains NaT values.")
+
+    # Check for wild values in the Launches After column.
+    launches_after = aircraft_info_df['Launches After']
+    if any(launches_after < 0) or any(launches_after > 100e6):
+        raise ValueError("Difference in AC launches is too large.")
+
+    # Check for wild values in the Hours After column.
+    hours_after = aircraft_info_df['Hours After']
+    max_minutes = 100e3 * 60
+    if any(hours_after <= 0) or any(hours_after > max_minutes):
+        raise ValueError("Difference in AC hours is too large.")
 
 
 def validate_log_sheet(log_sheet_df: pd.DataFrame):

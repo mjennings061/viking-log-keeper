@@ -191,9 +191,9 @@ def upload_log_sheets(files: List[BytesIO]):
         try:
             # Read the log sheet to a DataFrame.
             sheet_df, aircraft_info = ingest_log_sheet_from_upload(file)
-            log_sheet_list.append(sheet_df)
 
-            # Add aircraft info to a list of dicts.
+            # Append log sheets to a list of dataframes.
+            log_sheet_list.append(sheet_df)
             aircraft_info_list.append(aircraft_info)
         except Exception:  # pylint
             warning_msg = f"Log sheet invalid: {file.name}"
@@ -209,16 +209,16 @@ def upload_log_sheets(files: List[BytesIO]):
         # Concatenate the log sheets.
         st.write("Concatenating log sheets...")
         log_sheet_df = pd.concat(log_sheet_list, ignore_index=True)
-        # TODO: Concatenate the aircraft info.
+        aircraft_info_df = pd.concat(aircraft_info_list, ignore_index=True)
 
         # Sanitise the log sheets.
         st.write("Santising log sheets...")
         collated_df = sanitise_log_sheets(log_sheet_df)
-        # TODO: Write a function to sanitise aircraft info.
 
         try:
             # Upload the log sheets to the database.
             st.write("Uploading to DB...")
+            # TODO: Update the database with aircraft info.
             update_launches_collection(
                 launches_df=collated_df,
                 db=st.session_state["log_sheet_db"]
