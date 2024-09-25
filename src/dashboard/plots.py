@@ -12,6 +12,7 @@ from dashboard.utils import total_launches_for_financial_year
 from dashboard.utils import delta_launches_previous_day
 from dashboard.utils import gifs_flown_per_day
 from dashboard.utils import filter_by_financial_year
+from dashboard.utils import format_minutes_to_HHHH_mm
 
 
 def format_data_for_table(raw_df: pd.DataFrame) -> pd.DataFrame:
@@ -58,6 +59,9 @@ def format_data_for_table(raw_df: pd.DataFrame) -> pd.DataFrame:
     data_df["PLFs"] = data_df["PLFs"].apply(
         lambda x: "" if x == 0 else x
     )
+
+    # Convert the PLF to a string.
+    data_df["PLFs"] = data_df["PLFs"].astype(str)
 
     # Reorder the columns
     desired_order = ["Date", "Aircraft", "AircraftCommander",
@@ -450,7 +454,10 @@ def plot_all_launches(df: pd.DataFrame):
     """
     # Sort the data by date in descending order.
     df = df.sort_values(by="Date", ascending=False)
-    df = df.drop(columns=["_id"])
+
+    # If the '_id' column is present, drop it.
+    if '_id' in df.columns:
+        df = df.drop(columns=['_id'])
 
     # Format the date.
     df["Date"] = df["Date"].dt.strftime("%d %b %y")
@@ -770,3 +777,56 @@ def plot_gif_bar_chart(df: pd.DataFrame):
     st.subheader('Cumulative GIFs Flown per Week')
     st.text(f"Financial Year: {year}")
     st.altair_chart(chart, use_container_width=True)
+
+
+def table_aircraft_totals(aircraft_df: pd.DataFrame):
+    """"Show the number of launches by aircraft in a table.
+
+    Args:
+        aircraft_df (pd.DataFrame): The data to be displayed.
+    """
+    # Handle an empty dataframe.
+    if aircraft_df is None:
+        st.warning("No aircraft data to display.")
+        return
+
+    # Sort the aircraft list by date in descending order.
+    aircraft_df = aircraft_df.sort_values(by='Date', ascending=False)
+
+    # Get unique aircraft.
+    aircraft_list = aircraft_df['Aircraft'].unique()
+
+    # Get a list of the most recent entry for each aircraft.
+    last_entry_list = []
+    for aircraft in aircraft_list:
+        # Get the most recent entry for the aircraft.
+        aircraft_entry = aircraft_df[
+            aircraft_df['Aircraft'] == aircraft
+        ].iloc[0]
+        # Add the entry to the list.
+        last_entry_list.append(aircraft_entry)
+
+    # Put the data into a DataFrame.
+    last_entry_df = pd.DataFrame(last_entry_list)
+
+    # Apply the formatting to 'Hours After' column
+    if 'Hours After' in last_entry_df.columns:
+        last_entry_df['Hours After'] = last_entry_df['Hours After'].apply(
+            format_minutes_to_HHHH_mm
+        )
+
+    # Remove "_id" column.
+    last_entry_df = last_entry_df.drop(columns=["_id"])
+
+    # Convert 'Date' to format DD MMM YY.
+    last_entry_df['Date'] = last_entry_df['Date'].dt.strftime('%d %b %y')
+
+    # Change "Launches After" to "Launches" for display.
+    last_entry_df.rename(
+        columns={'Launches After': 'Launches', 'Hours After': 'Hours'},
+        inplace=True
+    )
+
+    # Display the data in Streamlit.
+    st.subheader('Aircraft Totals')
+    st.dataframe(last_entry_df, hide_index=True)

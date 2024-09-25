@@ -9,8 +9,8 @@ from io import BytesIO
 from datetime import datetime
 
 # User defined modules.
-from log_keeper.ingest import ingest_log_sheet, sanitise_log_sheets
-from log_keeper.output import update_launches_collection
+from log_keeper.ingest import ingest_log_sheet_from_upload, sanitise_log_sheets
+from log_keeper.output import update_launches_collection, update_aircraft_info
 
 # Get the logger instance.
 logger = logging.getLogger(__name__)
@@ -171,6 +171,7 @@ def upload_log_sheets(files: List[BytesIO]):
         files (List[BytesIO]): The log sheet files to upload."""
     # Output preallocated list.
     log_sheet_list = []
+    aircraft_info_list = []
 
     # Progress bar.
     n_files = len(files)
@@ -189,8 +190,11 @@ def upload_log_sheets(files: List[BytesIO]):
 
         try:
             # Read the log sheet to a DataFrame.
-            sheet_df = ingest_log_sheet(file)
+            sheet_df, aircraft_info = ingest_log_sheet_from_upload(file)
+
+            # Append log sheets to a list of dataframes.
             log_sheet_list.append(sheet_df)
+            aircraft_info_list.append(aircraft_info)
         except Exception:  # pylint
             warning_msg = f"Log sheet invalid: {file.name}"
             st.warning(warning_msg)
@@ -205,6 +209,7 @@ def upload_log_sheets(files: List[BytesIO]):
         # Concatenate the log sheets.
         st.write("Concatenating log sheets...")
         log_sheet_df = pd.concat(log_sheet_list, ignore_index=True)
+        aircraft_info_df = pd.concat(aircraft_info_list, ignore_index=True)
 
         # Sanitise the log sheets.
         st.write("Santising log sheets...")
@@ -215,6 +220,10 @@ def upload_log_sheets(files: List[BytesIO]):
             st.write("Uploading to DB...")
             update_launches_collection(
                 launches_df=collated_df,
+                db=st.session_state["log_sheet_db"]
+            )
+            update_aircraft_info(
+                aircraft_info=aircraft_info_df,
                 db=st.session_state["log_sheet_db"]
             )
             status_text.update(label="Log Sheets Uploaded!",
@@ -258,6 +267,20 @@ def gifs_flown_per_day(df: pd.DataFrame) -> pd.DataFrame:
     # Sort by 'Date' in descending order.
     grouped = grouped.sort_values(by='Date', ascending=False)
     return grouped
+
+
+def format_minutes_to_HHHH_mm(minutes):
+    """Format minutes to HHHH:mm.
+
+    Args:
+        minutes (int): The number of minutes to format.
+
+    Returns:
+        str: The formatted time."""
+    hours = int(minutes) // 60
+    mins = int(minutes) % 60
+    formatted = f"{hours:04}:{mins:02}"
+    return formatted
 
 
 if __name__ == "__main__":

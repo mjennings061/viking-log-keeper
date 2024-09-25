@@ -5,8 +5,8 @@ This file handles log sheet extraction and sanitisation.
 
 # Get packages.
 import logging
-from typing import Union
 from pathlib import Path
+from typing import Tuple, Union
 import pandas as pd
 from tqdm import tqdm
 
@@ -25,12 +25,59 @@ def ingest_log_sheet(file_path: str) -> pd.DataFrame:
     Returns:
     - raw_df (pandas.DataFrame): The extracted data as a pandas dataframe.
     """
+    # Validate the file path.
+    if not Path(file_path).is_file():
+        raise FileNotFoundError(f"File not found: {file_path}")
+    # Validate the file extension.
+    if Path(file_path).suffix != ".xlsx":
+        raise ValueError("Invalid file extension. Expected .xlsx")
+
+    # Read the excel file.
+    with pd.ExcelFile(file_path) as xls:
+        # Extract the launches.
+        raw_df = extract_launches(xls)
+    return raw_df
+
+
+def ingest_log_sheet_from_upload(file) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    """Extract data from an uploaded excel log sheet.
+
+    Parameters:
+        file (UploadedFile/BytesIO): The uploaded excel log sheet file.
+
+    Returns:
+        raw_df (pandas.DataFrame): The extracted data as a pandas dataframe.
+        aircraft_info (pandas.DataFrame): The extracted aircraft information
+            e.g. launches/hours.
+    """
+    # Validate the file extension.
+    if Path(file.name).suffix != ".xlsx":
+        raise ValueError("Invalid file extension. Expected .xlsx")
+
+    # Read the excel file.
+    with pd.ExcelFile(file) as xls:
+        # Extract the launches.
+        raw_df = extract_launches(xls)
+
+        # Extract the aircraft information.
+        aircraft_info = extract_aircraft_info(xls)
+    return raw_df, aircraft_info
+
+
+def extract_launches(xls: pd.ExcelFile) -> pd.DataFrame:
+    """Extract the launches from the excel file.
+
+    Args:
+        xls (pd.ExcelFile): The excel file object.
+
+    Returns:
+        pd.DataFrame: The extracted launches dataframe."""
     # Constants.
     SHEET_NAME = "FORMATTED"
 
     # Read from the log sheet.
     raw_df = pd.read_excel(
-        file_path,
+        xls,
         sheet_name=SHEET_NAME,
         dtype={
             'AircraftCommander': 'string',
@@ -51,6 +98,91 @@ def ingest_log_sheet(file_path: str) -> pd.DataFrame:
     # Validate the log sheet. Raise an error if invalid.
     validate_log_sheet(raw_df)
     return raw_df
+
+
+def parse_hours_after(s):
+    """Parse the hours after string into number of minutes.
+
+    Args:
+        s (str): The hours after string.
+
+    Returns:
+        int: The total minutes."""
+    if pd.isna(s):
+        logging.warning("Hours after is NaT.")
+        return pd.NA
+    try:
+        total_minutes = s.days * 24 * 60 + s.seconds // 60
+        return total_minutes
+    except (ValueError, AttributeError):
+        # Handle cases where the format is incorrect or the value
+        # is not a string.
+        logging.warning("Invalid hours after format: %s", s)
+        return pd.NA
+
+
+def extract_aircraft_info(xls: pd.ExcelFile) -> dict:
+    """Extract aircraft information from the excel file.
+
+    Args:
+        xls (pd.ExcelFile): The excel file object.
+
+    Returns:
+        dict: The extracted aircraft information."""
+    # Constants.
+    SHEET_NAME = "_AIRCRAFT"
+
+    # Read from the log sheet.
+    raw_df = pd.read_excel(
+        xls,
+        sheet_name=SHEET_NAME,
+        dtype={
+            'Date': 'datetime64[ns]',
+            'Aircraft': 'string',
+            'Launches After': 'UInt32'
+        },
+        converters={
+            'Hours After': parse_hours_after
+        }
+    )
+
+    # Validate the log sheet. Raise an error if invalid.
+    validate_aircraft_info(raw_df)
+    return raw_df
+
+
+def validate_aircraft_info(aircraft_info_df: pd.DataFrame):
+    """Validate the aircraft information dataframe.
+
+    Args:
+        aircraft_info_df (pd.DataFrame): The aircraft information dataframe."""
+    # Check if the dataframe is empty.
+    if aircraft_info_df.empty:
+        raise ValueError("Aircraft information is empty.")
+
+    # Check for an empty cell.
+    if aircraft_info_df.isna().any().any():
+        raise ValueError("Aircraft information contains empty values.")
+
+    # Check aircraft name does not contain "ZEXXX".
+    if not any("ZE" in aircraft for aircraft in aircraft_info_df['Aircraft']):
+        raise ValueError("Aircraft name does not contain 'ZE'.")
+
+    # Check for NaT (not a time).
+    columns_to_check = ['Date']
+    if aircraft_info_df[columns_to_check].isna().any().any():
+        raise ValueError("Date column contains NaT values.")
+
+    # Check for wild values in the Launches After column.
+    launches_after = aircraft_info_df['Launches After']
+    if any(launches_after < 0) or any(launches_after > 100e6):
+        raise ValueError("Difference in AC launches is too large.")
+
+    # Check for wild values in the Hours After column.
+    hours_after = aircraft_info_df['Hours After']
+    max_minutes = 100e3 * 60
+    if any(hours_after <= 0) or any(hours_after > max_minutes):
+        raise ValueError("Difference in AC hours is too large.")
 
 
 def validate_log_sheet(log_sheet_df: pd.DataFrame):
@@ -181,8 +313,6 @@ def collate_log_sheets(dir_path: Union[str, Path]) -> pd.DataFrame:
                           unit="file"):
         # Get the log sheet data.
         try:
-            # TODO: Write a function to also ingest the launches
-            # and hours CF for F724 if given.
             this_sheet_df = ingest_log_sheet(file_path)
             log_sheet_list.append(this_sheet_df)
         except Exception:   # pylint: disable=broad-except
@@ -201,6 +331,10 @@ def collate_log_sheets(dir_path: Union[str, Path]) -> pd.DataFrame:
 
 if __name__ == "__main__":
     # Test the collate function.
-    test_dir_path = "C:\\Users\\mjenn\\Downloads\\Logs"
+    test_dir_path = "/home/michaeljennings/Downloads"
     test_collated_df = collate_log_sheets(test_dir_path)
     logger.info(test_collated_df.head())
+
+    # Test the ingest function from an upload.
+    upload_collated_df = ingest_log_sheet_from_upload(test_dir_path)
+    logger.info(upload_collated_df.head())

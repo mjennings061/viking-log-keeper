@@ -33,6 +33,7 @@ from dashboard.plots import aircraft_flown_per_day  # noqa: E402
 from dashboard.plots import launches_daily_summary  # noqa: E402
 from dashboard.plots import table_gifs_per_date  # noqa: E402
 from dashboard.plots import plot_gif_bar_chart  # noqa: E402
+from dashboard.plots import table_aircraft_totals  # noqa: E402
 from dashboard.utils import LOGO_PATH, upload_log_sheets  # noqa: E402
 
 # Set up logging.
@@ -109,11 +110,33 @@ def get_launches_for_dashboard(db: Database) -> pd.DataFrame:
     return st.session_state['df']
 
 
+def get_aircraft_for_dashboard(db: Database) -> pd.DataFrame:
+    """Fetch the aircraft data from the database.
+
+    Args:
+        db (Database): The VGS database class.
+
+    Returns:
+        pd.DataFrame: The aircraft DataFrame."""
+    # Fetch data from MongoDB.
+    if "aircraft_df" not in st.session_state:
+        st.session_state['aircraft_df'] = db.get_aircraft_info()
+
+    # Ensure the data is not empty by preallocating the DataFrame.
+    if st.session_state['aircraft_df'].empty:
+        # Make a dictionary of one row to display the columns.
+        st.session_state['aircraft_df'] = db.dummy_aircraft_info_dataframe()
+        logging.error("No AC data found in the database, using dummy data.")
+        st.error("No aircraft data found in the database, using dummy data.")
+    return st.session_state['aircraft_df']
+
+
 def refresh_data():
     """Refresh the data in the session state."""
     logger.info("Refreshing data.")
     db = st.session_state["log_sheet_db"]
-    get_launches_for_dashboard(db)
+    st.session_state['df'] = get_launches_for_dashboard(db)
+    st.session_state['aircraft_df'] = get_aircraft_for_dashboard(db)
     st.toast("Data Refreshed!", icon="✅")
 
 
@@ -131,8 +154,9 @@ def show_data_dashboard(db: Database):
              "🧮 Stats & GUR Helper", "🌍 All Data"]
     page = st.selectbox("Select a Page:", pages, key="select_page")
 
-    # Get dataframe of launches.
+    # Get dataframe of launches and aircraft info.
     df = get_launches_for_dashboard(db)
+    aircraft_df = get_aircraft_for_dashboard(db)
 
     # Setup sidebar filters.
     st.sidebar.markdown("# Dashboard Filters")
@@ -214,9 +238,11 @@ def show_data_dashboard(db: Database):
                 launches_by_type_table(filtered_df)
 
             # GUR helpers.
+            st.divider()
             st.header("GUR Helpers")
             left, right = st.columns(2, gap="medium")
             with left:
+                table_aircraft_totals(aircraft_df)
                 generate_aircraft_weekly_summary(filtered_df)
                 aircraft_flown_per_day(filtered_df)
             with right:

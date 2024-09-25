@@ -180,3 +180,82 @@ def update_launches_collection(launches_df, db: Database):
     logging.info("Inserting %.0f launches from %.0f days/aircraft.",
                  len(documents), len(grouped))
     collection.insert_many(documents)
+
+
+def backup_aircraft_info_collection(db: Database):
+    """Backup the aircraft information collection in MongoDB.
+
+    Args:
+        db (Database): The log sheet DB configuration.
+    """
+    # Get all collections in the DB.
+    collections = db.db.list_collection_names()
+
+    # Backup the old collection with today's date as the suffix.
+    # Get today's date as YYMMDD.
+    today = datetime.today().strftime('%y%m%d')
+
+    # Create collection search string.
+    collection_search_string = f"{db.aircraft_info_collection}_{today}"
+
+    if collection_search_string in collections:
+
+        # Check if the backup exists and replace it.
+        db.db.drop_collection(collection_search_string)
+
+        # Use aggregation with $out to backup the collection.
+        db.get_aircraft_info_collection().aggregate([
+            {"$match": {}},
+            {"$out": collection_search_string},
+        ])
+
+
+def update_aircraft_info(aircraft_info: pd.DataFrame, db: Database):
+    """Update the aircraft information collection in MongoDB.
+
+    Args:
+        aircraft_info (pd.DataFrame): The aircraft information.
+        db (Database): The log sheet DB configuration.
+    """
+    # Validate the dataframe is not empty.
+    if aircraft_info.empty:
+        logger.warning("Empty dataframe. Nothing to update.")
+        return
+
+    # Backup the current collection.
+    backup_aircraft_info_collection(db=db)
+
+    # Connect to the DB.
+    collection = db.get_aircraft_info_collection()
+
+    # Group by aircraft.
+    grouped = aircraft_info.groupby(['Aircraft', 'Date'])
+
+    # Prepare bulk delete and insert operations.
+    delete_ops = []
+    deleted_aircraft = 0
+
+    # Step 1: Prepare bulk delete operations.
+    for group_keys, _ in grouped:
+        # Delete all records with the same aircraft and date.
+        aircraft, date = group_keys
+        delete_query = {
+            "Aircraft": aircraft,
+            "Date": date,
+        }
+
+        # Count the number of records to delete.
+        deleted_aircraft += collection.count_documents(delete_query)
+
+        # Append the recursive delete operation.
+        delete_ops.append(DeleteMany(delete_query))
+
+    # Delete the records if they exist.
+    if delete_ops:
+        logging.info("Deleting %.0f aircraft info records.", deleted_aircraft)
+        collection.bulk_write(delete_ops)
+
+    # Step 2: Insert all the records.
+    documents = aircraft_info.to_dict('records')
+    logging.info("Inserting %.0f aircraft info records.", len(documents))
+    collection.insert_many(documents)
