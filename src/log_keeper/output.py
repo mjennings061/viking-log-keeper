@@ -198,15 +198,16 @@ def backup_aircraft_info_collection(db: Database):
     # Create collection search string.
     collection_search_string = f"{db.aircraft_info_collection}_{today}"
 
-    # Check if the backup exists and replace it.
     if collection_search_string in collections:
+
+        # Check if the backup exists and replace it.
         db.db.drop_collection(collection_search_string)
 
-    # Use aggregation with $out to backup the collection.
-    db.get_aircraft_info_collection().aggregate([
-        {"$match": {}},
-        {"$out": collection_search_string},
-    ])
+        # Use aggregation with $out to backup the collection.
+        db.get_aircraft_info_collection().aggregate([
+            {"$match": {}},
+            {"$out": collection_search_string},
+        ])
 
 
 def update_aircraft_info(aircraft_info: pd.DataFrame, db: Database):

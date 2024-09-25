@@ -218,7 +218,6 @@ def upload_log_sheets(files: List[BytesIO]):
         try:
             # Upload the log sheets to the database.
             st.write("Uploading to DB...")
-            # TODO: Update the database with aircraft info.
             update_launches_collection(
                 launches_df=collated_df,
                 db=st.session_state["log_sheet_db"]
