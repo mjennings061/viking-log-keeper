@@ -248,25 +248,22 @@ class Database:
         Returns:
             pd.DataFrame: The dummy DataFrame."""
         # Constants.
-        keys = ["Aircraft", "Date", "Hours Before", "Launches Before",
-                "Hours After", "Launches After"]
+        keys = ["_id", "Aircraft", "Date", "Hours After", "Launches After"]
         aircraft_choices = ["ZE123", "ZE456", "ZE321", "ZE654", "ZE118"]
         n_reps = 10
 
+        id = [i for i in range(n_reps)]
         aircraft = [random.choice(aircraft_choices) for i in range(n_reps)]
         date = [datetime.now() - timedelta(weeks=1) for i in range(n_reps)]
-        launches_before = [random.randint(22000, 23000) for _ in range(n_reps)]
-        launches_after = launches_before + [random.randint(5, 30)]
-        hours_before = [timedelta(hours=random.randint(10000, 15000))
-                        for _ in range(n_reps)]
-        hours_after = hours_before + [
-            timedelta(minutes=random.randint(20, 360))
+        launches_after = [random.randint(10000, 30000) for i in range(n_reps)]
+        hours_after = [
+            random.randint(10000, 30000)
+            for i in range(n_reps)
         ]
 
         # Create the DataFrame.
         df = pd.DataFrame(
-            data=[aircraft, date, hours_before, launches_before,
-                  hours_after, launches_after],
+            data=[id, aircraft, date, hours_after, launches_after],
             index=keys,
         ).T
         return df

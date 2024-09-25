@@ -125,7 +125,7 @@ def get_aircraft_for_dashboard(db: Database) -> pd.DataFrame:
     # Ensure the data is not empty by preallocating the DataFrame.
     if st.session_state['aircraft_df'].empty:
         # Make a dictionary of one row to display the columns.
-        st.session_state['aircraft_df'] = db.dummy_aircraft_info()
+        st.session_state['aircraft_df'] = db.dummy_aircraft_info_dataframe()
         logging.error("No AC data found in the database, using dummy data.")
         st.error("No aircraft data found in the database, using dummy data.")
     return st.session_state['aircraft_df']
@@ -238,6 +238,7 @@ def show_data_dashboard(db: Database):
                 launches_by_type_table(filtered_df)
 
             # GUR helpers.
+            st.divider()
             st.header("GUR Helpers")
             left, right = st.columns(2, gap="medium")
             with left:

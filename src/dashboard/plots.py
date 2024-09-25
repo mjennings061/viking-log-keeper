@@ -60,6 +60,9 @@ def format_data_for_table(raw_df: pd.DataFrame) -> pd.DataFrame:
         lambda x: "" if x == 0 else x
     )
 
+    # Convert the PLF to a string.
+    data_df["PLFs"] = data_df["PLFs"].astype(str)
+
     # Reorder the columns
     desired_order = ["Date", "Aircraft", "AircraftCommander",
                      "SecondPilot", "Duty", "Launches", "FlightTime",
@@ -451,7 +454,10 @@ def plot_all_launches(df: pd.DataFrame):
     """
     # Sort the data by date in descending order.
     df = df.sort_values(by="Date", ascending=False)
-    df = df.drop(columns=["_id"])
+
+    # If the '_id' column is present, drop it.
+    if '_id' in df.columns:
+        df = df.drop(columns=['_id'])
 
     # Format the date.
     df["Date"] = df["Date"].dt.strftime("%d %b %y")
@@ -794,7 +800,9 @@ def table_aircraft_totals(aircraft_df: pd.DataFrame):
     last_entry_list = []
     for aircraft in aircraft_list:
         # Get the most recent entry for the aircraft.
-        aircraft_entry = aircraft_df[aircraft_df['Aircraft'] == aircraft].iloc[0]
+        aircraft_entry = aircraft_df[
+            aircraft_df['Aircraft'] == aircraft
+        ].iloc[0]
         # Add the entry to the list.
         last_entry_list.append(aircraft_entry)
 
@@ -812,6 +820,12 @@ def table_aircraft_totals(aircraft_df: pd.DataFrame):
 
     # Convert 'Date' to format DD MMM YY.
     last_entry_df['Date'] = last_entry_df['Date'].dt.strftime('%d %b %y')
+
+    # Change "Launches After" to "Launches" for display.
+    last_entry_df.rename(
+        columns={'Launches After': 'Launches', 'Hours After': 'Hours'},
+        inplace=True
+    )
 
     # Display the data in Streamlit.
     st.subheader('Aircraft Totals')
