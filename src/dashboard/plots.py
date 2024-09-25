@@ -12,6 +12,7 @@ from dashboard.utils import total_launches_for_financial_year
 from dashboard.utils import delta_launches_previous_day
 from dashboard.utils import gifs_flown_per_day
 from dashboard.utils import filter_by_financial_year
+from dashboard.utils import format_minutes_to_HHHH_mm
 
 
 def format_data_for_table(raw_df: pd.DataFrame) -> pd.DataFrame:
@@ -778,23 +779,39 @@ def table_aircraft_totals(aircraft_df: pd.DataFrame):
     Args:
         aircraft_df (pd.DataFrame): The data to be displayed.
     """
-    # TODO: Add a function to show aircraft hours and launches in a table.
     # Handle an empty dataframe.
     if aircraft_df is None:
         st.warning("No aircraft data to display.")
         return
 
+    # Sort the aircraft list by date in descending order.
+    aircraft_df = aircraft_df.sort_values(by='Date', ascending=False)
+
     # Get unique aircraft.
     aircraft_list = aircraft_df['Aircraft'].unique()
 
-    # Get a list of the last entry for each aircraft.
+    # Get a list of the most recent entry for each aircraft.
     last_entry_list = []
     for aircraft in aircraft_list:
-        last_entry = aircraft_df[aircraft_df['Aircraft'] == aircraft].iloc[-1]
-        last_entry_list.append(last_entry)
+        # Get the most recent entry for the aircraft.
+        aircraft_entry = aircraft_df[aircraft_df['Aircraft'] == aircraft].iloc[0]
+        # Add the entry to the list.
+        last_entry_list.append(aircraft_entry)
 
     # Put the data into a DataFrame.
     last_entry_df = pd.DataFrame(last_entry_list)
+
+    # Apply the formatting to 'Hours After' column
+    if 'Hours After' in last_entry_df.columns:
+        last_entry_df['Hours After'] = last_entry_df['Hours After'].apply(
+            format_minutes_to_HHHH_mm
+        )
+
+    # Remove "_id" column.
+    last_entry_df = last_entry_df.drop(columns=["_id"])
+
+    # Convert 'Date' to format DD MMM YY.
+    last_entry_df['Date'] = last_entry_df['Date'].dt.strftime('%d %b %y')
 
     # Display the data in Streamlit.
     st.subheader('Aircraft Totals')

@@ -180,9 +180,10 @@ class Database:
             # Get the collection and convert it to a DataFrame.
             collection = self.get_aircraft_info_collection()
             df = pd.DataFrame(collection.find())
+            df = df.sort_values(by="Date", ascending=False)
         except Exception:  # pylint: disable=broad-except
             # Log error and return an empty DataFrame.
-            logging.error("Could not fetch data from the collection.")
+            logging.error("Could not fetch data from aircraft collection.")
             df = pd.DataFrame()
         return df
 

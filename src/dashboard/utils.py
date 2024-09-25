@@ -270,5 +270,19 @@ def gifs_flown_per_day(df: pd.DataFrame) -> pd.DataFrame:
     return grouped
 
 
+def format_minutes_to_HHHH_mm(minutes):
+    """Format minutes to HHHH:mm.
+
+    Args:
+        minutes (int): The number of minutes to format.
+
+    Returns:
+        str: The formatted time."""
+    hours = int(minutes) // 60
+    mins = int(minutes) % 60
+    formatted = f"{hours:04}:{mins:02}"
+    return formatted
+
+
 if __name__ == "__main__":
     main()
