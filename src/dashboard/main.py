@@ -135,6 +135,8 @@ def refresh_data():
     """Refresh the data in the session state."""
     logger.info("Refreshing data.")
     db = st.session_state["log_sheet_db"]
+    # TODO: Ensure DF changes are reflected after "set_db" is called.
+    # TODO: This may mean changing the functions below.
     st.session_state['df'] = get_launches_for_dashboard(db)
     st.session_state['aircraft_df'] = get_aircraft_for_dashboard(db)
     st.toast("Data Refreshed!", icon="✅")
@@ -146,7 +148,7 @@ def show_data_dashboard(db: Database):
     Args:
         db (Database): Database class for the VGS."""
     # Set the page title.
-    vgs = db.client.db_user.username.upper()
+    vgs = db.database_name.upper()
     st.title(f"{vgs} Dashboard")
 
     # Sidebar for page navigation
@@ -155,6 +157,7 @@ def show_data_dashboard(db: Database):
     page = st.selectbox("Select a Page:", pages, key="select_page")
 
     # Get dataframe of launches and aircraft info.
+    # TODO: Why does updating 'db_name' not trigger a refresh?
     df = get_launches_for_dashboard(db)
     aircraft_df = get_aircraft_for_dashboard(db)
 
@@ -287,10 +290,7 @@ def login(username: str, password: str):
     if client.log_in():
         # User is authenticated remove the form.
         st.session_state["authenticated"] = True
-        st.session_state["log_sheet_db"] = Database(
-            client=client,
-            database_name=username
-        )
+        st.session_state["client"] = client
         st.toast("Login successful")
         st.rerun()
     else:
@@ -319,6 +319,39 @@ def authenticate():
             )
 
 
+def set_db():
+    """Set the database to use. Called when the user selects a database."""
+    # Set the database to use.
+    st.session_state["log_sheet_db"] = Database(
+        client=st.session_state["client"],
+        database_name=st.session_state["db_name"]
+    )
+    if "df" in st.session_state:
+        refresh_data()
+
+
+def choose_db(client: Client) -> Database:
+    """Choose the database to use.
+
+    Args:
+        client (Client): The client object."""
+    # If more than one database is available, display a select box.
+    if len(client.available_databases) == 1:
+        # Use the default database.
+        st.session_state["db_name"] = client.default_database
+        set_db()
+    else:
+        # Display a select box to choose the database.
+        st.selectbox(
+            "Select the database to use:",
+            client.available_databases,
+            index=None,
+            help="Select the database to use.",
+            key="db_name",
+            on_change=set_db
+        )
+
+
 def configure_app(LOGO_PATH: Path):
     """Configure the Streamlit app.
 
@@ -345,7 +378,12 @@ def main():
     # User is authenticated display the dashboard.
     if st.session_state["authenticated"]:
         try:
-            show_data_dashboard(st.session_state["log_sheet_db"])
+            # Choose the database to use.
+            choose_db(client=st.session_state["client"])
+
+            if "log_sheet_db" in st.session_state:
+                # Display dashboard.
+                show_data_dashboard(st.session_state["log_sheet_db"])
         except Exception:  # pylint: disable=broad-except
             logging.error("Failed to display dashboard.", exc_info=True)
             st.error("Failed to display dashboard.")
