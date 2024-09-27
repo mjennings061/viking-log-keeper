@@ -103,7 +103,9 @@ class Client(MongoClient):
             # Get the list of databases.
             databases = self.list_database_names()
             # Filter "admin" and "local" databases.
-            databases = [db for db in databases if db not in ["admin", "local"]]
+            databases = [
+                db for db in databases if db not in ["admin", "local"]
+            ]
             logging.info("User can access: %s", databases)
             return databases
         except OperationFailure:
@@ -163,7 +165,7 @@ class Database:
         # Validate database name.
         if not database_name:
             raise ValueError("Database name is required.")
-        if database_name not in client.list_database_names():
+        if database_name not in client.available_databases:
             raise ValueError("Database does not exist.")
         self.database_name = database_name
 

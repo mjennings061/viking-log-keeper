@@ -98,8 +98,7 @@ def get_launches_for_dashboard(db: Database) -> pd.DataFrame:
     Returns:
         pd.DataFrame: The launches DataFrame."""
     # Fetch data from MongoDB
-    if "df" not in st.session_state:
-        st.session_state['df'] = db.get_launches_dataframe()
+    st.session_state['df'] = db.get_launches_dataframe()
 
     # Ensure the data is not empty by preallocating the DataFrame.
     if st.session_state['df'].empty:
@@ -119,8 +118,7 @@ def get_aircraft_for_dashboard(db: Database) -> pd.DataFrame:
     Returns:
         pd.DataFrame: The aircraft DataFrame."""
     # Fetch data from MongoDB.
-    if "aircraft_df" not in st.session_state:
-        st.session_state['aircraft_df'] = db.get_aircraft_info()
+    st.session_state['aircraft_df'] = db.get_aircraft_info()
 
     # Ensure the data is not empty by preallocating the DataFrame.
     if st.session_state['aircraft_df'].empty:
@@ -135,8 +133,6 @@ def refresh_data():
     """Refresh the data in the session state."""
     logger.info("Refreshing data.")
     db = st.session_state["log_sheet_db"]
-    # TODO: Ensure DF changes are reflected after "set_db" is called.
-    # TODO: This may mean changing the functions below.
     st.session_state['df'] = get_launches_for_dashboard(db)
     st.session_state['aircraft_df'] = get_aircraft_for_dashboard(db)
     st.toast("Data Refreshed!", icon="✅")
@@ -157,9 +153,15 @@ def show_data_dashboard(db: Database):
     page = st.selectbox("Select a Page:", pages, key="select_page")
 
     # Get dataframe of launches and aircraft info.
-    # TODO: Why does updating 'db_name' not trigger a refresh?
-    df = get_launches_for_dashboard(db)
-    aircraft_df = get_aircraft_for_dashboard(db)
+    if "df" not in st.session_state:
+        st.session_state['df'] = get_launches_for_dashboard(db)
+
+    if "aircraft_df" not in st.session_state:
+        st.session_state['aircraft_df'] = get_aircraft_for_dashboard(db)
+
+    # Get the data from the session state.
+    df = st.session_state['df']
+    aircraft_df = st.session_state['aircraft_df']
 
     # Setup sidebar filters.
     st.sidebar.markdown("# Dashboard Filters")
@@ -321,12 +323,21 @@ def authenticate():
 
 def set_db():
     """Set the database to use. Called when the user selects a database."""
+    # Get the previous database name.
+    if "log_sheet_db" in st.session_state:
+        previous_db_name = st.session_state['log_sheet_db'].database_name
+    else:
+        previous_db_name = st.session_state['db_name']
+
     # Set the database to use.
     st.session_state["log_sheet_db"] = Database(
         client=st.session_state["client"],
         database_name=st.session_state["db_name"]
     )
-    if "df" in st.session_state:
+
+    # Check if the selected DB name is different from the current one.
+    if st.session_state['db_name'] != previous_db_name:
+        # Refresh the data.
         refresh_data()
 
 
