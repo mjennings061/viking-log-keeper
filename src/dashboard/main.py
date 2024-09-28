@@ -347,7 +347,7 @@ def choose_db(client: Client) -> Database:
     Args:
         client (Client): The client object."""
     # If more than one database is available, display a select box.
-    if len(client.available_databases) == 1:
+    if all(db == client.db_user.username for db in client.available_databases):
         # Use the default database.
         st.session_state["db_name"] = client.default_database
         set_db()
