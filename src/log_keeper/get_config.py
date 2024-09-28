@@ -64,6 +64,8 @@ class Client(MongoClient):
         )
         self.db_user = db_user
         self._authenticated = False
+        self._available_databases = []
+        self._default_database = None
 
     def log_in(self):
         """Log in to the database.
@@ -71,9 +73,14 @@ class Client(MongoClient):
         Returns:
             bool: True if the user is logged in, otherwise False."""
         try:
+            # Try to ping the database.
             self.admin.command('ping')
             self._authenticated = True
             logging.info("Logged in to DB.")
+            # Retrieve the list of databases.
+            self._available_databases = self._get_readable_databases()
+            # Set the default database.
+            self._set_default_database()
             return True
         except OperationFailure:
             self._authenticated = False
@@ -86,6 +93,62 @@ class Client(MongoClient):
         Returns:
             bool: True if the user is authenticated, otherwise False."""
         return self._authenticated
+
+    def _get_readable_databases(self):
+        """Get the readable databases for the user.
+
+        Returns:
+            list: The list of readable databases."""
+        try:
+            # Get the list of databases.
+            databases = self.list_database_names()
+            # Filter "admin" and "local" databases.
+            databases = [
+                db for db in databases if db not in ["admin", "local"]
+            ]
+            logging.info("User can access: %s", databases)
+            return databases
+        except OperationFailure:
+            logging.error("Could not get readable databases.")
+            return []
+
+    def _set_default_database(self):
+        """Set the default database for the user."""
+        DEFAULT_DB = "test"
+        # Check if the user is authenticated.
+        if not self.authenticated():
+            logging.error("User is not authenticated.")
+            self._default_database = DEFAULT_DB
+            return
+
+        # Set the default database to the user's username.
+        username_db = self.db_user.username
+        if username_db in self._available_databases:
+            self._default_database = username_db
+        else:
+            self._default_database = DEFAULT_DB
+
+    @property
+    def available_databases(self):
+        """Get the available databases for the user.
+
+        Returns:
+            list: The available databases."""
+        if not self.authenticated():
+            logging.error("User is not authenticated.")
+            return []
+        return self._available_databases
+
+    @property
+    def default_database(self):
+        """Get the default database for the user.
+
+        Returns:
+            str: The default database."""
+        if not self.authenticated():
+            logging.error("User is not authenticated.")
+            return "test"
+        return self._default_database
 
 
 class Database:
@@ -102,7 +165,7 @@ class Database:
         # Validate database name.
         if not database_name:
             raise ValueError("Database name is required.")
-        if database_name not in client.list_database_names():
+        if database_name not in client.available_databases:
             raise ValueError("Database does not exist.")
         self.database_name = database_name
 

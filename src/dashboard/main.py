@@ -98,8 +98,7 @@ def get_launches_for_dashboard(db: Database) -> pd.DataFrame:
     Returns:
         pd.DataFrame: The launches DataFrame."""
     # Fetch data from MongoDB
-    if "df" not in st.session_state:
-        st.session_state['df'] = db.get_launches_dataframe()
+    st.session_state['df'] = db.get_launches_dataframe()
 
     # Ensure the data is not empty by preallocating the DataFrame.
     if st.session_state['df'].empty:
@@ -119,8 +118,7 @@ def get_aircraft_for_dashboard(db: Database) -> pd.DataFrame:
     Returns:
         pd.DataFrame: The aircraft DataFrame."""
     # Fetch data from MongoDB.
-    if "aircraft_df" not in st.session_state:
-        st.session_state['aircraft_df'] = db.get_aircraft_info()
+    st.session_state['aircraft_df'] = db.get_aircraft_info()
 
     # Ensure the data is not empty by preallocating the DataFrame.
     if st.session_state['aircraft_df'].empty:
@@ -146,7 +144,7 @@ def show_data_dashboard(db: Database):
     Args:
         db (Database): Database class for the VGS."""
     # Set the page title.
-    vgs = db.client.db_user.username.upper()
+    vgs = db.database_name.upper()
     st.title(f"{vgs} Dashboard")
 
     # Sidebar for page navigation
@@ -155,8 +153,15 @@ def show_data_dashboard(db: Database):
     page = st.selectbox("Select a Page:", pages, key="select_page")
 
     # Get dataframe of launches and aircraft info.
-    df = get_launches_for_dashboard(db)
-    aircraft_df = get_aircraft_for_dashboard(db)
+    if "df" not in st.session_state:
+        st.session_state['df'] = get_launches_for_dashboard(db)
+
+    if "aircraft_df" not in st.session_state:
+        st.session_state['aircraft_df'] = get_aircraft_for_dashboard(db)
+
+    # Get the data from the session state.
+    df = st.session_state['df']
+    aircraft_df = st.session_state['aircraft_df']
 
     # Setup sidebar filters.
     st.sidebar.markdown("# Dashboard Filters")
@@ -287,10 +292,7 @@ def login(username: str, password: str):
     if client.log_in():
         # User is authenticated remove the form.
         st.session_state["authenticated"] = True
-        st.session_state["log_sheet_db"] = Database(
-            client=client,
-            database_name=username
-        )
+        st.session_state["client"] = client
         st.toast("Login successful")
         st.rerun()
     else:
@@ -319,6 +321,48 @@ def authenticate():
             )
 
 
+def set_db():
+    """Set the database to use. Called when the user selects a database."""
+    # Get the previous database name.
+    if "log_sheet_db" in st.session_state:
+        previous_db_name = st.session_state['log_sheet_db'].database_name
+    else:
+        previous_db_name = st.session_state['db_name']
+
+    # Set the database to use.
+    st.session_state["log_sheet_db"] = Database(
+        client=st.session_state["client"],
+        database_name=st.session_state["db_name"]
+    )
+
+    # Check if the selected DB name is different from the current one.
+    if st.session_state['db_name'] != previous_db_name:
+        # Refresh the data.
+        refresh_data()
+
+
+def choose_db(client: Client) -> Database:
+    """Choose the database to use.
+
+    Args:
+        client (Client): The client object."""
+    # If more than one database is available, display a select box.
+    if all(db == client.db_user.username for db in client.available_databases):
+        # Use the default database.
+        st.session_state["db_name"] = client.default_database
+        set_db()
+    else:
+        # Display a select box to choose the database.
+        st.selectbox(
+            "Select the database to use:",
+            client.available_databases,
+            index=None,
+            help="Select the database to use.",
+            key="db_name",
+            on_change=set_db
+        )
+
+
 def configure_app(LOGO_PATH: Path):
     """Configure the Streamlit app.
 
@@ -345,7 +389,12 @@ def main():
     # User is authenticated display the dashboard.
     if st.session_state["authenticated"]:
         try:
-            show_data_dashboard(st.session_state["log_sheet_db"])
+            # Choose the database to use.
+            choose_db(client=st.session_state["client"])
+
+            if "log_sheet_db" in st.session_state:
+                # Display dashboard.
+                show_data_dashboard(st.session_state["log_sheet_db"])
         except Exception:  # pylint: disable=broad-except
             logging.error("Failed to display dashboard.", exc_info=True)
             st.error("Failed to display dashboard.")
