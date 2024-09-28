@@ -173,3 +173,6 @@ poetry.lock
 
 # Streamlit stuff
 secrets.toml
+
+# IntelliJ files
+.idea/
