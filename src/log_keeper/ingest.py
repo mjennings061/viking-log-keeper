@@ -133,21 +133,24 @@ def extract_aircraft_info(xls: pd.ExcelFile) -> dict:
     SHEET_NAME = "_AIRCRAFT"
 
     # Read from the log sheet.
-    raw_df = pd.read_excel(
-        xls,
-        sheet_name=SHEET_NAME,
-        dtype={
-            'Date': 'datetime64[ns]',
-            'Aircraft': 'string',
-            'Launches After': 'UInt32'
-        },
-        converters={
-            'Hours After': parse_hours_after
-        }
-    )
-
-    # Validate the log sheet. Raise an error if invalid.
-    validate_aircraft_info(raw_df)
+    try:
+        raw_df = pd.read_excel(
+            xls,
+            sheet_name=SHEET_NAME,
+            dtype={
+                'Date': 'datetime64[ns]',
+                'Aircraft': 'string',
+                'Launches After': 'UInt32'
+            },
+            converters={
+                'Hours After': parse_hours_after
+            }
+        )
+        # Validate the log sheet. Raise an error if invalid.
+        validate_aircraft_info(raw_df)
+    except Exception:
+        logging.error("Could not read aircraft info.", exc_info=True)
+        raw_df = pd.DataFrame()
     return raw_df
 
 
