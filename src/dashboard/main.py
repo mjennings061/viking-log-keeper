@@ -6,7 +6,6 @@ import sys
 import os
 import subprocess
 import logging
-from datetime import datetime, timedelta    # noqa: F401
 import streamlit as st
 import pandas as pd
 from pathlib import Path
@@ -36,61 +35,10 @@ from dashboard.plots import plot_gif_bar_chart  # noqa: E402
 from dashboard.plots import table_aircraft_totals  # noqa: E402
 from dashboard.plots import table_gur_summary  # noqa: E402
 from dashboard.utils import LOGO_PATH, upload_log_sheets  # noqa: E402
+from dashboard.utils import date_filter  # noqa: E402
 
 # Set up logging.
 logger = logging.getLogger(__name__)
-
-
-def date_filter(df: pd.DataFrame) -> pd.DataFrame:
-    """Filter the data by date.
-
-    Args:
-        df (pd.DataFrame): The data to be filtered.
-
-    Returns:
-        pd.DataFrame: The filtered data.
-    """
-    # Add a date filter to the sidebar.
-    st.sidebar.markdown("<hr>", unsafe_allow_html=True)
-    st.sidebar.markdown("## Date Filter")
-
-    # Get the date range from the user.
-    min_date = df["Date"].min()
-    max_date = df["Date"].max()
-
-    # Add a date filter to the sidebar.
-    start_date = st.sidebar.date_input(
-        "Start Date",
-        value=min_date,
-        min_value=min_date,
-        max_value=max_date,
-        help="Select the start date",
-    )
-    end_date = st.sidebar.date_input(
-        "End Date",
-        value=max_date,
-        min_value=min_date,
-        max_value=max_date,
-        help="Select the end date",
-    )
-
-    # Convert the date to a pandas datetime object.
-    start_date = pd.to_datetime(start_date)
-    end_date = pd.to_datetime(end_date + timedelta(days=1))
-
-    # Validate the date range.
-    if start_date < end_date:
-        # Filter the data by the date range.
-        filtered_df = df[
-            (df["Date"] >= start_date) & (df["Date"] <= end_date)
-        ]
-    else:
-        st.error("Error: End date must fall after start date.")
-        filtered_df = df
-
-    # Sort by takeoff time.
-    filtered_df = filtered_df.sort_values(by='TakeOffTime', ascending=False)
-    return filtered_df
 
 
 def get_launches_for_dashboard(db: Database) -> pd.DataFrame:
@@ -226,7 +174,7 @@ def show_data_dashboard(db: Database):
 
             # Filter the data by the selected quarter.
             if quarter and commander:
-                quarterly_summary(filtered_df, commander, quarter)
+                quarterly_summary(df, commander, quarter)
 
         case "🌍 All Data":
             # Plot all launches. Filter by AircraftCommander and date if

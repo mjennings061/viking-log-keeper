@@ -565,7 +565,10 @@ def show_logbook_helper(df: pd.DataFrame, commander: str):
         filtered_df = pd.concat([filtered_df, sct_df])
 
         # Sort the data by date in descending order.
-        filtered_df = filtered_df.sort_values(by="TakeOffTime", ascending=False)
+        filtered_df = filtered_df.sort_values(
+            by="TakeOffTime",
+            ascending=False
+        )
     else:
         filtered_df = df
         commander = "All"
