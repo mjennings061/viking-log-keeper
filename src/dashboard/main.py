@@ -22,7 +22,7 @@ from dashboard.plots import plot_duty_pie_chart  # noqa: E402
 from dashboard.plots import plot_launches_by_commander  # noqa: E402
 from dashboard.plots import plot_longest_flight_times  # noqa: E402
 from dashboard.plots import plot_monthly_launches  # noqa: E402
-from dashboard.plots import plot_all_launches, quarterly_summary  # noqa: E402
+from dashboard.plots import table_all_launches, quarterly_summary  # noqa: E402
 from dashboard.plots import show_logbook_helper  # noqa: E402
 from dashboard.plots import plot_firstlast_launch_table  # noqa: E402
 from dashboard.plots import launches_by_type_table  # noqa: E402
@@ -87,6 +87,9 @@ def date_filter(df: pd.DataFrame) -> pd.DataFrame:
     else:
         st.error("Error: End date must fall after start date.")
         filtered_df = df
+
+    # Sort by takeoff time.
+    filtered_df = filtered_df.sort_values(by='TakeOffTime', ascending=False)
     return filtered_df
 
 
@@ -226,8 +229,15 @@ def show_data_dashboard(db: Database):
                 quarterly_summary(filtered_df, commander, quarter)
 
         case "🌍 All Data":
-            # Plot all launches in a table.
-            plot_all_launches(filtered_df)
+            # Plot all launches. Filter by AircraftCommander and date if
+            # selected.
+            if commander:
+                commander_df = filtered_df[
+                    filtered_df['AircraftCommander'] == commander
+                ]
+            else:
+                commander_df = filtered_df
+            table_all_launches(commander_df)
 
         case "🧮 Stats & GUR Helper":
             # Show statistics and glider utilisation return helpers.
@@ -246,7 +256,7 @@ def show_data_dashboard(db: Database):
             # GUR helpers.
             st.divider()
             st.header("GUR Helpers")
-            table_gur_summary(aircraft_df, filtered_df)
+            table_gur_summary(aircraft_df, df)
             left, right = st.columns(2, gap="medium")
             with left:
                 table_aircraft_totals(aircraft_df)

@@ -457,18 +457,68 @@ def plot_monthly_launches(df: pd.DataFrame):
     st.altair_chart(final_chart, use_container_width=True)
 
 
-def plot_all_launches(df: pd.DataFrame):
+def table_all_launches(df: pd.DataFrame):
     """ Plot all launches in the data.
 
     Args:
         df (pd.DataFrame): The data to be plotted.
     """
+    # Handle an empty DataFrame.
+    if df.empty:
+        st.write("No data to display.")
+        return
+
     # Sort the data by date in descending order.
-    df = df.sort_values(by="Date", ascending=False)
+    df = df.sort_values(by="TakeOffTime", ascending=False)
 
     # If the '_id' column is present, drop it.
     if '_id' in df.columns:
         df = df.drop(columns=['_id'])
+
+        # Create a filter for the Duty column.
+    unique_duties = df["Duty"].unique()
+    selected_duties = st.sidebar.multiselect(
+        "Filter by Duty",
+        options=unique_duties,
+        default=unique_duties
+    )
+
+    # Create a filter for the Aircraft column.
+    unique_aircraft = df["Aircraft"].unique()
+    selected_aircraft = st.sidebar.multiselect(
+        "Filter by Aircraft",
+        options=unique_aircraft,
+        default=unique_aircraft
+    )
+
+    # Create a flight time slider to filter minumum flight time.
+    min_flight_time = st.sidebar.slider(
+        "Minimum Flight Time (minutes)",
+        min_value=1,
+        max_value=df["FlightTime"].max(),
+        value=1,
+        step=1
+    )
+
+    # Create a filter for SPC.
+    spc = df['SPC'].unique()
+    selected_spc = st.sidebar.multiselect(
+        "Filter by sortie profile code",
+        options=spc,
+        default=spc
+    )
+
+    # Apply the Duty filter to the DataFrame.
+    df = df[df["Duty"].isin(selected_duties)]
+
+    # Apply the Aircraft filter to the DataFrame.
+    df = df[df["Aircraft"].isin(selected_aircraft)]
+
+    # Apply the Flight Time filter to the DataFrame.
+    df = df[df["FlightTime"] >= min_flight_time]
+
+    # Apply the SPC filter to the DataFrame.
+    df = df[df["SPC"].isin(selected_spc)]
 
     # Format the date.
     df["Date"] = df["Date"].dt.strftime("%d %b %y")
@@ -515,7 +565,7 @@ def show_logbook_helper(df: pd.DataFrame, commander: str):
         filtered_df = pd.concat([filtered_df, sct_df])
 
         # Sort the data by date in descending order.
-        filtered_df = filtered_df.sort_values(by="Date", ascending=False)
+        filtered_df = filtered_df.sort_values(by="TakeOffTime", ascending=False)
     else:
         filtered_df = df
         commander = "All"
