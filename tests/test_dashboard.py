@@ -155,7 +155,7 @@ def test_change_page_to_stats_gur(stats_gur_page: Page):
         page.get_by_role("heading", name="Launches by Type")
     ).to_be_visible()
     expect(
-        page.get_by_role("heading", name="GUR")
+        page.get_by_role("heading", name="GUR Helpers")
     ).to_be_visible()
     expect(
         page.get_by_role("heading", name="Weekly Summary by Aircraft")
