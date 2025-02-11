@@ -237,12 +237,14 @@ def launches_by_type_table(df: pd.DataFrame):
     st.dataframe(grouped, hide_index=True)
 
 
-def generate_aircraft_weekly_summary(df: pd.DataFrame):
+def get_aircraft_weekly_summary(df: pd.DataFrame) -> pd.DataFrame:
     """Generate a summary of launches and flight time by week and aircraft
 
     Args:
         df (pd.DataFrame): The data to be summarized
-    """
+
+    Returns:
+        pd.DataFrame: The summarized data"""
     # Convert 'Date' to week start format
     df['Week Start'] = df['Date'] - pd.to_timedelta(
         df['Date'].dt.weekday,
@@ -273,14 +275,23 @@ def generate_aircraft_weekly_summary(df: pd.DataFrame):
     gur_helper['Total Flight Time'] = gur_helper['Total Flight Time'].apply(
         lambda x: f"{x//60}:{x % 60:02d}"
     )
+    return gur_helper
+
+
+def table_aircraft_weekly_summary(df: pd.DataFrame):
+    """Show a summary of launches and flight time by week and aircraft
+
+    Args:
+        df (pd.DataFrame): The data to be summarized"""
+    # Get the weekly summary.
+    gur_helper = get_aircraft_weekly_summary(df)
 
     # Limit to last rows
     n_rows_to_display = 16
-    gur_helper = gur_helper.head(n_rows_to_display)
 
     # Display using Streamlit st.dataframe
     st.subheader('Weekly Summary by Aircraft')
-    st.dataframe(gur_helper, hide_index=True)
+    st.dataframe(gur_helper.head(n_rows_to_display), hide_index=True)
 
 
 def generate_aircraft_daily_summary(df: pd.DataFrame):
@@ -779,11 +790,14 @@ def plot_gif_bar_chart(df: pd.DataFrame):
     st.altair_chart(chart, use_container_width=True)
 
 
-def table_aircraft_totals(aircraft_df: pd.DataFrame):
-    """"Show the number of launches by aircraft in a table.
+def get_aircraft_totals(aircraft_df: pd.DataFrame) -> pd.DataFrame:
+    """Get summary of launches and flight time by aircraft.
 
     Args:
         aircraft_df (pd.DataFrame): The data to be displayed.
+
+    Returns:
+        pd.DataFrame: The last entry for each aircraft.
     """
     # Handle an empty dataframe.
     if aircraft_df is None:
@@ -814,6 +828,17 @@ def table_aircraft_totals(aircraft_df: pd.DataFrame):
         last_entry_df['Hours After'] = last_entry_df['Hours After'].apply(
             format_minutes_to_HHHH_mm
         )
+    return last_entry_df
+
+
+def table_aircraft_totals(aircraft_df: pd.DataFrame):
+    """"Show the number of launches by aircraft in a table.
+
+    Args:
+        aircraft_df (pd.DataFrame): The data to be displayed.
+    """
+    # Get the last entry for each aircraft.
+    last_entry_df = get_aircraft_totals(aircraft_df)
 
     # Remove "_id" column.
     last_entry_df = last_entry_df.drop(columns=["_id"])
@@ -830,3 +855,72 @@ def table_aircraft_totals(aircraft_df: pd.DataFrame):
     # Display the data in Streamlit.
     st.subheader('Aircraft Totals')
     st.dataframe(last_entry_df, hide_index=True)
+
+
+def table_gur_summary(aircraft_df: pd.DataFrame,
+                      launches_df: pd.DataFrame):
+    """Show weekly aircraft summaries in a GUR format.
+
+    Args:
+        aircraft_df (pd.DataFrame): Aircraft data to be displayed.
+        launches_df (pd.DataFrame): Launch data to be displayed.
+    """
+    # Handle an empty dataframe.
+    if aircraft_df is None or launches_df is None:
+        st.warning("No aircraft data to display.")
+        return
+
+    # Get the last entry for each aircraft.
+    last_entry_df = get_aircraft_totals(aircraft_df)
+
+    # Get aircraft weekly launches and total launches.
+    gur_summary = get_aircraft_weekly_summary(launches_df)
+
+    # Filter last entry by those over six months old.
+    six_months_ago = pd.Timestamp.now() - pd.DateOffset(months=6)
+    last_entry_df = last_entry_df[last_entry_df['Date'] > six_months_ago]
+
+    # Filter gur summary by aircraft in last entry.
+    gur_summary = gur_summary[gur_summary['Aircraft'].isin(
+        last_entry_df['Aircraft']
+    )]
+
+    # Get the first entry for each unique aircraft in gur_summary.
+    last_weekly_summary = gur_summary.drop_duplicates(
+        subset='Aircraft',
+        keep='first'
+    ).reset_index(drop=True)
+
+    # Merge the first entry with last_entry_df.
+    last_entry_df = last_entry_df.merge(
+        last_weekly_summary,
+        on='Aircraft',
+        how='left',
+        suffixes=('', '_first')
+    )
+
+    # Set totals columns to zero if they are not this week.
+    latest_week = last_entry_df['Date'].max()
+    last_entry_df.loc[
+        last_entry_df['Date'] != latest_week,
+        ['Total Launches', 'Total Flight Time']
+    ] = 0
+
+    # Sort by aircraft.
+    last_entry_df = last_entry_df.sort_values(by='Aircraft')
+
+    # Display the data in Streamlit.
+    columns_to_display = {
+        'Aircraft': 'Aircraft',
+        'Total Launches': 'Weekly Launches',
+        'Launches After': 'Total Launches',
+        'Total Flight Time': 'Weekly Flight Time',
+        'Hours After': 'Total Flight Time'
+    }
+    last_entry_df.rename(columns=columns_to_display, inplace=True)
+
+    st.subheader('GUR Summary')
+    st.dataframe(
+        last_entry_df[columns_to_display.values()],
+        hide_index=True
+    )
