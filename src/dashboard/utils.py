@@ -6,7 +6,7 @@ from pathlib import Path
 import streamlit as st
 from typing import List
 from io import BytesIO
-from datetime import datetime
+from datetime import datetime, timedelta
 
 # User defined modules.
 from log_keeper.ingest import ingest_log_sheet_from_upload, sanitise_log_sheets
@@ -281,6 +281,93 @@ def format_minutes_to_HHHH_mm(minutes):
     mins = int(minutes) % 60
     formatted = f"{hours:04}:{mins:02}"
     return formatted
+
+
+def date_filter(df: pd.DataFrame) -> pd.DataFrame:
+    """Filter the data by date or financial year.
+
+    Args:
+        df (pd.DataFrame): The data to be filtered.
+
+    Returns:
+        pd.DataFrame: The filtered data.
+    """
+    # Add a date filter to the sidebar.
+    st.sidebar.markdown("<hr>", unsafe_allow_html=True)
+    st.sidebar.markdown("## Date Filter")
+
+    # Get the date range from the user.
+    min_date = df["Date"].min()
+    max_date = df["Date"].max()
+
+    # Get financial year from data.
+    financial_year = get_financial_year(df)
+    default_min_date = pd.Timestamp(year=financial_year, month=4, day=1)
+    default_max_date = min(
+        pd.Timestamp(year=financial_year + 1, month=3, day=31),
+        max_date
+    )
+
+    # Option to filter by date or financial year.
+    filter_option = st.sidebar.radio(
+        "Filter by:",
+        options=["Financial Year", "Date Range", "All Data"],
+        index=0,
+        help="Select the filter option"
+    )
+
+    if filter_option == "Date Range":
+        # Use Streamlit's date_input with a range selection.
+        date_range = st.sidebar.date_input(
+            "Select Date Range",
+            value=(default_min_date, default_max_date),
+            min_value=min_date,
+            max_value=max_date,
+            help="Select the date range",
+        )
+
+        # Convert the date to a pandas datetime object.
+        if len(date_range) > 1:
+            start_date = pd.to_datetime(date_range[0])
+            end_date = pd.to_datetime(date_range[1] + timedelta(days=1))
+        else:
+            start_date = min_date
+            end_date = max_date
+
+    elif filter_option == "All Data":
+        # No filtering.
+        start_date = min_date
+        end_date = max_date
+
+    else:
+        # List all financial years in the data as a user selectable box.
+        financial_years = sorted(df["Date"].apply(
+            lambda x: x.year if x.month >= 4 else x.year - 1
+        ).unique(), reverse=True)
+        selected_year = st.sidebar.selectbox(
+            "Select Financial Year",
+            financial_years,
+            index=financial_years.index(financial_year),
+            help="Select the financial year to filter by."
+        )
+
+        # Filter by the selected financial year.
+        start_date = pd.Timestamp(year=selected_year, month=4, day=1)
+        end_date = pd.Timestamp(year=selected_year + 1, month=3, day=31)
+
+    # Validate the date range.
+    if start_date < end_date:
+        # Filter the data by the date range.
+        filtered_df = df[
+            (df["Date"] >= start_date) & (df["Date"] <= end_date)
+        ]
+    else:
+        st.error("Error: End date must fall after start date.")
+        filtered_df = df
+
+    # Sort by takeoff time.
+    filtered_df = filtered_df.sort_values(by='TakeOffTime', ascending=False)
+    return filtered_df
 
 
 if __name__ == "__main__":
