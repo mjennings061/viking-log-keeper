@@ -1,10 +1,8 @@
 """test_auth.py - Test cases for the auth module."""
 
-import os
 import pytest
 from unittest.mock import MagicMock, patch
 from dashboard.auth import AuthConfig
-from pymongo.mongo_client import MongoClient
 
 # Mock environment variables
 @pytest.fixture

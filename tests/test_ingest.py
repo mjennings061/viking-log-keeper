@@ -1,12 +1,9 @@
 """test_ingest.py - Test cases for the ingest module."""
 
-import os
 import pytest
 import pandas as pd
-from pathlib import Path
 from unittest.mock import MagicMock, patch
-from io import BytesIO
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 from log_keeper.ingest import (
     ingest_log_sheet,
