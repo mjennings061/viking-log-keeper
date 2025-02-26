@@ -1,6 +1,5 @@
 """conftest.py - Configuration for pytest."""
 
-import os
 import sys
 from pathlib import Path
 

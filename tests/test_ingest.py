@@ -17,6 +17,7 @@ from log_keeper.ingest import (
     sanitise_log_sheets
 )
 
+
 @pytest.fixture
 def sample_log_data():
     """Create a sample log sheet DataFrame."""
@@ -35,6 +36,7 @@ def sample_log_data():
         'P2': [False, True]
     })
 
+
 @pytest.fixture
 def sample_aircraft_info():
     """Create a sample aircraft info DataFrame."""
@@ -45,11 +47,12 @@ def sample_aircraft_info():
         'Hours After': [120]
     })
 
+
 @pytest.fixture
 def mock_excel_file(sample_log_data, sample_aircraft_info):
     """Create a mock ExcelFile object."""
     mock_xls = MagicMock(spec=pd.ExcelFile)
-    
+
     def mock_read_excel(*args, **kwargs):
         sheet_name = kwargs.get('sheet_name')
         if sheet_name == 'FORMATTED':
@@ -57,9 +60,10 @@ def mock_excel_file(sample_log_data, sample_aircraft_info):
         elif sheet_name == '_AIRCRAFT':
             return sample_aircraft_info
         return pd.DataFrame()
-    
+
     with patch('pandas.read_excel', side_effect=mock_read_excel):
         yield mock_xls
+
 
 def test_ingest_log_sheet(tmp_path, sample_log_data):
     """Test ingesting a log sheet from file."""
@@ -67,7 +71,7 @@ def test_ingest_log_sheet(tmp_path, sample_log_data):
     file_path = tmp_path / "test.xlsx"
     with pd.ExcelWriter(file_path) as writer:
         sample_log_data.to_excel(writer, sheet_name='FORMATTED', index=False)
-    
+
     # Test successful ingestion
     df = ingest_log_sheet(str(file_path))
     assert not df.empty
@@ -83,15 +87,16 @@ def test_ingest_log_sheet(tmp_path, sample_log_data):
     with pytest.raises(ValueError):
         ingest_log_sheet(str(invalid_path))
 
+
 def test_ingest_log_sheet_from_upload(mock_excel_file):
     """Test ingesting a log sheet from upload."""
     mock_file = MagicMock()
     mock_file.name = "test.xlsx"
-    
+
     # Create a BytesIO object to simulate file content
     mock_file.read = MagicMock(return_value=b"fake excel content")
     mock_file.seek = MagicMock()
-    
+
     with patch('pandas.ExcelFile', return_value=mock_excel_file):
         raw_df, aircraft_info = ingest_log_sheet_from_upload(mock_file)
         assert not raw_df.empty
@@ -102,11 +107,13 @@ def test_ingest_log_sheet_from_upload(mock_excel_file):
     with pytest.raises(ValueError):
         ingest_log_sheet_from_upload(mock_file)
 
+
 def test_extract_launches(mock_excel_file, sample_log_data):
     """Test extracting launches from Excel file."""
     df = extract_launches(mock_excel_file)
     assert not df.empty
     assert list(df.columns) == list(sample_log_data.columns)
+
 
 def test_parse_hours_after():
     """Test parsing hours after string."""
@@ -122,6 +129,7 @@ def test_parse_hours_after():
     # Test invalid input
     assert pd.isna(parse_hours_after("invalid"))
 
+
 def test_extract_aircraft_info(mock_excel_file, sample_aircraft_info):
     """Test extracting aircraft info."""
     df = extract_aircraft_info(mock_excel_file)
@@ -132,6 +140,7 @@ def test_extract_aircraft_info(mock_excel_file, sample_aircraft_info):
     with patch('pandas.read_excel', side_effect=Exception("Test error")):
         df = extract_aircraft_info(mock_excel_file)
         assert df.empty
+
 
 def test_validate_aircraft_info(sample_aircraft_info):
     """Test aircraft info validation."""
@@ -166,6 +175,7 @@ def test_validate_aircraft_info(sample_aircraft_info):
     with pytest.raises(ValueError, match="Difference in AC hours is too large"):
         validate_aircraft_info(df)
 
+
 def test_validate_log_sheet(sample_log_data):
     """Test log sheet validation."""
     # Test valid data
@@ -199,12 +209,14 @@ def test_validate_log_sheet(sample_log_data):
     with pytest.raises(ValueError, match="Aircraft column has no aircraft"):
         validate_log_sheet(df)
 
+
 def test_sanitise_log_sheets(sample_log_data):
     """Test log sheet sanitization."""
     sanitised_df = sanitise_log_sheets(sample_log_data)
     assert not sanitised_df.empty
     assert 'AircraftCommander' in sanitised_df.columns
     assert all(isinstance(x, str) for x in sanitised_df['AircraftCommander'])
+
 
 def test_collate_log_sheets(tmp_path, sample_log_data):
     """Test collating multiple log sheets."""
@@ -213,7 +225,7 @@ def test_collate_log_sheets(tmp_path, sample_log_data):
         file_path = tmp_path / f"2965D_{i}.xlsx"  # Changed to match expected pattern
         with pd.ExcelWriter(file_path) as writer:
             sample_log_data.to_excel(writer, sheet_name='FORMATTED', index=False)
-    
+
     # Test successful collation
     df = collate_log_sheets(tmp_path)
     assert not df.empty

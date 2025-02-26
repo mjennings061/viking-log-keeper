@@ -10,9 +10,9 @@ from log_keeper.output import (
     backup_launches_collection,
     launches_to_db,
     update_launches_collection,
-    backup_aircraft_info_collection,
     update_aircraft_info
 )
+
 
 @pytest.fixture
 def sample_launches_df():
@@ -32,6 +32,7 @@ def sample_launches_df():
         'P2': [False, True]
     })
 
+
 @pytest.fixture
 def sample_aircraft_info():
     """Create a sample aircraft info DataFrame."""
@@ -42,6 +43,7 @@ def sample_aircraft_info():
         'Hours After': [120]
     })
 
+
 @pytest.fixture
 def mock_db():
     """Create a mock Database object."""
@@ -51,10 +53,11 @@ def mock_db():
     mock.aircraft_info_collection = "aircraft_info"
     return mock
 
+
 def test_launches_to_excel(tmp_path, sample_launches_df):
     """Test saving launches to Excel."""
     output_path = tmp_path / "MASTER_LOG.xlsx"
-    
+
     # Test successful save
     with patch('xlsxwriter.Workbook') as mock_workbook:
         mock_book = MagicMock()
@@ -67,13 +70,14 @@ def test_launches_to_excel(tmp_path, sample_launches_df):
         mock_workbook.side_effect = [Exception("Test error"), MagicMock()]
         launches_to_excel(sample_launches_df, output_path)
 
+
 def test_backup_launches_collection(mock_db):
     """Test backing up launches collection."""
     # Test when backup doesn't exist
     mock_db.db.list_collection_names.return_value = []
     backup_launches_collection(mock_db)
     mock_db.get_launches_collection.assert_called_once()
-    
+
     # Test when backup exists
     mock_db.db.list_collection_names.return_value = [
         f"launches_{datetime.today().strftime('%y%m%d')}"
@@ -81,11 +85,13 @@ def test_backup_launches_collection(mock_db):
     backup_launches_collection(mock_db)
     mock_db.db.drop_collection.assert_called_once()
 
+
 def test_launches_to_db(mock_db, sample_launches_df):
     """Test saving launches to database."""
     launches_to_db(sample_launches_df, mock_db)
     mock_db.get_launches_collection.assert_called()
     mock_db.get_launches_collection.return_value.insert_many.assert_called_once()
+
 
 def test_update_launches_collection(mock_db, sample_launches_df):
     """Test updating launches collection."""
@@ -100,28 +106,6 @@ def test_update_launches_collection(mock_db, sample_launches_df):
     update_launches_collection(pd.DataFrame(), mock_db)
     assert collection.bulk_write.call_count == 1  # Should not increase
 
-# def test_backup_aircraft_info_collection(mock_db):
-#     """Test backing up aircraft info collection."""
-#     # Set up mock collection
-#     mock_collection = MagicMock()
-#     mock_db.get_aircraft_info_collection = MagicMock(return_value=mock_collection)
-#     mock_collection.aggregate = MagicMock()
-#
-#     # Test when backup doesn't exist
-#     mock_db.db.list_collection_names.return_value = []
-#     backup_aircraft_info_collection(mock_db)
-#     assert mock_db.get_aircraft_info_collection.call_count == 1
-#     mock_collection.aggregate.assert_called_once()
-#
-#     # Test when backup exists
-#     mock_db.db.list_collection_names.return_value = [
-#         f"aircraft_info_{datetime.today().strftime('%y%m%d')}"
-#     ]
-#     mock_db.get_aircraft_info_collection.reset_mock()
-#     mock_collection.aggregate.reset_mock()
-#     backup_aircraft_info_collection(mock_db)
-#     assert mock_db.get_aircraft_info_collection.call_count == 1
-#     mock_collection.aggregate.assert_called_once()
 
 def test_update_aircraft_info(mock_db, sample_aircraft_info):
     """Test updating aircraft info."""
