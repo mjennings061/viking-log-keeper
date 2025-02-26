@@ -9,7 +9,8 @@ pymongo[srv]~=4.7.0
 streamlit~=1.37.0
 tqdm~=4.66.0
 xlsxwriter~=3.2.0
-
+keyrings.alt
+secretstorage~=0.8.0
 # Development.
 setuptools~=72.1.0
 python-dotenv~=1.0.0
