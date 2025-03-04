@@ -4,28 +4,25 @@
 
 # Get packages.
 import sys
-import logging
 from pathlib import Path
 
 # Get modules.
+from log_keeper import logger
 from log_keeper.get_config import LogSheetConfig
 from log_keeper.ingest import collate_log_sheets
 from log_keeper.output import launches_to_excel, launches_to_db
 from dashboard.auth import AuthConfig
 
-# Get the logger instance.
-logger = logging.getLogger(__name__)
 
-
-def adjust_streamlit_logging():
-    """Adjust the logging level of Streamlit to suppress warnings and
+def adjust_streamlit_logger():
+    """Adjust the logger level of Streamlit to suppress warnings and
     info messages."""
     # Check if Streamlit is in the list of running modules
     if 'streamlit' not in sys.modules:
         # Get the logger for Streamlit
-        streamlit_logger = logging.getLogger('streamlit')
-        # Set the logging level to ERROR to suppress warnings and info messages
-        streamlit_logger.setLevel(logging.ERROR)
+        streamlit_logger = logger.getLogger('streamlit')
+        # Set the logger level to ERROR to suppress warnings and info messages
+        streamlit_logger.setLevel(logger.ERROR)
 
 
 def main():
@@ -39,7 +36,7 @@ def main():
     """
     # Initial comment.
     logger.info("Starting...")
-    adjust_streamlit_logging()
+    adjust_streamlit_logger()
 
     # Load config.
     auth_config = AuthConfig()

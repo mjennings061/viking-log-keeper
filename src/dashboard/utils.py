@@ -212,7 +212,7 @@ def upload_log_sheets(files: List[BytesIO]):
         aircraft_info_df = pd.concat(aircraft_info_list, ignore_index=True)
 
         # Sanitise the log sheets.
-        st.write("Santising log sheets...")
+        st.write("Sanitising log sheets...")
         collated_df = sanitise_log_sheets(log_sheet_df)
 
         try:

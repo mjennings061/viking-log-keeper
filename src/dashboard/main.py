@@ -5,40 +5,44 @@
 import sys
 import os
 import subprocess
-import logging
 import streamlit as st
 import pandas as pd
 from pathlib import Path
 
-# User defined modules.
 # Ensure the src directory is in the sys.path.
 src_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 if src_path not in sys.path:
     sys.path.append(src_path)
 
+# User defined modules.
 from log_keeper.get_config import DbUser, Client, Database  # noqa: E402
-from dashboard.plots import plot_duty_pie_chart  # noqa: E402
-from dashboard.plots import plot_launches_by_commander  # noqa: E402
-from dashboard.plots import plot_longest_flight_times  # noqa: E402
-from dashboard.plots import plot_monthly_launches  # noqa: E402
-from dashboard.plots import table_all_launches, quarterly_summary  # noqa: E402
-from dashboard.plots import show_logbook_helper  # noqa: E402
-from dashboard.plots import plot_firstlast_launch_table  # noqa: E402
-from dashboard.plots import launches_by_type_table  # noqa: E402
-from dashboard.plots import table_aircraft_weekly_summary  # noqa: E402
-from dashboard.plots import generate_aircraft_daily_summary  # noqa: E402
-from dashboard.plots import show_launch_delta_metric, show_logo  # noqa: E402
-from dashboard.plots import aircraft_flown_per_day  # noqa: E402
-from dashboard.plots import launches_daily_summary  # noqa: E402
-from dashboard.plots import table_gifs_per_date  # noqa: E402
-from dashboard.plots import plot_gif_bar_chart  # noqa: E402
-from dashboard.plots import table_aircraft_totals  # noqa: E402
-from dashboard.plots import table_gur_summary  # noqa: E402
-from dashboard.utils import LOGO_PATH, upload_log_sheets  # noqa: E402
-from dashboard.utils import date_filter  # noqa: E402
-
-# Set up logging.
-logger = logging.getLogger(__name__)
+from dashboard import logger    # noqa: E402
+from dashboard.plots import (   # noqa: E402
+    plot_duty_pie_chart,
+    plot_launches_by_commander,
+    plot_longest_flight_times,
+    plot_monthly_launches,
+    table_all_launches,
+    quarterly_summary,
+    show_logbook_helper,
+    plot_firstlast_launch_table,
+    launches_by_type_table,
+    table_aircraft_weekly_summary,
+    generate_aircraft_daily_summary,
+    show_launch_delta_metric,
+    show_logo,
+    aircraft_flown_per_day,
+    launches_daily_summary,
+    table_gifs_per_date,
+    plot_gif_bar_chart,
+    table_aircraft_totals,
+    table_gur_summary
+)
+from dashboard.utils import (   # noqa: E402
+    LOGO_PATH,
+    upload_log_sheets,
+    date_filter
+)
 
 
 def get_launches_for_dashboard(db: Database) -> pd.DataFrame:
@@ -56,7 +60,7 @@ def get_launches_for_dashboard(db: Database) -> pd.DataFrame:
     if st.session_state['df'].empty:
         # Make a dictionary of one row to display the columns.
         st.session_state['df'] = db.dummy_launches_dataframe()
-        logging.error("No data found in the database, using dummy data.")
+        logger.error("No data found in the database, using dummy data.")
         st.error("No data found in the database, using dummy data.")
     return st.session_state['df']
 
@@ -76,7 +80,7 @@ def get_aircraft_for_dashboard(db: Database) -> pd.DataFrame:
     if st.session_state['aircraft_df'].empty:
         # Make a dictionary of one row to display the columns.
         st.session_state['aircraft_df'] = db.dummy_aircraft_info_dataframe()
-        logging.error("No AC data found in the database, using dummy data.")
+        logger.error("No AC data found in the database, using dummy data.")
         st.error("No aircraft data found in the database, using dummy data.")
     return st.session_state['aircraft_df']
 
@@ -96,19 +100,22 @@ def show_data_dashboard(db: Database):
     Args:
         db (Database): Database class for the VGS."""
     # Set the page title.
+    logger.info("Displaying %s dashboard.", db.database_name)
     vgs = db.database_name.upper()
     st.title(f"{vgs} Dashboard")
 
     # Sidebar for page navigation
     pages = ["📈 Statistics", "📁 Upload Log Sheets",
-             "🧮 Stats & GUR Helper", "🌍 All Data"]
+             "🧮 Stats & GUR Helper", "⛅ Weather", "🌍 All Data"]
     page = st.selectbox("Select a Page:", pages, key="select_page")
 
     # Get dataframe of launches and aircraft info.
     if "df" not in st.session_state:
+        logger.debug("Fetching launches for dashboard.")
         st.session_state['df'] = get_launches_for_dashboard(db)
 
     if "aircraft_df" not in st.session_state:
+        logger.debug("Fetching aircraft info for dashboard.")
         st.session_state['aircraft_df'] = get_aircraft_for_dashboard(db)
 
     # Get the data from the session state.
@@ -214,9 +221,14 @@ def show_data_dashboard(db: Database):
                 generate_aircraft_daily_summary(filtered_df)
                 launches_daily_summary(filtered_df)
 
-        case "📁 Upload Log Sheets":
-            # Text to display the upload log sheets page.
+        case "⛅ Weather":
+            # Display a calendar of weather data.
+            st.header("Weather Summary")
+            st.write("Weather summary will be displayed here.")
 
+            # Show weather ref
+
+        case "📁 Upload Log Sheets":
             # Display the upload log sheets page.
             files = st.file_uploader(
                 "Upload log sheets below. Existing files will be updated.",
@@ -356,7 +368,7 @@ def main():
                 # Display dashboard.
                 show_data_dashboard(st.session_state["log_sheet_db"])
         except Exception:  # pylint: disable=broad-except
-            logging.error("Failed to display dashboard.", exc_info=True)
+            logger.error("Failed to display dashboard.", exc_info=True)
             st.error("Failed to display dashboard.")
 
             # Clear the session state.
@@ -365,6 +377,7 @@ def main():
 
 def display_dashboard():
     """Run the Streamlit app."""
+    logger.info("Running Streamlit app.")
     subprocess.run(["streamlit", "run", "src/dashboard/main.py"],
                    check=True)
 

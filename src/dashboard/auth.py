@@ -12,12 +12,12 @@ import inquirer
 import logging
 
 # User defined modules.
+from dashboard import logger
 from dashboard.utils import is_streamlit_running
 from log_keeper.utils import PROJECT_NAME
 from log_keeper.get_config import LogSheetConfig
 
 # Set up logging.
-logger = logging.getLogger(__name__)
 logging.getLogger('pymongo').setLevel(logging.WARNING)
 
 
@@ -72,12 +72,12 @@ class AuthConfig:
             bool: True if all values are present and valid, otherwise False."""
         # Check if any of the values are None.
         if not all([self.vgs, self.password]):
-            logging.warning("Configuration values are missing.")
+            logger.warning("Configuration values are missing.")
             return False
 
         # Validate if the auth_url is set.
         if "<password>" in self.auth_url:
-            logging.warning("Auth URL is not set.")
+            logger.warning("Auth URL is not set.")
             return False
         return True
 
@@ -98,12 +98,12 @@ class AuthConfig:
         # Ping the server.
         try:
             if self.client.admin.command('ping')['ok'] == 1.0:
-                logging.info("Connected to Auth DB.")
+                logger.info("Connected to Auth DB.")
                 self.connected = True
             else:
-                logging.error("Failed to connect to Auth DB.")
+                logger.error("Failed to connect to Auth DB.")
         except Exception:  # pylint: disable=broad-except
-            logging.error("Connection error", exc_info=True)
+            logger.error("Connection error", exc_info=True)
         return self.connected
 
     def _login(self, vgs, password: str) -> bool:
@@ -135,7 +135,7 @@ class AuthConfig:
                 self.authenticated = True
                 self.allowed_vgs = document.get("allowed_vgs", [])
             else:
-                logging.error("Invalid username or password.")
+                logger.error("Invalid username or password.")
         return self.authenticated
 
     def fetch_log_sheets_credentials(self, vgs: str = None,
@@ -151,7 +151,7 @@ class AuthConfig:
         # Connect to the DB.
         if not vgs or not password:
             # Entered via the CLI.
-            logging.info("Using stored auth DB credentials.")
+            logger.info("Using stored auth DB credentials.")
             vgs = self.vgs
             password = self.password
 
@@ -166,13 +166,13 @@ class AuthConfig:
 
             # Fetch the log_sheets credentials.
             credentials = collection.find_one({"vgs": vgs.lower()})
-            logging.info("Fetched log_sheets credentials.")
+            logger.info("Fetched log_sheets credentials.")
 
             # Pop the _id and vgs fields.
             credentials.pop("_id", None)
             credentials.pop("vgs", None)
         else:
-            logging.error("Failed to fetch log_sheets credentials.")
+            logger.error("Failed to fetch log_sheets credentials.")
 
         # Close the connection.
         self.close_connection()
@@ -214,14 +214,14 @@ class AuthConfig:
                             answers["auth_password"])
             kr.set_password(PROJECT_NAME, "password", answers["password"])
         except Exception:
-            logging.error("Failed to save credentials to keyring.",
-                          exc_info=True)
+            logger.error("Failed to save credentials to keyring.",
+                         exc_info=True)
 
     def close_connection(self):
         """Close the connection to the DB."""
         if self.client:
             self.client.close()
-            logging.info("Closed connection to Auth DB.")
+            logger.info("Closed connection to Auth DB.")
 
 
 def update_credentials_wrapper():

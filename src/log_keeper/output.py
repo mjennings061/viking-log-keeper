@@ -4,17 +4,14 @@ This file handles outputting the master log to excel and MongoDB Atlas.
 """
 
 # Standard library imports.
-import logging
 from pathlib import Path
 import pandas as pd
 from datetime import datetime
 from pymongo import DeleteMany
 
 # User defined modules.
+from log_keeper import logger
 from log_keeper.get_config import Database
-
-# Get the logger instance.
-logger = logging.getLogger(__name__)
 
 
 def launches_to_excel(launches_df, output_file_path):
@@ -171,14 +168,14 @@ def update_launches_collection(launches_df, db: Database):
 
     # Delete the records if they exist.
     if delete_ops:
-        logging.info("Deleting %.0f launches from %.0f days/aircraft.",
-                     deleted_launches, len(delete_ops))
+        logger.info("Deleting %.0f launches from %.0f days/aircraft.",
+                    deleted_launches, len(delete_ops))
         collection.bulk_write(delete_ops)
 
     # Step 2: Insert all the records.
     documents = launches_df.to_dict('records')
-    logging.info("Inserting %.0f launches from %.0f days/aircraft.",
-                 len(documents), len(grouped))
+    logger.info("Inserting %.0f launches from %.0f days/aircraft.",
+                len(documents), len(grouped))
     collection.insert_many(documents)
 
 
@@ -252,10 +249,89 @@ def update_aircraft_info(aircraft_info: pd.DataFrame, db: Database):
 
     # Delete the records if they exist.
     if delete_ops:
-        logging.info("Deleting %.0f aircraft info records.", deleted_aircraft)
+        logger.info("Deleting %.0f aircraft info records.", deleted_aircraft)
         collection.bulk_write(delete_ops)
 
     # Step 2: Insert all the records.
     documents = aircraft_info.to_dict('records')
-    logging.info("Inserting %.0f aircraft info records.", len(documents))
+    logger.info("Inserting %.0f aircraft info records.", len(documents))
+    collection.insert_many(documents)
+
+
+def backup_weather_collection(db: Database):
+    """Backup the weather collection in MongoDB.
+
+    Args:
+        db (Database): The log sheet DB configuration.
+    """
+    # Get all collections in the DB.
+    collections = db.db.list_collection_names()
+
+    # Backup the old collection with today's date as the suffix.
+    # Get today's date as YYMMDD.
+    today = datetime.today().strftime('%y%m%d')
+
+    # Create collection search string.
+    collection_search_string = f"{db.weather_collection}_{today}"
+
+    if collection_search_string in collections:
+
+        # Check if the backup exists and replace it.
+        db.db.drop_collection(collection_search_string)
+
+        # Use aggregation with $out to backup the collection.
+        db.get_weather_collection().aggregate([
+            {"$match": {}},
+            {"$out": collection_search_string},
+        ])
+
+
+def weather_to_db(weather_db: pd.DataFrame, db: Database):
+    """Save the weather dataframe to a MongoDB.
+
+    Args:
+        weather_db (pd.DataFrame): The weather dataframe.
+        db (Database): The log sheet DB configuration.
+    """
+    # Validate the dataframe is not empty.
+    if weather_db.empty:
+        logger.warning("Empty dataframe. Nothing to update.")
+        return
+
+    # Backup the current collection.
+    backup_weather_collection(db=db)
+
+    # Connect to the DB.
+    collection = db.get_weather_collection()
+
+    # Group by date.
+    grouped = weather_db.groupby(['Date'])
+
+    # Prepare bulk delete and insert operations.
+    delete_ops = []
+    deleted_weather = 0
+
+    # Step 1: Prepare bulk delete operations.
+    for group_keys, _ in grouped:
+        # We want to delete all launches with the same date
+        # as the records we are about to insert.
+        date = group_keys
+        delete_query = {
+            "Date": date,
+        }
+
+        # Count the number of records to delete.
+        deleted_weather += collection.count_documents(delete_query)
+
+        # Append the recursive delete operation.
+        delete_ops.append(DeleteMany(delete_query))
+
+    # Delete the records if they exist.
+    if delete_ops:
+        logger.info("Deleting %.0f weather records.", deleted_weather)
+        collection.bulk_write(delete_ops)
+
+    # Step 2: Insert all the records.
+    documents = weather_db.to_dict('records')
+    logger.info("Inserting %.0f weather records.", len(documents))
     collection.insert_many(documents)

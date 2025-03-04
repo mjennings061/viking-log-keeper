@@ -3,15 +3,14 @@
 This file contains utility functions and constants."""
 
 # Get packages.
-import logging
 from pathlib import Path
 import inquirer
 
+# User defined modules.
+from log_keeper import logger
+
 # Constants.
 PROJECT_NAME = "viking-log-keeper"
-
-# Set up logging.
-logger = logging.getLogger(__name__)
 
 
 def verify_directory_path(path):
