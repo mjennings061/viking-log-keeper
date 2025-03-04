@@ -176,3 +176,6 @@ secrets.toml
 
 # IntelliJ files
 .idea/
+
+# Cache.
+.cache.sqlite

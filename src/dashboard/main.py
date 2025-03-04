@@ -36,8 +36,9 @@ from dashboard.plots import (   # noqa: E402
     table_gifs_per_date,
     plot_gif_bar_chart,
     table_aircraft_totals,
-    table_gur_summary
+    table_gur_summary,
 )
+from dashboard.weather import weather_page  # noqa: E402
 from dashboard.utils import (   # noqa: E402
     LOGO_PATH,
     upload_log_sheets,
@@ -222,11 +223,7 @@ def show_data_dashboard(db: Database):
                 launches_daily_summary(filtered_df)
 
         case "⛅ Weather":
-            # Display a calendar of weather data.
-            st.header("Weather Summary")
-            st.write("Weather summary will be displayed here.")
-
-            # Show weather ref
+            weather_page(db, filtered_df)
 
         case "📁 Upload Log Sheets":
             # Display the upload log sheets page.

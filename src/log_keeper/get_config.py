@@ -152,7 +152,8 @@ class Client(MongoClient):
 class Database:
     """MongoDB database class to connect to a database."""
     def __init__(self, client: Client, database_name: str):
-        # Set launches collection.
+        # Set collection names.
+        self.info_collection = "info"
         self.launches_collection = "log_sheets"
         self.aircraft_info_collection = "aircraft"
         # Validate client.
@@ -223,6 +224,13 @@ class Database:
             logger.error("Could not fetch data from the collection.")
             df = pd.DataFrame()
         return df
+
+    def get_info_collection(self) -> Collection:
+        """Get the info collection from the database.
+
+        Returns:
+            pymongo.collection.Collection: The VGS info collection."""
+        return self.get_collection(self.info_collection)
 
     def get_aircraft_info_collection(self) -> Collection:
         """Get the aircraft information collection from the database.
@@ -457,6 +465,11 @@ class LogSheetConfig:
             logger.error("Could not fetch data from MongoDB.", exc_info=True)
             df = pd.DataFrame()
         return df
+
+
+@dataclass
+class WeatherStore:
+    """Store the weather data into MongoDB."""
 
 
 def update_log_sheets_dir_wrapper():
