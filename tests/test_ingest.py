@@ -24,16 +24,16 @@ def sample_log_data():
     return pd.DataFrame({
         'AircraftCommander': ['John Doe', 'Jane Smith'],
         '2ndPilot': ['Bob Wilson', 'Alice Brown'],
-        'Duty': ['Training', 'Check'],
+        'Duty': ['SCT U/T', 'G/S'],
         'TakeOffTime': [pd.Timestamp('2025-01-23 10:00:00'), pd.Timestamp('2025-01-23 11:00:00')],
         'LandingTime': [pd.Timestamp('2025-01-23 10:30:00'), pd.Timestamp('2025-01-23 11:45:00')],
         'FlightTime': [30, 45],
-        'SPC': [1, 2],
+        'SPC': [1, 6],
         'PLF': [True, False],
         'Aircraft': ['ZE123', 'ZE456'],
         'Date': [pd.Timestamp('2025-01-23'), pd.Timestamp('2025-01-23')],
         'P1': [True, False],
-        'P2': [False, True]
+        'P2': [False, False]
     })
 
 
