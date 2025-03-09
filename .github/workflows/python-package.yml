@@ -51,4 +51,4 @@ jobs:
       env:
         TEST_USERNAME: ${{ secrets.TEST_USERNAME }}
         TEST_PASSWORD: ${{ secrets.TEST_PASSWORD }}
-      run: pytest
+      run: coverage run -m pytest tests/ && coverage report -m
