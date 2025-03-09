@@ -311,7 +311,10 @@ def date_filter(df: pd.DataFrame) -> pd.DataFrame:
     # Option to filter by date or financial year.
     filter_option = st.sidebar.radio(
         "Filter by:",
-        options=["Financial Year", "Date Range", "All Data"],
+        options=[
+            "Financial Year", "Date Range", "All Data",
+            "Last 12 Months"
+        ],
         index=0,
         help="Select the filter option"
     )
@@ -337,6 +340,11 @@ def date_filter(df: pd.DataFrame) -> pd.DataFrame:
     elif filter_option == "All Data":
         # No filtering.
         start_date = min_date
+        end_date = max_date
+
+    elif filter_option == "Last 12 Months":
+        # Filter by the last 12 months.
+        start_date = max_date - pd.DateOffset(months=12)
         end_date = max_date
 
     else:
