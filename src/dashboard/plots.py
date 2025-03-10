@@ -71,6 +71,34 @@ def format_data_for_table(raw_df: pd.DataFrame) -> pd.DataFrame:
     # reordering to avoid KeyError. This also implicitly filters
     # out any columns not listed in `desired_order`
     data_df = data_df[desired_order]
+
+    # Calculate totals.
+    total_launches = data_df["Launches"].sum()
+    total_flight_time = data_df["FlightTime"].apply(
+        lambda x: int(x.split(":")[0]) * 60 + int(x.split(":")[1])
+    ).sum()
+    total_flight_time_str = (
+        f"{total_flight_time // 60}:{total_flight_time % 60:02d}"
+    )
+    total_plfs = data_df["PLFs"].apply(
+        lambda x: 0 if x == "" else int(x)
+    ).sum()
+
+    # Create a totals row.
+    totals_row = pd.DataFrame({
+        "Date": ["Total"],
+        "Aircraft": [""],
+        "AircraftCommander": [""],
+        "SecondPilot": [""],
+        "Duty": [""],
+        "Launches": [total_launches],
+        "FlightTime": [total_flight_time_str],
+        "PLFs": [str(total_plfs)]
+    })
+
+    # Append the totals row to the data.
+    data_df = pd.concat([totals_row, data_df], ignore_index=True)
+
     return data_df
 
 

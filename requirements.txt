@@ -9,6 +9,8 @@ pymongo[srv]~=4.7.0
 streamlit~=1.37.0
 tqdm~=4.66.0
 xlsxwriter~=3.2.0
+keyrings.alt~=5.0.2
+secretstorage~=3.3.3
 
 # Development.
 setuptools~=72.1.0
@@ -16,3 +18,4 @@ python-dotenv~=1.0.0
 pytest~=8.3.0
 pytest-playwright~=0.5.0
 pytest-mock~=3.14.0
+pytest-cov~=6.0.0

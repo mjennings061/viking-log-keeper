@@ -342,7 +342,16 @@ def configure_app(LOGO_PATH: Path):
         page_title="VGS Dashboard",
         page_icon=str(LOGO_PATH),
         layout="centered",
-        initial_sidebar_state="expanded",
+        initial_sidebar_state="auto",
+        menu_items={
+            "Report a Bug": (
+                "https://github.com/mjennings061/viking-log-keeper/"
+                "issues/new?template=BLANK_ISSUE"
+            ),
+            "About": (
+                "https://github.com/mjennings061/viking-log-keeper"
+            )
+        }
     )
 
 
