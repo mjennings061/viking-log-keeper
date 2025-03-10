@@ -97,7 +97,7 @@ def format_data_for_table(raw_df: pd.DataFrame) -> pd.DataFrame:
     })
 
     # Append the totals row to the data.
-    data_df = pd.concat([data_df, totals_row], ignore_index=True)
+    data_df = pd.concat([totals_row, data_df], ignore_index=True)
 
     return data_df
 
