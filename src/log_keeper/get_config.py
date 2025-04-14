@@ -156,6 +156,7 @@ class Database:
         self.info_collection = "info"
         self.launches_collection = "log_sheets"
         self.aircraft_info_collection = "aircraft"
+        self.weather_collection = "weather"
         # Validate client.
         if not client.authenticated():
             raise ConnectionError("Could not log in to the database.")
@@ -232,6 +233,21 @@ class Database:
             pymongo.collection.Collection: The VGS info collection."""
         return self.get_collection(self.info_collection)
 
+    def get_info(self) -> pd.DataFrame:
+        """Get the VGS information as a dictionary.
+
+        Returns:
+            pd.DataFrame: The VGS information as a dataframe."""
+        try:
+            # Get the collection and convert it to a DataFrame.
+            collection = self.get_info_collection()
+            df = pd.DataFrame(collection.find())
+        except Exception:
+            # Log error and return an empty DataFrame.
+            logger.error("Could not fetch data from the info collection.")
+            df = pd.DataFrame()
+        return df
+
     def get_aircraft_info_collection(self) -> Collection:
         """Get the aircraft information collection from the database.
 
@@ -253,6 +269,29 @@ class Database:
         except Exception:  # pylint: disable=broad-except
             # Log error and return an empty DataFrame.
             logger.error("Could not fetch data from aircraft collection.")
+            df = pd.DataFrame()
+        return df
+
+    def get_weather_collection(self) -> Collection:
+        """Get the weather collection from the database.
+
+        Returns:
+            pymongo.collection.Collection: The weather collection."""
+        return self.get_collection(self.weather_collection)
+
+    def get_weather_dataframe(self) -> pd.DataFrame:
+        """Get the weather collection as a DataFrame.
+
+        Returns:
+            pandas.DataFrame: The weather collection as a DataFrame."""
+        try:
+            # Get the collection and convert it to a DataFrame.
+            collection = self.get_weather_collection()
+            df = pd.DataFrame(collection.find())
+            df = df.sort_values(by="Date", ascending=False)
+        except Exception:
+            # Log error and return an empty DataFrame.
+            logger.error("Could not fetch data from the collection.")
             df = pd.DataFrame()
         return df
 
@@ -470,6 +509,7 @@ class LogSheetConfig:
 @dataclass
 class WeatherStore:
     """Store the weather data into MongoDB."""
+    # TODO: Implement this class to store the weather data into MongoDB.
 
 
 def update_log_sheets_dir_wrapper():

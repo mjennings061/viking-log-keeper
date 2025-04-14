@@ -7,7 +7,7 @@ This file handles outputting the master log to excel and MongoDB Atlas.
 from pathlib import Path
 import pandas as pd
 from datetime import datetime
-from pymongo import DeleteMany
+from pymongo import DeleteMany, UpdateOne
 
 # User defined modules.
 from log_keeper import logger
@@ -258,80 +258,52 @@ def update_aircraft_info(aircraft_info: pd.DataFrame, db: Database):
     collection.insert_many(documents)
 
 
-def backup_weather_collection(db: Database):
-    """Backup the weather collection in MongoDB.
+def weather_to_db(weather_df: pd.DataFrame, db: Database):
+    """Update or insert weather data in MongoDB.
 
     Args:
-        db (Database): The log sheet DB configuration.
-    """
-    # Get all collections in the DB.
-    collections = db.db.list_collection_names()
-
-    # Backup the old collection with today's date as the suffix.
-    # Get today's date as YYMMDD.
-    today = datetime.today().strftime('%y%m%d')
-
-    # Create collection search string.
-    collection_search_string = f"{db.weather_collection}_{today}"
-
-    if collection_search_string in collections:
-
-        # Check if the backup exists and replace it.
-        db.db.drop_collection(collection_search_string)
-
-        # Use aggregation with $out to backup the collection.
-        db.get_weather_collection().aggregate([
-            {"$match": {}},
-            {"$out": collection_search_string},
-        ])
-
-
-def weather_to_db(weather_db: pd.DataFrame, db: Database):
-    """Save the weather dataframe to a MongoDB.
-
-    Args:
-        weather_db (pd.DataFrame): The weather dataframe.
+        weather_df (pd.DataFrame): The weather dataframe.
         db (Database): The log sheet DB configuration.
     """
     # Validate the dataframe is not empty.
-    if weather_db.empty:
+    if weather_df.empty:
         logger.warning("Empty dataframe. Nothing to update.")
         return
-
-    # Backup the current collection.
-    backup_weather_collection(db=db)
 
     # Connect to the DB.
     collection = db.get_weather_collection()
 
-    # Group by date.
-    grouped = weather_db.groupby(['Date'])
+    # Prepare bulk upsert operations
+    bulk_operations = []
 
-    # Prepare bulk delete and insert operations.
-    delete_ops = []
-    deleted_weather = 0
+    for index, row in weather_df.iterrows():
+        # Convert row to dictionary
+        doc = row.to_dict()
 
-    # Step 1: Prepare bulk delete operations.
-    for group_keys, _ in grouped:
-        # We want to delete all launches with the same date
-        # as the records we are about to insert.
-        date = group_keys
-        delete_query = {
-            "Date": date,
+        # Add the datetime index to the document
+        doc["datetime"] = index
+
+        # Create query to find existing record
+        # Use datetime for unique identification
+        query = {
+            "datetime": index
         }
 
-        # Count the number of records to delete.
-        deleted_weather += collection.count_documents(delete_query)
+        # Create update operation
+        bulk_operations.append(
+            UpdateOne(
+                query,
+                {"$set": doc},
+                upsert=True
+            )
+        )
 
-        # Append the recursive delete operation.
-        delete_ops.append(DeleteMany(delete_query))
-
-    # Delete the records if they exist.
-    if delete_ops:
-        logger.info("Deleting %.0f weather records.", deleted_weather)
-        collection.bulk_write(delete_ops)
-
-    # Step 2: Insert all the records.
-    documents = weather_db.to_dict('records')
-    logger.info("Inserting %.0f weather records.", len(documents))
-    collection.insert_many(documents)
+    # Execute bulk operations
+    if bulk_operations:
+        result = collection.bulk_write(bulk_operations)
+        logger.info(
+            "Weather data updated: %d records modified, %d records upserted.",
+            result.modified_count, result.upserted_count
+        )
+    else:
+        logger.info("No weather data to update.")

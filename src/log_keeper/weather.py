@@ -7,14 +7,13 @@ import pandas as pd
 from retry_requests import retry
 from dataclasses import dataclass, field
 from typing import Optional, List
-from datetime import datetime
 
 
 @dataclass
 class WeatherFetcher():
     """Fetch and process weather data."""
-    start_date: datetime
-    end_date: datetime
+    start_date: pd.Timestamp
+    end_date: pd.Timestamp
     latitude: float = 55.875599555800726  # Kirknewton.
     longitude: float = -3.401593692255116
     hourly: List[str] = field(default_factory=lambda: [
@@ -102,10 +101,12 @@ class WeatherFetcher():
 
 if __name__ == "__main__":
     # Test the WeatherFetcher class.
-    start_date = datetime(2025, 2, 22)
-    end_date = datetime(2025, 2, 23)
+    start_date = pd.Timestamp(2025, 2, 22)
+    end_date = pd.Timestamp(2025, 2, 23)
     weather_fetcher = WeatherFetcher(
         start_date=start_date,
         end_date=end_date
     )
+    # Print the first few rows of the hourly and daily dataframes.
     print(weather_fetcher.hourly_df.head())
+    print(weather_fetcher.daily_df.head())
