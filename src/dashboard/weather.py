@@ -160,11 +160,22 @@ def weather_page(db: Database, launches_df: pd.DataFrame):
         )
 
         # Plot weather vs launches
-        st.subheader("Weather Impact on Flying")
+        st.subheader("Wind Impact on Flying")
         plot_wind_vs_launches(st.session_state.weather_df, launches_df)
-        plot_weather_vs_flight_time(st.session_state.weather_df, launches_df)
-        plot_launch_vs_nonlaunch_weather(st.session_state.weather_df,
-                                         launches_df)
+
+        st.subheader("Weather Impact on Flight Time")
+        selected_metric = select_metric_to_plot()
+        plot_weather_vs_flight_time(
+            st.session_state.weather_df,
+            launches_df,
+            selected_metric
+        )
+        st.subheader("Weather on Launch vs Non-Launch Days")
+        plot_launch_vs_nonlaunch_weather(
+            st.session_state.weather_df,
+            launches_df,
+            selected_metric
+        )
 
 
 def get_weather_data(db: Database, df: pd.DataFrame) -> pd.DataFrame:
@@ -379,12 +390,14 @@ def plot_wind_vs_launches(weather_df, launches_df):
     st.altair_chart(scatter + trend, use_container_width=True)
 
 
-def plot_weather_vs_flight_time(weather_df, launches_df):
+def plot_weather_vs_flight_time(weather_df, launches_df,
+                                selected_metric):
     """Create a scatter plot showing how weather affects flight duration.
 
     Args:
         weather_df (pd.DataFrame): Weather data
         launches_df (pd.DataFrame): Launches data
+        selected_metric (str): The weather metric to plot
     """
     # Filter by operating hours for each day.
     START_HOUR = 9
@@ -426,21 +439,8 @@ def plot_weather_vs_flight_time(weather_df, launches_df):
         how='inner'
     )
 
-    # Select the weather metric to plot.
-    metric_options = list(weather_metadata.keys())
-    metric_display_names = [
-        weather_metadata[metric]['display_name']
-        for metric in metric_options
-    ]
-    metric_options.remove('datetime')
-    metric_display_name = st.selectbox(
-        'Select weather metric:', metric_display_names, index=0
-    )
-
     # Lookup the selected metric in the metadata.
-    selected_metric = metric_options[
-        metric_display_names.index(metric_display_name)
-    ]
+    metric_display_name = weather_metadata[selected_metric]['display_name']
 
     # Append unit to the display name.
     unit = weather_metadata[selected_metric]['unit']
@@ -469,7 +469,7 @@ def plot_weather_vs_flight_time(weather_df, launches_df):
         size=alt.Size(
             'MedianFlightTime:Q',
             scale=alt.Scale(range=[20, 100]),
-            legend=alt.Legend(title="Median Flight Time (mins)")
+            legend=alt.Legend(title="Flight Time (mins)")
         ),
         color=alt.Color('MedianFlightTime:Q'),
         tooltip=tooltips
@@ -488,14 +488,19 @@ def plot_weather_vs_flight_time(weather_df, launches_df):
     st.altair_chart(scatter + trend, use_container_width=True)
 
 
-def plot_launch_vs_nonlaunch_weather(weather_df, launches_df):
+def plot_launch_vs_nonlaunch_weather(weather_df, launches_df,
+                                     selected_metric):
     """Compare weather conditions on days with launches vs
     days without launches.
 
     Args:
         weather_df (pd.DataFrame): Weather data
         launches_df (pd.DataFrame): Launches data
+        selected_metric (str): Selected weather metric to compare.
     """
+    # Number of launches per day cutoff.
+    MIN_LAUNCHES = 10
+
     # Filter by operating hours for each day.
     START_HOUR = 9
     END_HOUR = 17
@@ -510,13 +515,160 @@ def plot_launch_vs_nonlaunch_weather(weather_df, launches_df):
         end_date=launches_df['Date'].max()
     )
 
-    # Get dates with launches
-    launch_dates = set(launches_df['Date'].dt.date)
+    # Group launches by date.
+    daily_launches = launches_df.groupby(
+        launches_df['Date'].dt.date
+    ).agg({
+        'TakeOffTime': 'count',
+        'FlightTime': 'median',
+    }).reset_index().rename(
+        columns={'TakeOffTime': 'Launches', 'FlightTime': 'MedianFlightTime'},
+    )
 
-    # Create a DataFrame indicating which days had launches
-    launch_indicator = pd.DataFrame({
-        'date': all_weekends,
-        'had_launches': [date in launch_dates for date in all_weekends]
+    # Place 0 for weekends with no launches while retaining midweek launches
+    missing_weekends = [
+        date for date in all_weekends
+        if date not in daily_launches['Date'].values
+    ]
+
+    if missing_weekends:
+        missing_df = pd.DataFrame({
+            'Date': missing_weekends,
+            'Launches': [0] * len(missing_weekends),
+            'MedianFlightTime': [0] * len(missing_weekends)
+        })
+        daily_launches = pd.concat(
+            [daily_launches, missing_df],
+            ignore_index=True
+        )
+
+    # Sort the data by date.
+    daily_launches = daily_launches.sort_values(by='Date').reset_index(
+        drop=True
+    )
+
+    # Get median daily weather conditions
+    daily_weather = weather_df.groupby(weather_df['datetime'].dt.date).agg({
+        'wind_speed_10m': 'median',
+        'wind_gusts_10m': 'median',
+        'wind_direction_10m': 'median',
+        'cloud_base_ft': 'median',
+        'cloud_cover_low': 'median',
+        'precipitation': 'sum',
+        'temperature_2m': 'median',
+        'relative_humidity_2m': 'median',
+        'surface_pressure': 'median',
+        'dew_point_2m': 'median',
+    }).reset_index()
+
+    # Merge the data
+    merged_df = daily_launches.merge(
+        daily_weather,
+        left_on='Date',
+        right_on='datetime',
+        how='inner'
+    )
+
+    # Split into days with and without launches
+    days_with_launches = merged_df[merged_df['Launches'] >= MIN_LAUNCHES]
+    days_low_launches = merged_df[merged_df['Launches'] < MIN_LAUNCHES]
+
+    # Show how many days with launches vs low launches
+    col1, col2 = st.columns(2)
+    with col1:
+        st.metric(
+            label="Flying days",
+            value=len(days_with_launches)
+        )
+    with col2:
+        st.metric(
+            label=f"Poor flying days: (<{MIN_LAUNCHES} launches): ",
+            value=len(days_low_launches)
+        )
+
+    # Get the display name for the selected metric
+    metric_display_name = weather_metadata[selected_metric]['display_name']
+
+    # Create a DataFrame for plotting
+    plot_data = pd.DataFrame({
+        'Weather Condition': [metric_display_name] * len(merged_df),
+        'Value': merged_df[selected_metric],
+        'Flying Day': merged_df['Launches'].apply(
+            lambda x: 'Launch Day' if x >= MIN_LAUNCHES else 'Low Launches'
+        )
     })
 
-    pass
+    # Create a box plot comparing the metric between days with and
+    # low launches
+    metric_unit = weather_metadata[selected_metric]['unit']
+    chart = alt.Chart(plot_data).mark_boxplot(
+        extent='min-max',
+        ticks=True,
+        median={'color': 'black'},
+        rule={'color': 'gray'},
+        box={'color': 'gray'},
+        outliers={'color': 'red'},
+    ).encode(
+        y=alt.Y('Flying Day:N', title=None),
+        x=alt.X(
+            'Value:Q',
+            title=f"{metric_display_name} ({metric_unit})"
+        ),
+        color=alt.Color('Flying Day:N', legend=None)
+    ).properties(
+        title=f"Comparison of {metric_display_name} on Launch vs "
+              "Low-Launch Days",
+        width=600,
+        height=400
+    )
+
+    # Display the chart
+    st.altair_chart(chart, use_container_width=True)
+
+    # Show statistical summary
+    st.subheader("Statistical Summary")
+
+    if len(days_with_launches) > 0 and len(days_low_launches) > 0:
+        launch_median = days_with_launches[selected_metric].median()
+        low_launch_median = days_low_launches[selected_metric].median()
+
+        col1, col2 = st.columns(2)
+        with col1:
+            st.metric(
+                f"Median {metric_display_name} on Launch Days",
+                f"{launch_median:.0f} {metric_unit}"
+            )
+        with col2:
+            st.metric(
+                f"Median {metric_display_name} on Low-Launch Days",
+                f"{low_launch_median:.0f} {metric_unit}",
+                f"{low_launch_median - launch_median:.0f} {metric_unit}"
+            )
+
+
+def select_metric_to_plot():
+    """Select the metric to plot.
+    Returns:
+        str: Selected metric.
+        str: Display name of the selected metric.
+        str: Unit of the selected metric.
+    """
+    metric_options = list(weather_metadata.keys())
+    metric_display_names = [
+        weather_metadata[metric]['display_name']
+        for metric in metric_options
+        if metric != 'datetime'
+    ]
+    metric_options.remove('datetime')
+    metric_display_name = st.selectbox(
+        'Select weather metric to compare:',
+        metric_display_names,
+        index=0,
+        key='compare_weather_metric'
+    )
+
+    # Lookup the selected metric in the metadata
+    selected_metric = metric_options[
+        metric_display_names.index(metric_display_name)
+    ]
+    return selected_metric

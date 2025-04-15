@@ -378,7 +378,9 @@ def date_filter(df: pd.DataFrame) -> pd.DataFrame:
     return filtered_df
 
 
-def get_weekends(start_date: datetime, end_date: datetime) -> List[datetime]:
+def get_weekends(
+    start_date: datetime, end_date: datetime
+) -> List[pd.Timestamp]:
     """Get a list of weekends between two dates (inclusive).
 
     Args:
@@ -386,7 +388,7 @@ def get_weekends(start_date: datetime, end_date: datetime) -> List[datetime]:
         end_date (datetime): The end date.
 
     Returns:
-        pd.DatetimeIndex: A list of weekends between the two dates.
+        List[pd.Timestamp]: A list of weekends between the two dates.
     """
     # Ensure dates are datetime objects.
     if isinstance(start_date, str):
@@ -396,8 +398,8 @@ def get_weekends(start_date: datetime, end_date: datetime) -> List[datetime]:
 
     # Create a list of all dates in range and filter for weekends.
     all_dates = pd.date_range(start=start_date, end=end_date)
-    weekends = all_dates[all_dates.weekday.isin([5, 6])]
-
+    # Filter for weekends (5=Saturday, 6=Sunday) and convert to date objects
+    weekends = [date.date() for date in all_dates if date.weekday() in [5, 6]]
     return weekends
 
 
