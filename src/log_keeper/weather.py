@@ -22,7 +22,7 @@ class WeatherFetcher():
         "wind_speed_10m", "wind_direction_10m", "wind_gusts_10m"
     ])
     daily: List[str] = field(default_factory=lambda: [
-        "weather_code", "sunrise", "sunset", "precipitation_sum",
+        "weather_code", "precipitation_sum", "sunrise", "sunset",
         "precipitation_hours", "wind_direction_10m_dominant"
     ])
     wind_speed_unit: str = "kn"
@@ -88,15 +88,10 @@ class WeatherFetcher():
         time_start = time_start.tz_convert(self.timezone)
         time_end = time_end.tz_convert(self.timezone)
 
-        # Create a date range
-        data = {
-            "date": pd.date_range(
-                start=time_start,
-                end=time_end,
-                freq=pd.Timedelta(seconds=data_obj.Interval()),
-                inclusive="left"
-            )
-        }
+        timestamps = pd.to_datetime(
+            data_obj.Time(), unit="s", utc=True
+        ).tz_convert(self.timezone)
+        data = {"date": timestamps}
 
         # Extract data variables
         for i, var in enumerate(variables):
@@ -107,10 +102,7 @@ class WeatherFetcher():
             columns={"date": "datetime"}
         ).sort_values(
             by="datetime"
-        ).reset_index(drop=True)
-
-        # Remove nan values.
-        weather_df.dropna(inplace=True)
+        ).dropna().reset_index(drop=True)
         return weather_df
 
 

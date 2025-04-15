@@ -159,6 +159,8 @@ def weather_page(db: Database, launches_df: pd.DataFrame):
             }
         )
 
+        # TODO: Why are there no values plotted for 2024?
+        # TODO: Why only 71 values pulled from the API for 2024.
         # Plot weather vs launches
         st.subheader("Wind Impact on Flying")
         plot_wind_vs_launches(st.session_state.weather_df, launches_df)
@@ -209,12 +211,13 @@ def get_weather_data(db: Database, df: pd.DataFrame) -> pd.DataFrame:
         dates_missing_hours = [
             date for date in dates
             if len(weather_df[weather_df["datetime"].dt.date == date]) != 24
+            and date not in missing_dates
         ]
         if dates_missing_hours:
+            # Get the missing dates from the API.
             logger.info(
                 "Missing hours for the following dates: \n"
                 f"{dates_missing_hours.__str__()}")
-            # Get the missing dates from the API.
             missing_dates.extend(dates_missing_hours)
 
     # If there are missing dates, fetch the weather data from the API.
@@ -302,7 +305,20 @@ def get_api_weather_data(db: Database, dates: List[datetime.date]):
 
     # Get weather data for the given dates.
     weather_data = []
-    for date in dates:
+
+    # Create a progress bar
+    progress_bar = st.progress(0)
+    status_text = st.empty()
+
+    for i_date, date in enumerate(dates):
+        # Update progress bar and status text
+        progress = (i_date / len(dates))
+        progress_bar.progress(progress)
+        status_text.text(
+            f"Fetching weather data for {date} ({i_date+1}/{len(dates)})"
+        )
+
+        # Fetch weather data for the given date range.
         weather_fetcher = WeatherFetcher(
             latitude=latitude,
             longitude=longitude,
@@ -316,6 +332,12 @@ def get_api_weather_data(db: Database, dates: List[datetime.date]):
             st.warning(f"No weather data available for {date}.")
             continue
         weather_data.append(weather_fetcher.hourly_df)
+
+    # Complete the progress bar
+    progress_bar.progress(1.0)
+    status_text.text("Weather data fetching complete!")
+    time.sleep(0.5)
+    status_text.empty()
 
     # Concatenate all DataFrames into a single DataFrame.
     if not weather_data:
