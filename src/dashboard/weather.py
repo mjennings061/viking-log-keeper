@@ -4,28 +4,94 @@
 import time
 import pandas as pd
 import streamlit as st
+import altair as alt
 from datetime import datetime
 from typing import List
 
 # User imports.
 from dashboard import logger
+from dashboard.utils import get_weekends
 from log_keeper.weather import WeatherFetcher
 from log_keeper.get_config import Database
 from log_keeper.output import weather_to_db
 
 
-def weather_page(db: Database, df: pd.DataFrame):
+weather_metadata = {
+    "wind_speed_10m": {
+        "description": "Wind speed at 10 meters above ground level.",
+        "unit": "kts",
+        "display_name": "Wind Speed",
+    },
+    "wind_direction_10m": {
+        "description": "Wind direction at 10 meters above ground level.",
+        "unit": "degrees",
+        "display_name": "Wind Direction",
+    },
+    "wind_gusts_10m": {
+        "description": "Wind gusts at 10 meters above ground level.",
+        "unit": "kts",
+        "display_name": "Wind Gusts",
+    },
+    "cloud_base_ft": {
+        "description": "Cloud base height in feet.",
+        "unit": "ft",
+        "display_name": "Cloud Base",
+    },
+    "cloud_cover_low": {
+        "description": "Low cloud cover percentage.",
+        "unit": "%",
+        "display_name": "Low Cloud Cover",
+    },
+    "precipitation": {
+        "description": "Precipitation amount.",
+        "unit": "mm",
+        "display_name": "Precipitation",
+    },
+    "temperature_2m": {
+        "description": "Temperature at 2 meters above ground level.",
+        "unit": "°C",
+        "display_name": "Temperature",
+    },
+    "dew_point_2m": {
+        "description": "Dew point temperature at 2 meters above ground level.",
+        "unit": "°C",
+        "display_name": "Dew Point",
+    },
+    "relative_humidity_2m": {
+        "description": "Relative humidity at 2 meters above ground level.",
+        "unit": "%",
+        "display_name": "Relative Humidity",
+    },
+    "surface_pressure": {
+        "description": "Surface pressure.",
+        "unit": "hPa",
+        "display_name": "Surface Pressure",
+    },
+    "datetime": {
+        "description": "Date and time of the weather observation (Local).",
+        "unit": "",
+        "display_name": "Date",
+    },
+}
+
+
+def weather_page(db: Database, launches_df: pd.DataFrame):
     """Display the weather page.
 
     Args:
         db (Database): Database instance.
-        df (pd.DataFrame): DataFrame containing the data."""
+        launches_df (pd.DataFrame): DataFrame containing the data."""
     st.header("Weather Summary")
     st.write("Weather summary will be displayed here.")
 
     if "weather_df" not in st.session_state:
         # Fetch weather data.
-        weather_df = get_weather_data(db, df)
+        try:
+            weather_df = get_weather_data(db, launches_df)
+            weather_df = calculate_cloud_base(weather_df)
+        except Exception as e:
+            st.error(f"Error fetching weather data: {e}")
+            return
 
         # Update the session state with the weather data.
         st.session_state.weather_df = weather_df
@@ -48,7 +114,8 @@ def weather_page(db: Database, df: pd.DataFrame):
                 "wind_direction_10m",
                 "wind_speed_10m",
                 "wind_gusts_10m",
-                "cloud_cover_low"
+                "cloud_base_ft",
+                "cloud_cover_low",
                 "precipitation",
                 "temperature_2m",
                 "dew_point_2m",
@@ -56,7 +123,7 @@ def weather_page(db: Database, df: pd.DataFrame):
                 "surface_pressure",
             ],
             column_config={
-                "datetime": st.column_config.DateColumn(
+                "datetime": st.column_config.DatetimeColumn(
                     "Date", format="DD MMM YY HH:mm (ddd)", pinned=True
                 ),
                 "temperature_2m": st.column_config.NumberColumn(
@@ -77,6 +144,9 @@ def weather_page(db: Database, df: pd.DataFrame):
                 "cloud_cover_low": st.column_config.NumberColumn(
                     "Low Cloud", format="%.0f %%"
                 ),
+                "cloud_base_ft": st.column_config.NumberColumn(
+                    "Cloud Base", format="%.0f ft"
+                ),
                 "wind_speed_10m": st.column_config.NumberColumn(
                     "Wind Speed", format="%.1f kts"
                 ),
@@ -89,11 +159,12 @@ def weather_page(db: Database, df: pd.DataFrame):
             }
         )
 
-        # TODO: Add a plot of the weather data.
-
-        # TODO: Compare the weather data with the flight data.
-
-        # TODO: Calculate and show cloud base and wind speed vs launches.
+        # Plot weather vs launches
+        st.subheader("Weather Impact on Flying")
+        plot_wind_vs_launches(st.session_state.weather_df, launches_df)
+        plot_weather_vs_flight_time(st.session_state.weather_df, launches_df)
+        plot_launch_vs_nonlaunch_weather(st.session_state.weather_df,
+                                         launches_df)
 
 
 def get_weather_data(db: Database, df: pd.DataFrame) -> pd.DataFrame:
@@ -115,12 +186,12 @@ def get_weather_data(db: Database, df: pd.DataFrame) -> pd.DataFrame:
     if weather_df.empty:
         missing_dates = dates
     else:
-        # TODO: Ensure this is working and not updating every time.
+        # Check if all dates are present in the weather data.
         missing_dates = [
-                date for date in dates
-                if date not in
-                weather_df["datetime"].dt.date.unique()
-            ]
+            date for date in dates
+            if date not in
+            weather_df["datetime"].dt.date.unique()
+        ]
 
     # Check all 24 hours of weather are present for each date.
     if not weather_df.empty:
@@ -167,6 +238,34 @@ def get_weather_data(db: Database, df: pd.DataFrame) -> pd.DataFrame:
             weather_df=weather_df,
             db=db,
         )
+    return weather_df
+
+
+def calculate_cloud_base(weather_df: pd.DataFrame) -> pd.DataFrame:
+    """Calculate cloud base from weather data.
+
+    Args:
+        weather_df (pd.DataFrame): DataFrame containing the weather data.
+
+    Returns:
+        pd.DataFrame: DataFrame with cloud base calculated."""
+    # Check if the required columns are present
+    cols_present = all(
+        col in weather_df.columns
+        for col in ["temperature_2m", "dew_point_2m"]
+    )
+    if not cols_present:
+        st.warning("Missing required columns for cloud base calculation.")
+        return weather_df
+
+    # Calculate cloud base using spread between temperature and dew point
+    # The formula is: spread * 400 feet per degree C
+    # (temperature - dew_point) * 400 gives cloud base in feet
+    spread = weather_df["temperature_2m"] - weather_df["dew_point_2m"]
+
+    # Round down to nearest 100 feet.
+    cloud_base = (spread * 400).apply(lambda x: int(x // 100) * 100)
+    weather_df["cloud_base_ft"] = cloud_base
     return weather_df
 
 
@@ -222,3 +321,202 @@ def get_api_weather_data(db: Database, dates: List[datetime.date]):
         st.warning("No weather data available for the selected dates.")
         return pd.DataFrame()
     return weather_df
+
+
+def plot_wind_vs_launches(weather_df, launches_df):
+    """Create a scatter plot showing correlation between wind speed
+    and number of launches.
+
+    Args:
+        weather_df (pd.DataFrame): Weather data
+        launches_df (pd.DataFrame): Launches data
+    """
+    # Filter by operating hours for each day.
+    START_HOUR = 9
+    END_HOUR = 17
+    weather_df = weather_df[
+        (weather_df['datetime'].dt.hour >= START_HOUR) &
+        (weather_df['datetime'].dt.hour < END_HOUR)
+    ]
+
+    # Aggregate launches by day
+    daily_launches = launches_df.groupby(
+        launches_df['Date'].dt.date
+    ).size().reset_index(name='Launches')
+
+    # Get average daily wind speed
+    daily_wind = weather_df.groupby(weather_df['datetime'].dt.date).agg({
+        'wind_speed_10m': 'mean',
+        'wind_gusts_10m': 'mean'
+    }).reset_index()
+
+    # Merge the data
+    merged_df = daily_launches.merge(
+        daily_wind,
+        left_on='Date',
+        right_on='datetime',
+        how='inner'
+    )
+
+    # Create a scatter plot with Altair
+    scatter = alt.Chart(merged_df).mark_circle(size=60).encode(
+        x=alt.X('wind_speed_10m:Q', title='Average Wind Speed (kts)'),
+        y=alt.Y('Launches:Q', title='Number of Launches'),
+        color=alt.Color('wind_gusts_10m:Q', title='Wind Gusts (kts)'),
+        tooltip=['datetime', 'Launches', 'wind_speed_10m', 'wind_gusts_10m']
+    ).properties(
+        title='Wind Speed vs Number of Launches',
+        width=600,
+        height=400
+    )
+
+    # Add a trend line
+    trend = scatter.transform_regression(
+        'wind_speed_10m', 'Launches'
+    ).mark_line(color='red')
+
+    # Display the chart
+    st.altair_chart(scatter + trend, use_container_width=True)
+
+
+def plot_weather_vs_flight_time(weather_df, launches_df):
+    """Create a scatter plot showing how weather affects flight duration.
+
+    Args:
+        weather_df (pd.DataFrame): Weather data
+        launches_df (pd.DataFrame): Launches data
+    """
+    # Filter by operating hours for each day.
+    START_HOUR = 9
+    END_HOUR = 17
+    weather_df = weather_df[
+        (weather_df['datetime'].dt.hour >= START_HOUR) &
+        (weather_df['datetime'].dt.hour < END_HOUR)
+    ]
+
+    # Get median flight and number of launches per day
+    daily_launches = launches_df.groupby(
+        launches_df['Date'].dt.date
+    ).agg({
+        'TakeOffTime': 'count',
+        'FlightTime': 'median',
+    }).reset_index().rename(
+        columns={'TakeOffTime': 'Launches', 'FlightTime': 'MedianFlightTime'},
+    )
+
+    # Get median daily weather conditions
+    daily_weather = weather_df.groupby(weather_df['datetime'].dt.date).agg({
+        'wind_speed_10m': 'median',
+        'wind_gusts_10m': 'median',
+        'wind_direction_10m': 'median',
+        'cloud_base_ft': 'median',
+        'cloud_cover_low': 'median',
+        'precipitation': 'sum',
+        'temperature_2m': 'median',
+        'relative_humidity_2m': 'median',
+        'surface_pressure': 'median',
+        'dew_point_2m': 'median',
+    }).reset_index()
+
+    # Merge the data
+    merged_df = daily_launches.merge(
+        daily_weather,
+        left_on='Date',
+        right_on='datetime',
+        how='inner'
+    )
+
+    # Select the weather metric to plot.
+    metric_options = list(weather_metadata.keys())
+    metric_display_names = [
+        weather_metadata[metric]['display_name']
+        for metric in metric_options
+    ]
+    metric_options.remove('datetime')
+    metric_display_name = st.selectbox(
+        'Select weather metric:', metric_display_names, index=0
+    )
+
+    # Lookup the selected metric in the metadata.
+    selected_metric = metric_options[
+        metric_display_names.index(metric_display_name)
+    ]
+
+    # Append unit to the display name.
+    unit = weather_metadata[selected_metric]['unit']
+    metric_display_name += f' ({unit})'
+
+    # Create a scatter plot with Altair
+    tooltips = [col for col in merged_df.columns if col != 'datetime']
+
+    # Set specific domain for surface pressure if that's the selected metric
+    x_encoding = alt.X(
+        f'{selected_metric}:Q',
+        title=metric_display_name
+    )
+
+    # Set domain range specifically for surface pressure
+    if selected_metric == 'surface_pressure':
+        x_encoding = alt.X(
+            f'{selected_metric}:Q',
+            title=metric_display_name,
+            scale=alt.Scale(domain=[950, 1050])
+        )
+
+    scatter = alt.Chart(merged_df).mark_circle().encode(
+        x=x_encoding,
+        y=alt.Y('Launches:Q', title='Number of Launches'),
+        size=alt.Size(
+            'MedianFlightTime:Q',
+            scale=alt.Scale(range=[20, 100]),
+            legend=alt.Legend(title="Median Flight Time (mins)")
+        ),
+        color=alt.Color('MedianFlightTime:Q'),
+        tooltip=tooltips
+    ).properties(
+        title=f'{metric_display_name} vs Number of Launches',
+        width=600,
+        height=400
+    )
+
+    # Add a trend line for number of launches
+    trend = scatter.transform_regression(
+        f'{selected_metric}', 'Launches'
+    ).mark_line(color='red')
+
+    # Display the chart
+    st.altair_chart(scatter + trend, use_container_width=True)
+
+
+def plot_launch_vs_nonlaunch_weather(weather_df, launches_df):
+    """Compare weather conditions on days with launches vs
+    days without launches.
+
+    Args:
+        weather_df (pd.DataFrame): Weather data
+        launches_df (pd.DataFrame): Launches data
+    """
+    # Filter by operating hours for each day.
+    START_HOUR = 9
+    END_HOUR = 17
+    weather_df = weather_df[
+        (weather_df['datetime'].dt.hour >= START_HOUR) &
+        (weather_df['datetime'].dt.hour < END_HOUR)
+    ]
+
+    # Get all weekends.
+    all_weekends = get_weekends(
+        start_date=launches_df['Date'].min(),
+        end_date=launches_df['Date'].max()
+    )
+
+    # Get dates with launches
+    launch_dates = set(launches_df['Date'].dt.date)
+
+    # Create a DataFrame indicating which days had launches
+    launch_indicator = pd.DataFrame({
+        'date': all_weekends,
+        'had_launches': [date in launch_dates for date in all_weekends]
+    })
+
+    pass
