@@ -34,40 +34,57 @@ def weather_page(db: Database, df: pd.DataFrame):
     if st.session_state.weather_df is not None:
         # Display the weather data in a table.
         st.subheader("Weather Data")
+
+        # Use the timezone from the data itself for display formatting
+        display_df = st.session_state.weather_df.copy()
+        display_df['datetime'] = display_df['datetime'].dt.tz_localize(None)
+
         st.dataframe(
-            st.session_state.weather_df,
+            display_df,
             use_container_width=True,
             hide_index=True,
+            column_order=[
+                "datetime",
+                "wind_direction_10m",
+                "wind_speed_10m",
+                "wind_gusts_10m",
+                "cloud_cover_low"
+                "precipitation",
+                "temperature_2m",
+                "dew_point_2m",
+                "relative_humidity_2m",
+                "surface_pressure",
+            ],
             column_config={
                 "datetime": st.column_config.DateColumn(
-                    "Date", format="DD MMM YY HH:mm (ddd)"
+                    "Date", format="DD MMM YY HH:mm (ddd)", pinned=True
                 ),
                 "temperature_2m": st.column_config.NumberColumn(
-                    "Temperature (°C)", format="%.1f"
+                    "Temperature", format="%.1f °C"
                 ),
                 "relative_humidity_2m": st.column_config.NumberColumn(
-                    "Relative Humidity (%)", format="%.1f"
+                    "Relative Humidity", format="%.1f %%"
                 ),
                 "dew_point_2m": st.column_config.NumberColumn(
-                    "Dew Point (°C)", format="%.1f"
+                    "Dew Point", format="%.1f °C"
                 ),
                 "precipitation": st.column_config.NumberColumn(
-                    "Precipitation (mm)", format="%.1f"
+                    "Precipitation", format="%.1f mm"
                 ),
                 "surface_pressure": st.column_config.NumberColumn(
-                    "Surface Pressure (hPa)", format="%.0f"
+                    "Surface Pressure", format="%.0f hPa"
                 ),
                 "cloud_cover_low": st.column_config.NumberColumn(
-                    "Cloud Cover Low (%)", format="%.0f"
+                    "Low Cloud", format="%.0f %%"
                 ),
                 "wind_speed_10m": st.column_config.NumberColumn(
-                    "Wind Speed (kn)", format="%.1f"
+                    "Wind Speed", format="%.1f kts"
                 ),
                 "wind_direction_10m": st.column_config.NumberColumn(
-                    "Wind Direction (°)", format="%.0f"
+                    "Wind Direction", format="%.0f °"
                 ),
                 "wind_gusts_10m": st.column_config.NumberColumn(
-                    "Wind Gusts (kn)", format="%.1f"
+                    "Wind Gusts", format="%.1f kts"
                 )
             }
         )

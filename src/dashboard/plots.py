@@ -712,7 +712,7 @@ def show_logo(logo_path: Path):
     st.logo(str(logo_path))
     _, centre, _ = st.columns(3)
     with centre:
-        st.image(str(logo_path), use_column_width="auto")
+        st.image(str(logo_path), use_container_width=True)
 
     # Show centred text.
     st.markdown(
