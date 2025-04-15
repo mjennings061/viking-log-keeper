@@ -59,44 +59,59 @@ class WeatherFetcher():
         response = responses[0]
 
         # Create hourly dataframe.
-        hourly = response.Hourly()
-        hourly_data = {
-            "date": pd.date_range(
-                start=pd.to_datetime(hourly.Time(), unit="s", utc=True),
-                end=pd.to_datetime(hourly.TimeEnd(), unit="s", utc=True),
-                freq=pd.Timedelta(seconds=hourly.Interval()),
-                inclusive="left"
-            )
-        }
-
-        # Extract hourly data.
-        for i, var in enumerate(self.hourly):
-            hourly_data[var] = hourly.Variables(i).ValuesAsNumpy()
-
-        # Convert to DataFrame.
-        self.hourly_df = pd.DataFrame(
-            data=hourly_data
-        ).rename(columns={"date": "datetime"}).set_index("datetime")
+        self.hourly_df = self._parse_data(response, "Hourly")
 
         # Create daily dataframe.
-        daily = response.Daily()
-        daily_data = {
+        self.daily_df = self._parse_data(response, "Daily")
+
+    def _parse_data(self, response, data_type: str):
+        """Parse weather data from the response.
+
+        Args:
+            response: API response object
+            data_type: Either 'Hourly' or 'Daily'
+
+        Returns:
+            DataFrame with parsed weather data
+        """
+        # Get data object based on type
+        data_obj = getattr(response, data_type)()
+
+        # Get variables list based on type (lowercase)
+        variables = getattr(self, data_type.lower())
+
+        # Create datetime range with proper timezone handling
+        time_start = pd.to_datetime(data_obj.Time(), unit="s", utc=True)
+        time_end = pd.to_datetime(data_obj.TimeEnd(), unit="s", utc=True)
+
+        # Convert to the specified timezone
+        time_start = time_start.tz_convert(self.timezone)
+        time_end = time_end.tz_convert(self.timezone)
+
+        # Create a date range
+        data = {
             "date": pd.date_range(
-                start=pd.to_datetime(daily.Time(), unit="s", utc=True),
-                end=pd.to_datetime(daily.TimeEnd(), unit="s", utc=True),
-                freq=pd.Timedelta(seconds=daily.Interval()),
+                start=time_start,
+                end=time_end,
+                freq=pd.Timedelta(seconds=data_obj.Interval()),
                 inclusive="left"
             )
         }
 
-        # Extract daily data.
-        for i, var in enumerate(self.daily):
-            daily_data[var] = daily.Variables(i).ValuesAsNumpy()
+        # Extract data variables
+        for i, var in enumerate(variables):
+            data[var] = data_obj.Variables(i).ValuesAsNumpy()
 
-        # Convert to DataFrame.
-        self.daily_df = pd.DataFrame(
-            data=daily_data
-        ).rename(columns={"date": "datetime"}).set_index("datetime")
+        # Convert to DataFrame
+        weather_df = pd.DataFrame(data).rename(
+            columns={"date": "datetime"}
+        ).sort_values(
+            by="datetime"
+        ).reset_index(drop=True)
+
+        # Remove nan values.
+        weather_df.dropna(inplace=True)
+        return weather_df
 
 
 if __name__ == "__main__":

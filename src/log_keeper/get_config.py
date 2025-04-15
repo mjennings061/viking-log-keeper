@@ -288,7 +288,12 @@ class Database:
             # Get the collection and convert it to a DataFrame.
             collection = self.get_weather_collection()
             df = pd.DataFrame(collection.find())
-            df = df.sort_values(by="Date", ascending=False)
+            # Make sure datetime is properly converted to timezone-aware format
+            df['datetime'] = pd.to_datetime(df['datetime'], utc=True)
+            # Convert to the local timezone
+            df['datetime'] = df['datetime'].dt.tz_convert('Europe/London')
+            df = df.sort_values(by="datetime")
+            df = df.drop(columns=["_id"], axis=1).reset_index(drop=True)
         except Exception:
             # Log error and return an empty DataFrame.
             logger.error("Could not fetch data from the collection.")

@@ -37,6 +37,7 @@ def weather_page(db: Database, df: pd.DataFrame):
         st.dataframe(
             st.session_state.weather_df,
             use_container_width=True,
+            hide_index=True,
             column_config={
                 "datetime": st.column_config.DateColumn(
                     "Date", format="DD MMM YY HH:mm (ddd)"
@@ -101,14 +102,14 @@ def get_weather_data(db: Database, df: pd.DataFrame) -> pd.DataFrame:
         missing_dates = [
                 date for date in dates
                 if date not in
-                weather_df["Date"].dt.date.unique()
+                weather_df["datetime"].dt.date.unique()
             ]
 
     # Check all 24 hours of weather are present for each date.
     if not weather_df.empty:
         dates_missing_hours = [
-            date for date in weather_df["Date"].dt.date.unique()
-            if len(weather_df[weather_df["Date"].dt.date == date]) != 24
+            date for date in dates
+            if len(weather_df[weather_df["datetime"].dt.date == date]) != 24
         ]
         if dates_missing_hours:
             logger.info(
@@ -127,8 +128,22 @@ def get_weather_data(db: Database, df: pd.DataFrame) -> pd.DataFrame:
             db=db,
             dates=missing_dates
         )
-        # Append the new data to the existing weather data.
-        weather_df = pd.concat([weather_df, missing_weather_df])
+
+        # Merge the new data with the existing weather data
+        if weather_df.empty:
+            weather_df = missing_weather_df
+        else:
+            # Concatenate and keep only the latest data for duplicates
+            weather_df = pd.concat([weather_df, missing_weather_df])
+            weather_df = weather_df.drop_duplicates(
+                subset=["datetime"],
+                keep="last"
+            )
+
+        # Sort by datetime in descending order
+        weather_df = weather_df.sort_values(
+            by="datetime",
+        ).reset_index(drop=True)
 
         # Save the new data to the database.
         weather_to_db(
@@ -170,7 +185,6 @@ def get_api_weather_data(db: Database, dates: List[datetime.date]):
         # Add a delay to avoid hitting the API too quickly.
         # This is important to avoid being blocked by the API.
         time.sleep(0.2)
-        weather_fetcher.hourly_df.dropna(inplace=True)
         if weather_fetcher.hourly_df.empty:
             st.warning(f"No weather data available for {date}.")
             continue
@@ -180,6 +194,14 @@ def get_api_weather_data(db: Database, dates: List[datetime.date]):
     if not weather_data:
         st.warning("No weather data available for the selected dates.")
         return pd.DataFrame()
-    weather_data = pd.concat(weather_data)
-    weather_data = weather_data.sort_index(ascending=False)
-    return weather_data
+
+    # Concatenate all DataFrames into a single DataFrame.
+    weather_df = pd.concat(weather_data)
+    weather_df = weather_df.sort_values(
+        by="datetime",
+    ).reset_index(drop=True)
+
+    if weather_df.empty:
+        st.warning("No weather data available for the selected dates.")
+        return pd.DataFrame()
+    return weather_df

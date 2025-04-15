@@ -276,17 +276,14 @@ def weather_to_db(weather_df: pd.DataFrame, db: Database):
     # Prepare bulk upsert operations
     bulk_operations = []
 
-    for index, row in weather_df.iterrows():
+    for _, row in weather_df.iterrows():
         # Convert row to dictionary
         doc = row.to_dict()
-
-        # Add the datetime index to the document
-        doc["datetime"] = index
 
         # Create query to find existing record
         # Use datetime for unique identification
         query = {
-            "datetime": index
+            "datetime": doc["datetime"],
         }
 
         # Create update operation
