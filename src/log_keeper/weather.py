@@ -13,8 +13,7 @@ from typing import Optional, List
 @dataclass
 class WeatherFetcher():
     """Fetch and process weather data."""
-    start_date: pd.Timestamp
-    end_date: pd.Timestamp
+    weather_date: pd.Timestamp
     latitude: float = 55.875599555800726  # Kirknewton.
     longitude: float = -3.401593692255116
     hourly: List[str] = field(default_factory=lambda: [
@@ -47,8 +46,8 @@ class WeatherFetcher():
         params = {
             "latitude": self.latitude,
             "longitude": self.longitude,
-            "start_date": self.start_date.strftime("%Y-%m-%d"),
-            "end_date": self.end_date.strftime("%Y-%m-%d"),
+            "start_date": self.weather_date.strftime("%Y-%m-%d"),
+            "end_date": self.weather_date.strftime("%Y-%m-%d"),
             "hourly": self.hourly,
             "daily": self.daily,
             "timezone": self.timezone,
@@ -84,9 +83,11 @@ class WeatherFetcher():
         # The API will return data for the entire date range, starting at
         # 00:00 local time on the start date and ending 23:00 local time on the
         # end date. The data is returned as local time.
-        time_start = pd.to_datetime(self.start_date).tz_localize(self.timezone)
+        time_start = pd.to_datetime(
+            self.weather_date
+        ).tz_localize(self.timezone)
         time_end = (
-            pd.to_datetime(self.end_date) +
+            pd.to_datetime(self.weather_date) +
             pd.Timedelta(days=1) - pd.Timedelta(seconds=1)
         ).tz_localize(self.timezone)
         interval = pd.Timedelta(seconds=data_obj.Interval())
@@ -107,8 +108,9 @@ class WeatherFetcher():
             data[var] = data_obj.Variables(i).ValuesAsNumpy()
 
             # Ensure data[var] is an array
-            if np.isscalar(data[var]) or not isinstance(data[var], np.ndarray):
+            if not isinstance(data[var], np.ndarray) and data_type == "Daily":
                 data[var] = np.array([data[var]])
+                continue
 
             # Handle cases where a time is missing e.g. BST change.
             if len(timestamps) < len(data[var]):
@@ -130,10 +132,8 @@ class WeatherFetcher():
 if __name__ == "__main__":
     # Test the WeatherFetcher class.
     start_date = pd.Timestamp(2025, 2, 22)
-    end_date = pd.Timestamp(2025, 2, 23)
     weather_fetcher = WeatherFetcher(
-        start_date=start_date,
-        end_date=end_date
+        weather_date=start_date
     )
     # Print the first few rows of the hourly and daily dataframes.
     print(weather_fetcher.hourly_df.head())

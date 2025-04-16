@@ -84,7 +84,7 @@ def weather_page(db: Database, launches_df: pd.DataFrame):
     st.header("Weather Summary")
 
     # Get the weather data from the database or API.
-    with st.status("Fetching weather data...") as status:
+    with st.status("Fetching weather data...", expanded=True) as status:
         try:
             # Generate a hash of the unique dates in launches_df to
             # use as cache key
@@ -197,6 +197,20 @@ def weather_page(db: Database, launches_df: pd.DataFrame):
             selected_metric
         )
 
+    # Add a button to clear the cache
+    st.divider()
+    col_clear, col_info = st.columns([1, 3])
+
+    with col_clear:
+        if st.button("Clear Weather Cache"):
+            st.cache_data.clear()
+            st.success("Weather data cache cleared! New data will be fetched.")
+
+    with col_info:
+        st.info(
+            "Clear the cache to fetch the latest weather data from the API."
+        )
+
 
 @st.cache_data(ttl="1h", show_spinner=False)
 def get_cached_weather_data(
@@ -243,6 +257,7 @@ def get_weather_data(db: Database, df: pd.DataFrame) -> pd.DataFrame:
 
     # Get weather data from the database.
     logger.info("Fetching weather data from the database.")
+    st.write("Fetching weather data from the database...")
     weather_df = db.get_weather_dataframe()
 
     # Check if all dates are present in the weather data.
@@ -302,10 +317,16 @@ def get_weather_data(db: Database, df: pd.DataFrame) -> pd.DataFrame:
         ).reset_index(drop=True)
 
         # Save the new data to the database.
+        st.write("Saving weather data to the database...")
         weather_to_db(
             weather_df=weather_df,
             db=db,
         )
+        st.toast(
+            "Weather data saved to the database.",
+            icon="✅",
+        )
+        st.write("Weather data saved to the database.")
 
     # Filter the weather data to only include the dates for launches.
     weather_df = weather_df[
@@ -381,8 +402,7 @@ def get_api_weather_data(db: Database, dates: List[datetime.date]):
         weather_fetcher = WeatherFetcher(
             latitude=latitude,
             longitude=longitude,
-            start_date=date,
-            end_date=date
+            weather_date=date
         )
         # Add a delay to avoid hitting the API too quickly.
         # This is important to avoid being blocked by the API.
