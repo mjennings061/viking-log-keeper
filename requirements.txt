@@ -8,6 +8,7 @@ pandas~=2.2.0
 protobuf~=5.27.0
 pymongo[srv]~=4.7.0
 requests-cache~=1.2.1
+retry-requests~=2.0.0
 streamlit~=1.44.0
 tqdm~=4.66.0
 xlsxwriter~=3.2.0
