@@ -2,6 +2,7 @@ extra-streamlit-components~=0.1.80
 inquirer~=3.4.0
 keyring~=25.3.0
 matplotlib~=3.10.1
+openmeteo-requests~=1.4.0
 openpyxl~=3.1.0
 pandas~=2.2.0
 protobuf~=5.27.0
