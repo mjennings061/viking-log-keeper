@@ -511,12 +511,6 @@ class LogSheetConfig:
         return df
 
 
-@dataclass
-class WeatherStore:
-    """Store the weather data into MongoDB."""
-    # TODO: Implement this class to store the weather data into MongoDB.
-
-
 def update_log_sheets_dir_wrapper():
     """Wrapper function to update the log sheets directory."""
     config = LogSheetConfig()

@@ -4,6 +4,7 @@
 import openmeteo_requests
 import requests_cache
 import pandas as pd
+import numpy as np
 from retry_requests import retry
 from dataclasses import dataclass, field
 from typing import Optional, List
@@ -80,22 +81,42 @@ class WeatherFetcher():
         # Get variables list based on type (lowercase)
         variables = getattr(self, data_type.lower())
 
-        # Create datetime range with proper timezone handling
-        time_start = pd.to_datetime(data_obj.Time(), unit="s", utc=True)
-        time_end = pd.to_datetime(data_obj.TimeEnd(), unit="s", utc=True)
+        # The API will return data for the entire date range, starting at
+        # 00:00 local time on the start date and ending 23:00 local time on the
+        # end date. The data is returned as local time.
+        time_start = pd.to_datetime(self.start_date).tz_localize(self.timezone)
+        time_end = (
+            pd.to_datetime(self.end_date) +
+            pd.Timedelta(days=1) - pd.Timedelta(seconds=1)
+        ).tz_localize(self.timezone)
+        interval = pd.Timedelta(seconds=data_obj.Interval())
 
-        # Convert to the specified timezone
-        time_start = time_start.tz_convert(self.timezone)
-        time_end = time_end.tz_convert(self.timezone)
+        # Create a date range.
+        timestamps = pd.date_range(
+            start=time_start,
+            end=time_end,
+            freq=interval,
+            inclusive="left"
+        )
 
-        timestamps = pd.to_datetime(
-            data_obj.Time(), unit="s", utc=True
-        ).tz_convert(self.timezone)
+        # Create a dictionary to hold the data.
         data = {"date": timestamps}
 
         # Extract data variables
         for i, var in enumerate(variables):
             data[var] = data_obj.Variables(i).ValuesAsNumpy()
+
+            # Ensure data[var] is an array
+            if np.isscalar(data[var]) or not isinstance(data[var], np.ndarray):
+                data[var] = np.array([data[var]])
+
+            # Handle cases where a time is missing e.g. BST change.
+            if len(timestamps) < len(data[var]):
+                # Spring forward, an hour should be removed from second hour.
+                data[var] = np.delete(data[var], 1)
+            elif len(timestamps) > len(data[var]):
+                # Fall back, an hour should be added to second hour.
+                data[var] = np.insert(data[var], 1, np.nan)
 
         # Convert to DataFrame
         weather_df = pd.DataFrame(data).rename(

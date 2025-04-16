@@ -82,27 +82,47 @@ def weather_page(db: Database, launches_df: pd.DataFrame):
         db (Database): Database instance.
         launches_df (pd.DataFrame): DataFrame containing the data."""
     st.header("Weather Summary")
-    st.write("Weather summary will be displayed here.")
 
-    if "weather_df" not in st.session_state:
-        # Fetch weather data.
+    # Get the weather data from the database or API.
+    with st.status("Fetching weather data...") as status:
         try:
-            weather_df = get_weather_data(db, launches_df)
+            # Generate a hash of the unique dates in launches_df to
+            # use as cache key
+            launches_dates = tuple(
+                sorted(launches_df["Date"].dt.date.unique().tolist())
+            )
+
+            # Use the cached function with launches dataframe attributes
+            # This will trigger cache update when dates change.
+            weather_df = get_cached_weather_data(
+                _db=db,
+                launches_df_hash=launches_dates,
+            )
+
+            # Calculate cloud base from weather data.
             weather_df = calculate_cloud_base(weather_df)
+            status.update(
+                label="Weather data fetched successfully.",
+                expanded=False,
+                state="complete"
+            )
+            logger.info("Weather data fetched successfully.")
         except Exception as e:
+            status.update(
+                label="Error fetching weather data.",
+                expanded=True,
+                state="error"
+            )
             st.error(f"Error fetching weather data: {e}")
             return
 
-        # Update the session state with the weather data.
-        st.session_state.weather_df = weather_df
-
     # Display the weather data.
-    if st.session_state.weather_df is not None:
+    if weather_df is not None:
         # Display the weather data in a table.
         st.subheader("Weather Data")
 
         # Use the timezone from the data itself for display formatting
-        display_df = st.session_state.weather_df.copy()
+        display_df = weather_df.copy()
         display_df['datetime'] = display_df['datetime'].dt.tz_localize(None)
 
         st.dataframe(
@@ -159,25 +179,47 @@ def weather_page(db: Database, launches_df: pd.DataFrame):
             }
         )
 
-        # TODO: Why are there no values plotted for 2024?
-        # TODO: Why only 71 values pulled from the API for 2024.
         # Plot weather vs launches
         st.subheader("Wind Impact on Flying")
-        plot_wind_vs_launches(st.session_state.weather_df, launches_df)
+        plot_wind_vs_launches(weather_df, launches_df)
 
         st.subheader("Weather Impact on Flight Time")
         selected_metric = select_metric_to_plot()
         plot_weather_vs_flight_time(
-            st.session_state.weather_df,
+            weather_df,
             launches_df,
             selected_metric
         )
         st.subheader("Weather on Launch vs Non-Launch Days")
         plot_launch_vs_nonlaunch_weather(
-            st.session_state.weather_df,
+            weather_df,
             launches_df,
             selected_metric
         )
+
+
+@st.cache_data(ttl="1h", show_spinner=False)
+def get_cached_weather_data(
+    _db: Database,  # Not hashed.
+    launches_df_hash: str,
+) -> pd.DataFrame:
+    """Cached wrapper for get_weather_data that updates only
+    when launches_df changes.
+
+    Args:
+        _db (Database): Database instance
+        launches_df_hash: Hash value representing the launches dataframe
+
+    Returns:
+        Weather dataframe
+    """
+    # Create a dummy dataframe with the date range
+    dummy_df = pd.DataFrame({
+        "Date": list(pd.to_datetime(launches_df_hash))
+    })
+
+    # Get weather data
+    return get_weather_data(_db, dummy_df)
 
 
 def get_weather_data(db: Database, df: pd.DataFrame) -> pd.DataFrame:
@@ -191,6 +233,14 @@ def get_weather_data(db: Database, df: pd.DataFrame) -> pd.DataFrame:
     # Get the all dates from the DataFrame.
     dates = df["Date"].dt.date.unique().tolist()
 
+    # Get all weekends and add any missing weekends to the dates.
+    all_weekends = get_weekends(
+        start_date=df["Date"].min(),
+        end_date=df["Date"].max()
+    )
+    dates.extend(all_weekends)
+    dates = sorted(set(dates))
+
     # Get weather data from the database.
     logger.info("Fetching weather data from the database.")
     weather_df = db.get_weather_dataframe()
@@ -200,22 +250,25 @@ def get_weather_data(db: Database, df: pd.DataFrame) -> pd.DataFrame:
         missing_dates = dates
     else:
         # Check if all dates are present in the weather data.
-        missing_dates = [
-            date for date in dates
-            if date not in
-            weather_df["datetime"].dt.date.unique()
-        ]
+        missing_dates = list(
+            set(dates) - set(weather_df["datetime"].dt.date.unique())
+        )
 
     # Check all 24 hours of weather are present for each date.
     if not weather_df.empty:
-        dates_missing_hours = [
-            date for date in dates
-            if len(weather_df[weather_df["datetime"].dt.date == date]) != 24
-            and date not in missing_dates
-        ]
+        # Create a set of dates with incomplete hourly data
+        date_hour_counts = weather_df.groupby(
+            weather_df["datetime"].dt.date
+        ).size()
+        dates_missing_hours = set(
+            date for date, count in date_hour_counts.items()
+            if count < 22 and date in dates
+        )
+        # Remove dates that are already in missing_dates to avoid duplicates
+        dates_missing_hours = dates_missing_hours - set(missing_dates)
         if dates_missing_hours:
             # Get the missing dates from the API.
-            logger.info(
+            logger.debug(
                 "Missing hours for the following dates: \n"
                 f"{dates_missing_hours.__str__()}")
             missing_dates.extend(dates_missing_hours)
@@ -223,9 +276,10 @@ def get_weather_data(db: Database, df: pd.DataFrame) -> pd.DataFrame:
     # If there are missing dates, fetch the weather data from the API.
     if missing_dates:
         # Get the missing dates from the API.
-        logger.info(
+        logger.debug(
             "Fetching missing weather data for dates: \n"
             f"{missing_dates.__str__()}")
+        logger.info(f"Fetching weather data for {len(missing_dates)} dates.")
         missing_weather_df = get_api_weather_data(
             db=db,
             dates=missing_dates
@@ -252,6 +306,11 @@ def get_weather_data(db: Database, df: pd.DataFrame) -> pd.DataFrame:
             weather_df=weather_df,
             db=db,
         )
+
+    # Filter the weather data to only include the dates for launches.
+    weather_df = weather_df[
+        weather_df["datetime"].dt.date.isin(dates)
+    ]
     return weather_df
 
 
@@ -338,6 +397,7 @@ def get_api_weather_data(db: Database, dates: List[datetime.date]):
     status_text.text("Weather data fetching complete!")
     time.sleep(0.5)
     status_text.empty()
+    progress_bar.empty()
 
     # Concatenate all DataFrames into a single DataFrame.
     if not weather_data:
@@ -548,10 +608,9 @@ def plot_launch_vs_nonlaunch_weather(weather_df, launches_df,
     )
 
     # Place 0 for weekends with no launches while retaining midweek launches
-    missing_weekends = [
-        date for date in all_weekends
-        if date not in daily_launches['Date'].values
-    ]
+    weekend_dates_set = set(all_weekends)
+    launch_dates_set = set(daily_launches['Date'])
+    missing_weekends = list(weekend_dates_set - launch_dates_set)
 
     if missing_weekends:
         missing_df = pd.DataFrame({
@@ -610,6 +669,7 @@ def plot_launch_vs_nonlaunch_weather(weather_df, launches_df,
 
     # Get the display name for the selected metric
     metric_display_name = weather_metadata[selected_metric]['display_name']
+    metric_unit = weather_metadata[selected_metric]['unit']
 
     # Create a DataFrame for plotting
     plot_data = pd.DataFrame({
@@ -620,9 +680,22 @@ def plot_launch_vs_nonlaunch_weather(weather_df, launches_df,
         )
     })
 
+    # Set specific domain for surface pressure if that's the selected metric
+    x_encoding = alt.X(
+        'Value:Q',
+        title=metric_display_name,
+    )
+
+    # Set domain range specifically for surface pressure
+    if selected_metric == 'surface_pressure':
+        x_encoding = alt.X(
+            'Value:Q',
+            title=f"{metric_display_name} ({metric_unit})",
+            scale=alt.Scale(domain=[950, 1050])
+        )
+
     # Create a box plot comparing the metric between days with and
     # low launches
-    metric_unit = weather_metadata[selected_metric]['unit']
     chart = alt.Chart(plot_data).mark_boxplot(
         extent='min-max',
         ticks=True,
@@ -632,10 +705,7 @@ def plot_launch_vs_nonlaunch_weather(weather_df, launches_df,
         outliers={'color': 'red'},
     ).encode(
         y=alt.Y('Flying Day:N', title=None),
-        x=alt.X(
-            'Value:Q',
-            title=f"{metric_display_name} ({metric_unit})"
-        ),
+        x=x_encoding,
         color=alt.Color('Flying Day:N', legend=None)
     ).properties(
         title=f"Comparison of {metric_display_name} on Launch vs "
