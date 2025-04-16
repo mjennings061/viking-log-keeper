@@ -80,6 +80,41 @@ def get_aircraft_for_dashboard(db: Database) -> pd.DataFrame:
         st.error("No aircraft data found in the database, using dummy data.")
     return st.session_state['aircraft_df']
 
+def get_personal_df(filtered_df: pd.DataFrame, client: Client) -> pd.DataFrame:
+    """Combine launches from CGS if any 661vgs Aircraft Commanders appear in CGS data."""
+
+    if filtered_df.empty:
+        return filtered_df
+
+    #Extract all unique AircraftCommanders from VGS data
+    df = st.session_state['df']
+    ac_names = (
+        df["AircraftCommander"]
+        .unique()
+    )
+
+    if "cgs" in client.available_databases:
+        try:
+            cgs_db = Database(client, "cgs")
+            cgs_df = cgs_db.get_launches_dataframe()
+
+            #Filter CGS where either role matches any AircraftCommander
+            cgs_user_df = cgs_df[
+                cgs_df["AircraftCommander"].isin(ac_names) |
+                cgs_df["SecondPilot"].isin(ac_names)
+            ]
+
+            # ✅ Debug outputs here
+            st.write("Matching names from 661:", ac_names)
+            st.write("CGS matches found:", len(cgs_user_df))
+
+            if not cgs_user_df.empty:
+                return pd.concat([filtered_df, cgs_user_df], ignore_index=True)
+        except Exception as e:
+            st.error("Failed to pull or filter CGS launches.")
+            st.exception(e)
+
+    return filtered_df
 
 def refresh_data():
     """Refresh the data in the session state."""
@@ -141,8 +176,11 @@ def show_data_dashboard(db: Database):
         key="filter_quarter"
     )
 
-    # Add a date filter to the sidebar.
-    filtered_df = date_filter(df)
+    # Add a date filter to the sidebar (this will apply to both DataFrames)
+    filtered_df = date_filter(df, key="main_filter")
+
+    # Combine CGS launches if the user flew there, then apply the same filter
+    personal_df = get_personal_df(filtered_df, st.session_state["client"])
 
     match page:
         case "📈 Statistics":
@@ -170,11 +208,11 @@ def show_data_dashboard(db: Database):
             plot_gif_bar_chart(filtered_df)
 
             # Logbook helper by AircraftCommander.
-            show_logbook_helper(filtered_df, commander)
+            show_logbook_helper(personal_df, commander)
 
             # Filter the data by the selected quarter.
             if quarter and commander:
-                quarterly_summary(df, commander, quarter)
+                quarterly_summary(personal_df, commander, quarter)
 
         case "🌍 All Data":
             # Plot all launches. Filter by AircraftCommander and date if
@@ -309,6 +347,9 @@ def choose_db(client: Client) -> Database:
     # If more than one database is available, display a select box.
     if all(db == client.db_user.username for db in client.available_databases):
         # Use the default database.
+        st.session_state["db_name"] = client.default_database
+        set_db()
+    elif set(client.available_databases) == {client.db_user.username, "cgs"}:
         st.session_state["db_name"] = client.default_database
         set_db()
     else:

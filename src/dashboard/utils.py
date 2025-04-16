@@ -283,7 +283,7 @@ def format_minutes_to_HHHH_mm(minutes):
     return formatted
 
 
-def date_filter(df: pd.DataFrame) -> pd.DataFrame:
+def date_filter(df: pd.DataFrame, key: str = "date_filter"):
     """Filter the data by date or financial year.
 
     Args:
@@ -309,6 +309,7 @@ def date_filter(df: pd.DataFrame) -> pd.DataFrame:
     )
 
     # Option to filter by date or financial year.
+    # Sidebar radio button with a unique key
     filter_option = st.sidebar.radio(
         "Filter by:",
         options=[
@@ -316,7 +317,8 @@ def date_filter(df: pd.DataFrame) -> pd.DataFrame:
             "Last 12 Months"
         ],
         index=0,
-        help="Select the filter option"
+        help="Select the filter option",
+        key=f"{key}_filter_radio"  # 👈 unique key per use
     )
 
     if filter_option == "Date Range":
@@ -327,6 +329,7 @@ def date_filter(df: pd.DataFrame) -> pd.DataFrame:
             min_value=min_date,
             max_value=max_date,
             help="Select the date range",
+            key=f"{key}_date_range"  # 👈 unique key per use
         )
 
         # Convert the date to a pandas datetime object.
@@ -356,6 +359,7 @@ def date_filter(df: pd.DataFrame) -> pd.DataFrame:
             "Select Financial Year",
             financial_years,
             index=financial_years.index(financial_year),
+            key=f"{key}_financial_year",  # 👈 unique key per use
             help="Select the financial year to filter by."
         )
 
