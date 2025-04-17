@@ -93,6 +93,13 @@ def get_personal_df(filtered_df: pd.DataFrame, client: Client) -> pd.DataFrame:
         .unique()
     )
 
+    # ✅ Initialize if not already set
+    if "cgs_match_count" not in st.session_state:
+        st.session_state["cgs_match_count"] = {}
+
+    # Reset CGS match count
+    st.session_state["cgs_match_count"].clear()
+
     if "cgs" in client.available_databases:
         try:
             cgs_db = Database(client, "cgs")
@@ -104,9 +111,13 @@ def get_personal_df(filtered_df: pd.DataFrame, client: Client) -> pd.DataFrame:
                 cgs_df["SecondPilot"].isin(ac_names)
             ]
 
-            # ✅ Debug outputs here
-            st.write("Matching names from 661:", ac_names)
-            st.write("CGS matches found:", len(cgs_user_df))
+            # Count matches per name
+            for name in ac_names:
+                count = cgs_user_df[
+                    (cgs_user_df["AircraftCommander"] == name) |
+                    (cgs_user_df["SecondPilot"] == name)
+                ].shape[0]
+                st.session_state["cgs_match_count"][name] = count
 
             if not cgs_user_df.empty:
                 return pd.concat([filtered_df, cgs_user_df], ignore_index=True)
@@ -209,6 +220,15 @@ def show_data_dashboard(db: Database):
 
             # Logbook helper by AircraftCommander.
             show_logbook_helper(personal_df, commander)
+            # Show CGS match info if applicable
+            if (
+                commander
+                and "cgs_match_count" in st.session_state
+                and commander in st.session_state["cgs_match_count"]
+            ):
+                match_count = st.session_state["cgs_match_count"][commander]
+                if match_count > 0:
+                    st.info(f"CGS launches for {commander}: {match_count}")
 
             # Filter the data by the selected quarter.
             if quarter and commander:
