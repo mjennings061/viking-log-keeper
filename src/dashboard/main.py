@@ -107,7 +107,7 @@ def get_personal_df(filtered_df: pd.DataFrame, client: Client) -> pd.DataFrame:
             cgs_db = Database(client, "cgs")
             cgs_df = cgs_db.get_launches_dataframe()
 
-            #Filter CGS where either role matches any AircraftCommander
+            # Filter CGS where either role matches any AircraftCommander
             cgs_user_df = cgs_df[
                 cgs_df["AircraftCommander"].isin(ac_names) |
                 cgs_df["SecondPilot"].isin(ac_names)
