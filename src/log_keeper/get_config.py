@@ -2,7 +2,6 @@
 
 # Get packages.
 import inquirer
-import logging
 import random
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -15,9 +14,8 @@ from pymongo.collection import Collection
 import keyring as kr
 import pandas as pd
 
-
-# Set up logging.
-logger = logging.getLogger(__name__)
+# User defined modules.
+from dashboard import logger
 
 
 @dataclass
@@ -76,7 +74,7 @@ class Client(MongoClient):
             # Try to ping the database.
             self.admin.command('ping')
             self._authenticated = True
-            logging.info("Logged in to DB.")
+            logger.info("Logged in to DB.")
             # Retrieve the list of databases.
             self._available_databases = self._get_readable_databases()
             # Set the default database.
@@ -84,7 +82,7 @@ class Client(MongoClient):
             return True
         except OperationFailure:
             self._authenticated = False
-            logging.error("Could not log in to DB.")
+            logger.error("Could not log in to DB.")
             return False
 
     def authenticated(self):
@@ -106,10 +104,10 @@ class Client(MongoClient):
             databases = [
                 db for db in databases if db not in ["admin", "local"]
             ]
-            logging.info("User can access: %s", databases)
+            logger.info("User can access: %s", databases)
             return databases
         except OperationFailure:
-            logging.error("Could not get readable databases.")
+            logger.error("Could not get readable databases.")
             return []
 
     def _set_default_database(self):
@@ -117,7 +115,7 @@ class Client(MongoClient):
         DEFAULT_DB = "test"
         # Check if the user is authenticated.
         if not self.authenticated():
-            logging.error("User is not authenticated.")
+            logger.error("User is not authenticated.")
             self._default_database = DEFAULT_DB
             return
 
@@ -135,7 +133,7 @@ class Client(MongoClient):
         Returns:
             list: The available databases."""
         if not self.authenticated():
-            logging.error("User is not authenticated.")
+            logger.error("User is not authenticated.")
             return []
         return self._available_databases
 
@@ -146,7 +144,7 @@ class Client(MongoClient):
         Returns:
             str: The default database."""
         if not self.authenticated():
-            logging.error("User is not authenticated.")
+            logger.error("User is not authenticated.")
             return "test"
         return self._default_database
 
@@ -154,9 +152,11 @@ class Client(MongoClient):
 class Database:
     """MongoDB database class to connect to a database."""
     def __init__(self, client: Client, database_name: str):
-        # Set launches collection.
+        # Set collection names.
+        self.info_collection = "info"
         self.launches_collection = "log_sheets"
         self.aircraft_info_collection = "aircraft"
+        self.weather_collection = "weather"
         # Validate client.
         if not client.authenticated():
             raise ConnectionError("Could not log in to the database.")
@@ -174,7 +174,7 @@ class Database:
         try:
             self.db = client[self.database_name]
         except Exception:
-            logging.error("Could not connect to the database.")
+            logger.error("Could not connect to the database.")
             raise ConnectionError("Could not connect to the database.")
 
     def get_collection(self, collection_name: str):
@@ -191,7 +191,7 @@ class Database:
 
         # Check if the collection exists.
         if collection_name not in self.db.list_collection_names():
-            logging.error("Collection does not exist.")
+            logger.error("Collection does not exist.")
             raise ValueError("Collection does not exist.")
 
         # Get the collection.
@@ -199,8 +199,8 @@ class Database:
 
         # Check if the collection has data.
         if collection.count_documents({}) == 0:
-            logging.warning("Collection is empty.")
-        logging.info("Collection %s fetched.", collection_name)
+            logger.warning("Collection is empty.")
+        logger.info("Collection %s fetched.", collection_name)
         return collection
 
     def get_launches_collection(self) -> Collection:
@@ -222,7 +222,29 @@ class Database:
             df = df.sort_values(by="Date", ascending=False)
         except Exception:  # pylint: disable=broad-except
             # Log error and return an empty DataFrame.
-            logging.error("Could not fetch data from the collection.")
+            logger.error("Could not fetch data from the collection.")
+            df = pd.DataFrame()
+        return df
+
+    def get_info_collection(self) -> Collection:
+        """Get the info collection from the database.
+
+        Returns:
+            pymongo.collection.Collection: The VGS info collection."""
+        return self.get_collection(self.info_collection)
+
+    def get_info(self) -> pd.DataFrame:
+        """Get the VGS information as a dictionary.
+
+        Returns:
+            pd.DataFrame: The VGS information as a dataframe."""
+        try:
+            # Get the collection and convert it to a DataFrame.
+            collection = self.get_info_collection()
+            df = pd.DataFrame(collection.find())
+        except Exception:
+            # Log error and return an empty DataFrame.
+            logger.error("Could not fetch data from the info collection.")
             df = pd.DataFrame()
         return df
 
@@ -246,7 +268,35 @@ class Database:
             df = df.sort_values(by="Date", ascending=False)
         except Exception:  # pylint: disable=broad-except
             # Log error and return an empty DataFrame.
-            logging.error("Could not fetch data from aircraft collection.")
+            logger.error("Could not fetch data from aircraft collection.")
+            df = pd.DataFrame()
+        return df
+
+    def get_weather_collection(self) -> Collection:
+        """Get the weather collection from the database.
+
+        Returns:
+            pymongo.collection.Collection: The weather collection."""
+        return self.get_collection(self.weather_collection)
+
+    def get_weather_dataframe(self) -> pd.DataFrame:
+        """Get the weather collection as a DataFrame.
+
+        Returns:
+            pandas.DataFrame: The weather collection as a DataFrame."""
+        try:
+            # Get the collection and convert it to a DataFrame.
+            collection = self.get_weather_collection()
+            df = pd.DataFrame(collection.find())
+            # Make sure datetime is properly converted to timezone-aware format
+            df['datetime'] = pd.to_datetime(df['datetime'], utc=True)
+            # Convert to the local timezone
+            df['datetime'] = df['datetime'].dt.tz_convert('Europe/London')
+            df = df.sort_values(by="datetime")
+            df = df.drop(columns=["_id"], axis=1).reset_index(drop=True)
+        except Exception:
+            # Log error and return an empty DataFrame.
+            logger.error("Could not fetch data from the collection.")
             df = pd.DataFrame()
         return df
 
@@ -421,7 +471,7 @@ class LogSheetConfig:
     def update_log_sheets_dir(self):
         """Update the log sheets directory."""
         # Get the log sheets directory using CLI.
-        logging.info("Updating log sheets directory.")
+        logger.info("Updating log sheets directory.")
         questions = [
             inquirer.Text(
                 "log_sheets_dir",
@@ -456,7 +506,7 @@ class LogSheetConfig:
             df = pd.DataFrame(collection.find())
 
         except Exception:  # pylint: disable=broad-except
-            logging.error("Could not fetch data from MongoDB.", exc_info=True)
+            logger.error("Could not fetch data from MongoDB.", exc_info=True)
             df = pd.DataFrame()
         return df
 

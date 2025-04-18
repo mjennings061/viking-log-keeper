@@ -4,17 +4,14 @@ This file handles outputting the master log to excel and MongoDB Atlas.
 """
 
 # Standard library imports.
-import logging
 from pathlib import Path
 import pandas as pd
 from datetime import datetime
-from pymongo import DeleteMany
+from pymongo import DeleteMany, UpdateOne
 
 # User defined modules.
+from log_keeper import logger
 from log_keeper.get_config import Database
-
-# Get the logger instance.
-logger = logging.getLogger(__name__)
 
 
 def launches_to_excel(launches_df, output_file_path):
@@ -171,14 +168,14 @@ def update_launches_collection(launches_df, db: Database):
 
     # Delete the records if they exist.
     if delete_ops:
-        logging.info("Deleting %.0f launches from %.0f days/aircraft.",
-                     deleted_launches, len(delete_ops))
+        logger.info("Deleting %.0f launches from %.0f days/aircraft.",
+                    deleted_launches, len(delete_ops))
         collection.bulk_write(delete_ops)
 
     # Step 2: Insert all the records.
     documents = launches_df.to_dict('records')
-    logging.info("Inserting %.0f launches from %.0f days/aircraft.",
-                 len(documents), len(grouped))
+    logger.info("Inserting %.0f launches from %.0f days/aircraft.",
+                len(documents), len(grouped))
     collection.insert_many(documents)
 
 
@@ -252,10 +249,58 @@ def update_aircraft_info(aircraft_info: pd.DataFrame, db: Database):
 
     # Delete the records if they exist.
     if delete_ops:
-        logging.info("Deleting %.0f aircraft info records.", deleted_aircraft)
+        logger.info("Deleting %.0f aircraft info records.", deleted_aircraft)
         collection.bulk_write(delete_ops)
 
     # Step 2: Insert all the records.
     documents = aircraft_info.to_dict('records')
-    logging.info("Inserting %.0f aircraft info records.", len(documents))
+    logger.info("Inserting %.0f aircraft info records.", len(documents))
     collection.insert_many(documents)
+
+
+def weather_to_db(weather_df: pd.DataFrame, db: Database):
+    """Update or insert weather data in MongoDB.
+
+    Args:
+        weather_df (pd.DataFrame): The weather dataframe.
+        db (Database): The log sheet DB configuration.
+    """
+    # Validate the dataframe is not empty.
+    if weather_df.empty:
+        logger.warning("Empty dataframe. Nothing to update.")
+        return
+
+    # Connect to the DB.
+    collection = db.get_weather_collection()
+
+    # Prepare bulk upsert operations
+    bulk_operations = []
+
+    for _, row in weather_df.iterrows():
+        # Convert row to dictionary
+        doc = row.to_dict()
+
+        # Create query to find existing record
+        # Use datetime for unique identification
+        query = {
+            "datetime": doc["datetime"],
+        }
+
+        # Create update operation
+        bulk_operations.append(
+            UpdateOne(
+                query,
+                {"$set": doc},
+                upsert=True
+            )
+        )
+
+    # Execute bulk operations
+    if bulk_operations:
+        result = collection.bulk_write(bulk_operations)
+        logger.info(
+            "Weather data updated: %d records modified, %d records upserted.",
+            result.modified_count, result.upserted_count
+        )
+    else:
+        logger.info("No weather data to update.")

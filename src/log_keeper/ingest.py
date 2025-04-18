@@ -4,14 +4,13 @@ This file handles log sheet extraction and sanitisation.
 """
 
 # Get packages.
-import logging
 from pathlib import Path
 from typing import Tuple, Union
 import pandas as pd
 from tqdm import tqdm
 
-# Get the logger instance.
-logger = logging.getLogger(__name__)
+# User defined modules.
+from log_keeper import logger
 
 
 def ingest_log_sheet(file_path: str) -> pd.DataFrame:
@@ -109,7 +108,7 @@ def parse_hours_after(s):
     Returns:
         int: The total minutes."""
     if pd.isna(s):
-        logging.warning("Hours after is NaT.")
+        logger.warning("Hours after is NaT.")
         return pd.NA
     try:
         total_minutes = s.days * 24 * 60 + s.seconds // 60
@@ -117,7 +116,7 @@ def parse_hours_after(s):
     except (ValueError, AttributeError):
         # Handle cases where the format is incorrect or the value
         # is not a string.
-        logging.warning("Invalid hours after format: %s", s)
+        logger.warning("Invalid hours after format: %s", s)
         return pd.NA
 
 
@@ -149,7 +148,7 @@ def extract_aircraft_info(xls: pd.ExcelFile) -> dict:
         # Validate the log sheet. Raise an error if invalid.
         validate_aircraft_info(raw_df)
     except Exception:
-        logging.error("Could not read aircraft info.", exc_info=True)
+        logger.error("Could not read aircraft info.", exc_info=True)
         raw_df = pd.DataFrame()
     return raw_df
 
