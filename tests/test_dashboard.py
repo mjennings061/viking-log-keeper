@@ -54,7 +54,7 @@ def login(setup: Page):
     page.get_by_label("Username").fill(dashboard_username)
     page.get_by_label("Password", exact=True).click()
     page.get_by_label("Password", exact=True).fill(dashboard_password)
-    page.get_by_test_id("baseButton-secondaryFormSubmit").click()
+    page.get_by_test_id("stBaseButton-secondaryFormSubmit").click()
     yield page
     # Close the page after the test.
     page.close()
@@ -99,7 +99,7 @@ def test_login_incorrect_credentials(setup: Page):
     page.get_by_label("Username").fill("test")
     page.get_by_label("Password", exact=True).click()
     page.get_by_label("Password", exact=True).fill("test")
-    page.get_by_test_id("baseButton-secondaryFormSubmit").click()
+    page.get_by_test_id("stBaseButton-secondaryFormSubmit").click()
 
     # Check if the invalid password message is displayed.
     expect(page.get_by_text("Invalid Password")).to_be_visible()
@@ -120,7 +120,7 @@ def test_dashboard_login(login: Page):
 def test_refresh_data(login: Page):
     """Check if the data is refreshed after clicking the refresh button."""
     page = login
-    page.get_by_test_id("baseButton-secondary").click()
+    page.get_by_test_id("stBaseButton-secondaryFormSubmit").click()
 
     # Look for the toast message.
     expect(page.get_by_test_id("stToast")).to_be_visible()
