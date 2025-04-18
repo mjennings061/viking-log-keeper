@@ -82,7 +82,8 @@ def get_aircraft_for_dashboard(db: Database) -> pd.DataFrame:
 
 
 def get_personal_df(filtered_df: pd.DataFrame, client: Client) -> pd.DataFrame:
-    """Combine launches from CGS if any 661vgs Aircraft Commanders appear in CGS data."""
+    """Combine launches from CGS if any 661vgs Aircraft Commanders appear
+    in CGS data."""
 
     if filtered_df.empty:
         return filtered_df
