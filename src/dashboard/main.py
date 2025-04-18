@@ -128,6 +128,7 @@ def get_personal_df(filtered_df: pd.DataFrame, client: Client) -> pd.DataFrame:
             st.exception(e)
 
     return filtered_df
+    
 
 def refresh_data():
     """Refresh the data in the session state."""
