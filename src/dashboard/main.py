@@ -80,6 +80,7 @@ def get_aircraft_for_dashboard(db: Database) -> pd.DataFrame:
         st.error("No aircraft data found in the database, using dummy data.")
     return st.session_state['aircraft_df']
 
+
 def get_personal_df(filtered_df: pd.DataFrame, client: Client) -> pd.DataFrame:
     """Combine launches from CGS if any 661vgs Aircraft Commanders appear in CGS data."""
 
