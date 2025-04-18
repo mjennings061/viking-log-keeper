@@ -87,7 +87,7 @@ def get_personal_df(filtered_df: pd.DataFrame, client: Client) -> pd.DataFrame:
     if filtered_df.empty:
         return filtered_df
 
-    #Extract all unique AircraftCommanders from VGS data
+    # Extract all unique AircraftCommanders from VGS data
     df = st.session_state['df']
     ac_names = (
         df["AircraftCommander"]
