@@ -235,6 +235,10 @@ def show_data_dashboard(db: Database):
 
             # Filter the data by the selected quarter.
             if quarter and commander:
+                personal_df = get_personal_df(
+                    filtered_df=df,
+                    client=st.session_state["client"]
+                )
                 quarterly_summary(personal_df, commander, quarter)
 
         case "🌍 All Data":
