@@ -119,10 +119,10 @@ def test_dashboard_login(login: Page):
 def test_refresh_data(login: Page):
     """Check if the data is refreshed after clicking the refresh button."""
     page = login
-    page.get_by_test_id("stBaseButton-secondaryFormSubmit").click()
+    page.get_by_test_id("stBaseButton-secondary").click()
 
     # Look for the toast message.
-    expect(page.get_by_test_id("stToast")).to_be_visible()
+    expect(page.get_by_text("Data Refreshed!")).to_be_visible()
 
 
 def test_change_page(upload_page: Page):

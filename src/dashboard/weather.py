@@ -204,7 +204,10 @@ def weather_page(db: Database, launches_df: pd.DataFrame):
     with col_clear:
         if st.button("Clear Weather Cache"):
             st.cache_data.clear()
-            st.success("Weather data cache cleared! New data will be fetched.")
+            st.toast(
+                "Weather data cache cleared! New data will be fetched.",
+                icon="✅"
+            )
 
     with col_info:
         st.info(
@@ -317,7 +320,6 @@ def get_weather_data(db: Database, df: pd.DataFrame) -> pd.DataFrame:
         ).reset_index(drop=True)
 
         # Save the new data to the database.
-        st.write("Saving weather data to the database...")
         weather_to_db(
             weather_df=weather_df,
             db=db,
@@ -326,7 +328,6 @@ def get_weather_data(db: Database, df: pd.DataFrame) -> pd.DataFrame:
             "Weather data saved to the database.",
             icon="✅",
         )
-        st.write("Weather data saved to the database.")
 
     # Filter the weather data to only include the dates for launches.
     weather_df = weather_df[
