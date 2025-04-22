@@ -1,6 +1,7 @@
 """test_dashboard.py - Test cases for the dashboard module."""
 
 import os
+import re
 import pytest
 import subprocess
 import time
@@ -10,8 +11,8 @@ from playwright.sync_api import Page, expect
 
 # Load environment variables
 load_dotenv()
-dashboard_username = os.getenv("TEST_USERNAME")
-dashboard_password = os.getenv("TEST_PASSWORD")
+USERNAME = os.getenv("TEST_USERNAME")
+PASSWORD = os.getenv("TEST_PASSWORD")
 
 
 #####################################################################
@@ -51,9 +52,9 @@ def login(setup: Page):
     """Log in to the dashboard for each test."""
     page = setup
     page.get_by_label("Username").click()
-    page.get_by_label("Username").fill(dashboard_username)
+    page.get_by_label("Username").fill(USERNAME)
     page.get_by_label("Password", exact=True).click()
-    page.get_by_label("Password", exact=True).fill(dashboard_password)
+    page.get_by_label("Password", exact=True).fill(PASSWORD)
     page.get_by_test_id("stBaseButton-secondaryFormSubmit").click()
     yield page
     # Close the page after the test.
@@ -64,10 +65,9 @@ def login(setup: Page):
 def upload_page(login: Page):
     """Navigate to the upload page for each test."""
     page = login
-    page.get_by_test_id("stAppViewBlockContainer").get_by_role(
-        "img",
-        name="open"
-    ).click()
+    page.locator("div").filter(
+        has_text=re.compile(r"^📈 Statistics$")
+    ).first.click()
     page.get_by_text("📁 Upload Log Sheets").click()
     yield page
 
@@ -76,10 +76,9 @@ def upload_page(login: Page):
 def stats_gur_page(login: Page):
     """Navigate to the stats and GUR page for each test."""
     page = login
-    page.get_by_test_id("stAppViewBlockContainer").get_by_role(
-        "img",
-        name="open"
-    ).click()
+    page.locator("div").filter(
+        has_text=re.compile(r"^📈 Statistics$")
+    ).first.click()
     page.get_by_text("🧮 Stats & GUR Helper").click()
     yield page
 
@@ -110,7 +109,7 @@ def test_dashboard_login(login: Page):
     page = login
 
     # Check if the dashboard page is loaded after login.
-    dummy_user = dashboard_username.upper()
+    dummy_user = USERNAME.upper()
     expected_heading = f"{dummy_user} Dashboard"
     expect(page.get_by_role(
         "heading", name=expected_heading
