@@ -345,13 +345,14 @@ def authenticate():
     # Login form.
     with st.form(key="login_form"):
         st.text_input("Username", help="VGS e.g. '661vgs'", key="username")
-        st.text_input("Password", type="password", key="password")
+        password_value = st.text_input("Password", type="password")
         submitted = st.form_submit_button("Enter")
 
         if submitted:
+            # Pass the password value directly from the variable
             login(
                 username=st.session_state["username"],
-                password=st.session_state["password"],
+                password=password_value,
             )
 
 

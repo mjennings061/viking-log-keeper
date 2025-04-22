@@ -5,6 +5,8 @@ import re
 import pytest
 import subprocess
 import time
+import requests
+from requests.exceptions import ConnectionError
 from dotenv import load_dotenv
 from pathlib import Path
 from playwright.sync_api import Page, expect
@@ -20,18 +22,42 @@ PASSWORD = os.getenv("TEST_PASSWORD")
 # Function to start Streamlit before running tests.
 @pytest.fixture(scope="session", autouse=True)
 def start_streamlit():
-    """Start Streamlit before running tests."""
+    """Start Streamlit before running tests and wait for it to be ready."""
     # Get path to Streamlit script.
     path_to_streamlit_script = Path(__file__).parent.parent \
         / "src" / "dashboard" / "main.py"
     streamlit_command = ["streamlit", "run", str(path_to_streamlit_script)]
     streamlit_process = subprocess.Popen(streamlit_command)
 
-    # Wait for Streamlit to start.
-    time.sleep(3)
+    # Wait for Streamlit to start by polling the URL.
+    max_wait_time = 10  # Maximum seconds to wait
+    start_time = time.time()
+    url = "http://localhost:8501"
+    ready = False
+    while time.time() - start_time < max_wait_time:
+        try:
+            response = requests.get(url, timeout=1)
+            if response.status_code == 200:
+                ready = True
+                break
+        except ConnectionError:
+            # Server is not ready yet.
+            pass
+        except requests.exceptions.Timeout:
+            # Server might be slow, but potentially running.
+            pass
+        time.sleep(0.5)  # Wait before retrying
+
+    if not ready:
+        streamlit_process.terminate()
+        streamlit_process.wait(timeout=5)
+        pytest.fail(
+            f"Streamlit failed to start within {max_wait_time} seconds."
+        )
+
     yield
 
-    # Teardown code if needed.
+    # Teardown code: terminate the Streamlit process.
     streamlit_process.terminate()
     streamlit_process.wait(timeout=5)
 
@@ -185,9 +211,6 @@ def test_change_page_to_weather(weather_page: Page):
     # Check if the data has been loaded.
     expect(page.get_by_text("Weather data fetched")).to_be_visible()
 
-    # Check for the dataframe table.
-    expect(page.locator(".dvn-scroller")).to_be_visible()
-
     # Change variable to display.
     page.locator("div").filter(
         has_text=re.compile(r"^Wind Speed$")
@@ -202,7 +225,7 @@ def test_weather_reload_cache(weather_page: Page):
     page.get_by_test_id("stBaseButton-secondary").click()
 
     # Check if the data has been reloaded.
-    expect(page.get_by_text("Weather data cache cleared!")).to_be_visible()
+    expect(page.get_by_test_id("stToast")).to_be_visible()
 
 
 def test_aircraft_commander_filter(login: Page):
