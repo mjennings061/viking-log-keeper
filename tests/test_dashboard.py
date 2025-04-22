@@ -83,6 +83,17 @@ def stats_gur_page(login: Page):
     yield page
 
 
+@pytest.fixture(scope="function")
+def weather_page(login: Page):
+    """Navigate to the weather page for each test."""
+    page = login
+    page.locator("div").filter(
+        has_text=re.compile(r"^📈 Statistics$")
+    ).first.click()
+    page.get_by_text("⛅ Weather").click()
+    yield page
+
+
 #####################################################################
 # Test functions.
 def test_root_page(setup: Page):
@@ -162,6 +173,62 @@ def test_change_page_to_stats_gur(stats_gur_page: Page):
     expect(
         page.get_by_role("heading", name="Daily Summary by Aircraft")
     ).to_be_visible()
+
+
+def test_change_page_to_weather(weather_page: Page):
+    """Check if the page changes after clicking the 'Weather' button."""
+    page = weather_page
+
+    # Check if the weather page is loaded.
+    expect(page.get_by_role("heading", name="Weather Summary")).to_be_visible()
+
+    # Check if the data has been loaded.
+    expect(page.get_by_text("Weather data fetched")).to_be_visible()
+
+    # Check for the dataframe table.
+    expect(page.locator(".dvn-scroller")).to_be_visible()
+
+    # Change variable to display.
+    page.locator("div").filter(
+        has_text=re.compile(r"^Wind Speed$")
+    ).first.click()
+    page.get_by_role("option", name="Wind Direction").click()
+
+
+def test_weather_reload_cache(weather_page: Page):
+    """Check if the weather data is reloaded after clicking
+    the refresh button."""
+    page = weather_page
+    page.get_by_test_id("stBaseButton-secondary").click()
+
+    # Check if the data has been reloaded.
+    expect(page.get_by_text("Weather data cache cleared!")).to_be_visible()
+
+
+def test_aircraft_commander_filter(login: Page):
+    """Check if the aircraft commander filter works."""
+    page = login
+
+    # Use aircraft commander filter.
+    expect(page.get_by_text(
+        "Filter by AircraftCommanderAllopen"
+    )).to_be_visible()
+    page.locator("div").filter(has_text=re.compile(r"^All$")).first.click()
+    page.get_by_test_id("stSelectboxVirtualDropdown").get_by_text(
+        "Jennings"
+    ).click()
+
+    # User quarter filter.
+    expect(page.get_by_text("Select QuarterChoose an")).to_be_visible()
+    page.locator("div").filter(
+        has_text=re.compile(r"^Choose an option$")
+    ).first.click()
+    page.get_by_text("2025Q2").click()
+
+    # Check if the quarterly filter has been displayed.
+    expect(page.get_by_role(
+        "heading", name="Quarterly Summary Helper"
+    )).to_be_visible()
 
 
 if __name__ == "__main__":
