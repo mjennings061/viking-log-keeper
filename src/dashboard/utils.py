@@ -384,15 +384,15 @@ def date_filter(df: pd.DataFrame, key: str = "date_filter"):
 
 def get_weekends(
     start_date: datetime, end_date: datetime
-) -> List[pd.Timestamp]:
+) -> List[datetime.date]:
     """Get a list of weekends between two dates (inclusive).
 
     Args:
-        start_date (datetime): The start date.
-        end_date (datetime): The end date.
+        start_date (datetime.datetime): The start date.
+        end_date (datetime.datetime): The end date.
 
     Returns:
-        List[pd.Timestamp]: A list of weekends between the two dates.
+        List[datetime.date]: A list of weekends between the two dates.
     """
     # Ensure dates are datetime objects.
     if isinstance(start_date, str):
