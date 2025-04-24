@@ -212,7 +212,7 @@ def upload_log_sheets(files: List[BytesIO]):
         aircraft_info_df = pd.concat(aircraft_info_list, ignore_index=True)
 
         # Sanitise the log sheets.
-        st.write("Santising log sheets...")
+        st.write("Sanitising log sheets...")
         collated_df = sanitise_log_sheets(log_sheet_df)
 
         try:
@@ -380,6 +380,31 @@ def date_filter(df: pd.DataFrame, key: str = "date_filter"):
     # Sort by takeoff time.
     filtered_df = filtered_df.sort_values(by='TakeOffTime', ascending=False)
     return filtered_df
+
+
+def get_weekends(
+    start_date: datetime, end_date: datetime
+) -> List[datetime.date]:
+    """Get a list of weekends between two dates (inclusive).
+
+    Args:
+        start_date (datetime.datetime): The start date.
+        end_date (datetime.datetime): The end date.
+
+    Returns:
+        List[datetime.date]: A list of weekends between the two dates.
+    """
+    # Ensure dates are datetime objects.
+    if isinstance(start_date, str):
+        start_date = datetime.strptime(start_date, '%Y-%m-%d')
+    if isinstance(end_date, str):
+        end_date = datetime.strptime(end_date, '%Y-%m-%d')
+
+    # Create a list of all dates in range and filter for weekends.
+    all_dates = pd.date_range(start=start_date, end=end_date)
+    # Filter for weekends (5=Saturday, 6=Sunday) and convert to date objects
+    weekends = [date.date() for date in all_dates if date.weekday() in [5, 6]]
+    return weekends
 
 
 if __name__ == "__main__":
