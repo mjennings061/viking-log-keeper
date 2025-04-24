@@ -980,10 +980,13 @@ def table_gur_summary(aircraft_df: pd.DataFrame,
         suffixes=('', '_first')
     )
 
+    # Sort by date in descending order and get the latest week.
+    last_entry_df = last_entry_df.sort_values(by='Date', ascending=False)
+    latest_week = last_entry_df.iloc[0]['Week Start']
+
     # Set totals columns to zero if they are not this week.
-    latest_week = last_entry_df['Date'].max()
     last_entry_df.loc[
-        last_entry_df['Date'] != latest_week,
+        last_entry_df['Week Start'] != latest_week,
         ['Total Launches', 'Total Flight Time']
     ] = 0
 

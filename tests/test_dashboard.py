@@ -225,7 +225,10 @@ def test_weather_reload_cache(weather_page: Page):
     page.get_by_test_id("stBaseButton-secondary").click()
 
     # Check if the data has been reloaded.
-    expect(page.get_by_test_id("stToast")).to_be_visible()
+    page.wait_for_timeout(1000)
+    expect(page.get_by_text(
+        "Weather data fetched successfully."
+    )).to_be_visible()
 
 
 def test_aircraft_commander_filter(login: Page):
