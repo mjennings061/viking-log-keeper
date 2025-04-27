@@ -83,21 +83,49 @@ def weather_page(db: Database, launches_df: pd.DataFrame):
         launches_df (pd.DataFrame): DataFrame containing the data."""
     st.header("Weather Summary")
 
+    # Add a button to clear the cache in the sidebar
+    with st.sidebar:
+        st.divider()
+        if st.button("Reset Weather Cache"):
+            st.session_state['refresh_weather'] = True
+            st.toast(
+                "Weather data cache reset! New data will be fetched.",
+                icon="✅"
+            )
+            st.cache_data.clear()
+        st.info(
+            "Reset the cache to fetch the latest weather data from the API."
+        )
+
+    # Use session state to check if the weather data needs to be refreshed.
+    refresh = st.session_state.get('refresh_weather', False)
+    weather = st.session_state.get('weather', False)
+
     # Get the weather data from the database or API.
     with st.status("Fetching weather data...", expanded=True) as status:
         try:
-            # Generate a hash of the unique dates in launches_df to
-            # use as cache key
-            launches_dates = tuple(
-                sorted(launches_df["Date"].dt.date.unique().tolist())
-            )
-
-            # Use the cached function with launches dataframe attributes
-            # This will trigger cache update when dates change.
-            weather_df = get_cached_weather_data(
-                _db=db,
-                launches_df_hash=launches_dates,
-            )
+            # Decide whether to fetch new data or use cached data
+            if refresh or not weather:
+                # Fetch new data and store it in session state
+                weather_df = get_weather_data(
+                    db=db,
+                    df=launches_df,
+                    show_progress=True
+                )
+                st.session_state['weather'] = True
+                st.session_state['refresh_weather'] = False
+            else:
+                # Use the cached function with launches dataframe attributes
+                # This will trigger cache update when dates change.
+                # Generate a hash of the unique dates in launches_df to
+                # use as cache key
+                launches_dates = tuple(
+                    sorted(launches_df["Date"].dt.date.unique().tolist())
+                )
+                weather_df = get_cached_weather_data(
+                    _db=db,
+                    launches_df_hash=launches_dates,
+                )
 
             # Calculate cloud base from weather data.
             weather_df = calculate_cloud_base(weather_df)
@@ -197,23 +225,6 @@ def weather_page(db: Database, launches_df: pd.DataFrame):
             selected_metric
         )
 
-    # Add a button to clear the cache
-    st.divider()
-    col_clear, col_info = st.columns([1, 3])
-
-    with col_clear:
-        if st.button("Clear Weather Cache"):
-            st.cache_data.clear()
-            st.toast(
-                "Weather data cache cleared! New data will be fetched.",
-                icon="✅"
-            )
-
-    with col_info:
-        st.info(
-            "Clear the cache to fetch the latest weather data from the API."
-        )
-
 
 @st.cache_data(ttl="1h", show_spinner=False)
 def get_cached_weather_data(
@@ -234,16 +245,24 @@ def get_cached_weather_data(
     dummy_df = pd.DataFrame({
         "Date": list(pd.to_datetime(launches_df_hash))
     })
+    logger.debug("Fetching weather from cache.")
 
-    # Get weather data
-    return get_weather_data(_db, dummy_df)
+    # Get weather data. Setting show_progress to False
+    # to avoid showing the progress bar in the cache.
+    # This fixes the streamlit cache error.
+    return get_weather_data(_db, dummy_df, show_progress=False)
 
 
-def get_weather_data(db: Database, df: pd.DataFrame) -> pd.DataFrame:
+def get_weather_data(
+    db: Database,
+    df: pd.DataFrame,
+    show_progress: bool = True
+) -> pd.DataFrame:
     """Get weather data from the database or API.
     Args:
         db (Database): Database instance.
         df (pd.DataFrame): DataFrame containing the data.
+        show_progress (bool): Whether to show progress bar.
     Returns:
         pd.DataFrame: DataFrame containing the weather data.
     """
@@ -260,7 +279,8 @@ def get_weather_data(db: Database, df: pd.DataFrame) -> pd.DataFrame:
 
     # Get weather data from the database.
     logger.info("Fetching weather data from the database.")
-    st.write("Fetching weather data from the database...")
+    if show_progress:
+        st.write("Fetching weather data from the database...")
     weather_df = db.get_weather_dataframe()
 
     # Check if all dates are present in the weather data.
@@ -300,7 +320,8 @@ def get_weather_data(db: Database, df: pd.DataFrame) -> pd.DataFrame:
         logger.info(f"Fetching weather data for {len(missing_dates)} dates.")
         missing_weather_df = get_api_weather_data(
             db=db,
-            dates=missing_dates
+            dates=missing_dates,
+            show_progress=show_progress
         )
 
         # Merge the new data with the existing weather data
@@ -317,6 +338,7 @@ def get_weather_data(db: Database, df: pd.DataFrame) -> pd.DataFrame:
         # Sort by datetime in descending order
         weather_df = weather_df.sort_values(
             by="datetime",
+            ascending=False
         ).reset_index(drop=True)
 
         # Save the new data to the database.
@@ -324,10 +346,11 @@ def get_weather_data(db: Database, df: pd.DataFrame) -> pd.DataFrame:
             weather_df=weather_df,
             db=db,
         )
-        st.toast(
-            "Weather data saved to the database.",
-            icon="✅",
-        )
+        if show_progress:
+            st.toast(
+                "Weather data saved to the database.",
+                icon="✅",
+            )
 
     # Filter the weather data to only include the dates for launches.
     weather_df = weather_df[
@@ -364,21 +387,26 @@ def calculate_cloud_base(weather_df: pd.DataFrame) -> pd.DataFrame:
     return weather_df
 
 
-def get_api_weather_data(db: Database, dates: List[datetime.date]):
+def get_api_weather_data(
+    db: Database,
+    dates: List[datetime.date],
+    show_progress: bool = True
+) -> pd.DataFrame:
     """Fetch weather data for the given date range.
 
     Args:
         db (Database): Database instance.
         dates (List[datetime.date]): List of dates to fetch weather data.
-
+        show_progress (bool): Whether to show progress bar.
     Returns:
         pd.DataFrame: DataFrame containing the weather data."""
     # Get the VGS location from the database.
     vgs_info = db.get_info()
     # Handle empty vgs_info.
     if vgs_info is None:
-        st.warning("No VGS information available.")
-        return
+        if show_progress:
+            st.warning("No VGS information available.")
+        return pd.DataFrame()
 
     # Get the latitude and longitude from the database.
     latitude = vgs_info["latitude"].iloc[0]
@@ -388,16 +416,18 @@ def get_api_weather_data(db: Database, dates: List[datetime.date]):
     weather_data = []
 
     # Create a progress bar
-    progress_bar = st.progress(0)
-    status_text = st.empty()
+    if show_progress:
+        progress_bar = st.progress(0)
+        status_text = st.empty()
 
     for i_date, date in enumerate(dates):
         # Update progress bar and status text
-        progress = (i_date / len(dates))
-        progress_bar.progress(progress)
-        status_text.text(
-            f"Fetching weather data for {date} ({i_date+1}/{len(dates)})"
-        )
+        if show_progress:
+            progress = (i_date / len(dates))
+            progress_bar.progress(progress)
+            status_text.text(
+                f"Fetching weather data for {date} ({i_date+1}/{len(dates)})"
+            )
 
         # Fetch weather data for the given date range.
         weather_fetcher = WeatherFetcher(
@@ -409,20 +439,23 @@ def get_api_weather_data(db: Database, dates: List[datetime.date]):
         # This is important to avoid being blocked by the API.
         time.sleep(0.2)
         if weather_fetcher.hourly_df.empty:
-            st.warning(f"No weather data available for {date}.")
+            if show_progress:
+                st.warning(f"No weather data available for {date}.")
             continue
         weather_data.append(weather_fetcher.hourly_df)
 
     # Complete the progress bar
-    progress_bar.progress(1.0)
-    status_text.text("Weather data fetching complete!")
-    time.sleep(0.5)
-    status_text.empty()
-    progress_bar.empty()
+    if show_progress:
+        progress_bar.progress(1.0)
+        status_text.text("Weather data fetching complete!")
+        time.sleep(0.5)
+        status_text.empty()
+        progress_bar.empty()
 
     # Concatenate all DataFrames into a single DataFrame.
     if not weather_data:
-        st.warning("No weather data available for the selected dates.")
+        if show_progress:
+            st.warning("No weather data available for the selected dates.")
         return pd.DataFrame()
 
     # Concatenate all DataFrames into a single DataFrame.
@@ -432,7 +465,8 @@ def get_api_weather_data(db: Database, dates: List[datetime.date]):
     ).reset_index(drop=True)
 
     if weather_df.empty:
-        st.warning("No weather data available for the selected dates.")
+        if show_progress:
+            st.warning("No weather data available for the selected dates.")
         return pd.DataFrame()
     return weather_df
 
