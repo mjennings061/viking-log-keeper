@@ -146,12 +146,35 @@ def weather_page(db: Database, launches_df: pd.DataFrame):
 
     # Display the weather data.
     if weather_df is not None:
+        # Plot weather vs launches
+        st.subheader("Wind Impact on Flying")
+        plot_wind_vs_launches(weather_df, launches_df)
+
+        st.subheader("Weather Impact on Flight Time")
+        selected_metric = select_metric_to_plot()
+        plot_weather_vs_flight_time(
+            weather_df,
+            launches_df,
+            selected_metric
+        )
+        st.subheader("Weather on Launch vs Non-Launch Days")
+        plot_launch_vs_nonlaunch_weather(
+            weather_df,
+            launches_df,
+            selected_metric
+        )
+
         # Display the weather data in a table.
         st.subheader("Weather Data")
 
         # Use the timezone from the data itself for display formatting
         display_df = weather_df.copy()
         display_df['datetime'] = display_df['datetime'].dt.tz_localize(None)
+        # Sort by descending datetime
+        display_df = display_df.sort_values(
+            by="datetime",
+            ascending=False
+        ).reset_index(drop=True)
 
         st.dataframe(
             display_df,
@@ -205,24 +228,6 @@ def weather_page(db: Database, launches_df: pd.DataFrame):
                     "Wind Gusts", format="%.1f kts"
                 )
             }
-        )
-
-        # Plot weather vs launches
-        st.subheader("Wind Impact on Flying")
-        plot_wind_vs_launches(weather_df, launches_df)
-
-        st.subheader("Weather Impact on Flight Time")
-        selected_metric = select_metric_to_plot()
-        plot_weather_vs_flight_time(
-            weather_df,
-            launches_df,
-            selected_metric
-        )
-        st.subheader("Weather on Launch vs Non-Launch Days")
-        plot_launch_vs_nonlaunch_weather(
-            weather_df,
-            launches_df,
-            selected_metric
         )
 
 
