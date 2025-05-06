@@ -2,19 +2,19 @@
 
 # Module imports.
 import time
-import pandas as pd
-import streamlit as st
-import altair as alt
 from datetime import datetime
 from typing import List
+
+import altair as alt
+import pandas as pd
+import streamlit as st
 
 # User imports.
 from dashboard import logger
 from dashboard.utils import get_weekends
-from log_keeper.weather import WeatherFetcher
 from log_keeper.get_config import Database
 from log_keeper.output import weather_to_db
-
+from log_keeper.weather import WeatherFetcher
 
 weather_metadata = {
     "wind_speed_10m": {
@@ -87,10 +87,10 @@ def weather_page(db: Database, launches_df: pd.DataFrame):
     with st.sidebar:
         st.divider()
         if st.button("Reset Weather Cache"):
-            st.session_state['refresh_weather'] = True
+            st.session_state["refresh_weather"] = True
             st.toast(
                 "Weather data cache reset! New data will be fetched.",
-                icon="✅"
+                icon="✅",
             )
             st.cache_data.clear()
         st.info(
@@ -98,8 +98,8 @@ def weather_page(db: Database, launches_df: pd.DataFrame):
         )
 
     # Use session state to check if the weather data needs to be refreshed.
-    refresh = st.session_state.get('refresh_weather', False)
-    weather = st.session_state.get('weather', False)
+    refresh = st.session_state.get("refresh_weather", False)
+    weather = st.session_state.get("weather", False)
 
     # Get the weather data from the database or API.
     with st.status("Fetching weather data...", expanded=True) as status:
@@ -108,12 +108,10 @@ def weather_page(db: Database, launches_df: pd.DataFrame):
             if refresh or not weather:
                 # Fetch new data and store it in session state
                 weather_df = get_weather_data(
-                    db=db,
-                    df=launches_df,
-                    show_progress=True
+                    db=db, df=launches_df, show_progress=True
                 )
-                st.session_state['weather'] = True
-                st.session_state['refresh_weather'] = False
+                st.session_state["weather"] = True
+                st.session_state["refresh_weather"] = False
             else:
                 # Use the cached function with launches dataframe attributes
                 # This will trigger cache update when dates change.
@@ -132,14 +130,14 @@ def weather_page(db: Database, launches_df: pd.DataFrame):
             status.update(
                 label="Weather data fetched successfully.",
                 expanded=False,
-                state="complete"
+                state="complete",
             )
             logger.info("Weather data fetched successfully.")
         except Exception as e:
             status.update(
                 label="Error fetching weather data.",
                 expanded=True,
-                state="error"
+                state="error",
             )
             st.error(f"Error fetching weather data: {e}")
             return
@@ -152,16 +150,10 @@ def weather_page(db: Database, launches_df: pd.DataFrame):
 
         st.subheader("Weather Impact on Flight Time")
         selected_metric = select_metric_to_plot()
-        plot_weather_vs_flight_time(
-            weather_df,
-            launches_df,
-            selected_metric
-        )
+        plot_weather_vs_flight_time(weather_df, launches_df, selected_metric)
         st.subheader("Weather on Launch vs Non-Launch Days")
         plot_launch_vs_nonlaunch_weather(
-            weather_df,
-            launches_df,
-            selected_metric
+            weather_df, launches_df, selected_metric
         )
 
         # Display the weather data in a table.
@@ -169,11 +161,10 @@ def weather_page(db: Database, launches_df: pd.DataFrame):
 
         # Use the timezone from the data itself for display formatting
         display_df = weather_df.copy()
-        display_df['datetime'] = display_df['datetime'].dt.tz_localize(None)
+        display_df["datetime"] = display_df["datetime"].dt.tz_localize(None)
         # Sort by descending datetime
         display_df = display_df.sort_values(
-            by="datetime",
-            ascending=False
+            by="datetime", ascending=False
         ).reset_index(drop=True)
 
         st.dataframe(
@@ -226,8 +217,8 @@ def weather_page(db: Database, launches_df: pd.DataFrame):
                 ),
                 "wind_gusts_10m": st.column_config.NumberColumn(
                     "Wind Gusts", format="%.1f kts"
-                )
-            }
+                ),
+            },
         )
 
 
@@ -247,9 +238,7 @@ def get_cached_weather_data(
         Weather dataframe
     """
     # Create a dummy dataframe with the date range
-    dummy_df = pd.DataFrame({
-        "Date": list(pd.to_datetime(launches_df_hash))
-    })
+    dummy_df = pd.DataFrame({"Date": list(pd.to_datetime(launches_df_hash))})
     logger.debug("Fetching weather from cache.")
 
     # Get weather data. Setting show_progress to False
@@ -259,9 +248,7 @@ def get_cached_weather_data(
 
 
 def get_weather_data(
-    db: Database,
-    df: pd.DataFrame,
-    show_progress: bool = True
+    db: Database, df: pd.DataFrame, show_progress: bool = True
 ) -> pd.DataFrame:
     """Get weather data from the database or API.
     Args:
@@ -276,8 +263,7 @@ def get_weather_data(
 
     # Get all weekends and add any missing weekends to the dates.
     all_weekends = get_weekends(
-        start_date=df["Date"].min(),
-        end_date=df["Date"].max()
+        start_date=df["Date"].min(), end_date=df["Date"].max()
     )
     dates.extend(all_weekends)
     dates = sorted(set(dates))
@@ -304,7 +290,8 @@ def get_weather_data(
             weather_df["datetime"].dt.date
         ).size()
         dates_missing_hours = set(
-            date for date, count in date_hour_counts.items()
+            date
+            for date, count in date_hour_counts.items()
             if count < 22 and date in dates
         )
         # Remove dates that are already in missing_dates to avoid duplicates
@@ -313,7 +300,8 @@ def get_weather_data(
             # Get the missing dates from the API.
             logger.debug(
                 "Missing hours for the following dates: \n"
-                f"{dates_missing_hours.__str__()}")
+                f"{dates_missing_hours.__str__()}"
+            )
             missing_dates.extend(dates_missing_hours)
 
     # If there are missing dates, fetch the weather data from the API.
@@ -321,12 +309,11 @@ def get_weather_data(
         # Get the missing dates from the API.
         logger.debug(
             "Fetching missing weather data for dates: \n"
-            f"{missing_dates.__str__()}")
+            f"{missing_dates.__str__()}"
+        )
         logger.info(f"Fetching weather data for {len(missing_dates)} dates.")
         missing_weather_df = get_api_weather_data(
-            db=db,
-            dates=missing_dates,
-            show_progress=show_progress
+            db=db, dates=missing_dates, show_progress=show_progress
         )
 
         # Merge the new data with the existing weather data
@@ -336,14 +323,12 @@ def get_weather_data(
             # Concatenate and keep only the latest data for duplicates
             weather_df = pd.concat([weather_df, missing_weather_df])
             weather_df = weather_df.drop_duplicates(
-                subset=["datetime"],
-                keep="last"
+                subset=["datetime"], keep="last"
             )
 
         # Sort by datetime in descending order
         weather_df = weather_df.sort_values(
-            by="datetime",
-            ascending=False
+            by="datetime", ascending=False
         ).reset_index(drop=True)
 
         # Save the new data to the database.
@@ -358,9 +343,7 @@ def get_weather_data(
             )
 
     # Filter the weather data to only include the dates for launches.
-    weather_df = weather_df[
-        weather_df["datetime"].dt.date.isin(dates)
-    ]
+    weather_df = weather_df[weather_df["datetime"].dt.date.isin(dates)]
     return weather_df
 
 
@@ -374,8 +357,7 @@ def calculate_cloud_base(weather_df: pd.DataFrame) -> pd.DataFrame:
         pd.DataFrame: DataFrame with cloud base calculated."""
     # Check if the required columns are present
     cols_present = all(
-        col in weather_df.columns
-        for col in ["temperature_2m", "dew_point_2m"]
+        col in weather_df.columns for col in ["temperature_2m", "dew_point_2m"]
     )
     if not cols_present:
         st.warning("Missing required columns for cloud base calculation.")
@@ -393,9 +375,7 @@ def calculate_cloud_base(weather_df: pd.DataFrame) -> pd.DataFrame:
 
 
 def get_api_weather_data(
-    db: Database,
-    dates: List[datetime.date],
-    show_progress: bool = True
+    db: Database, dates: List[datetime.date], show_progress: bool = True
 ) -> pd.DataFrame:
     """Fetch weather data for the given date range.
 
@@ -428,17 +408,15 @@ def get_api_weather_data(
     for i_date, date in enumerate(dates):
         # Update progress bar and status text
         if show_progress:
-            progress = (i_date / len(dates))
+            progress = i_date / len(dates)
             progress_bar.progress(progress)
             status_text.text(
-                f"Fetching weather data for {date} ({i_date+1}/{len(dates)})"
+                f"Fetching weather data for {date} ({i_date + 1}/{len(dates)})"
             )
 
         # Fetch weather data for the given date range.
         weather_fetcher = WeatherFetcher(
-            latitude=latitude,
-            longitude=longitude,
-            weather_date=date
+            latitude=latitude, longitude=longitude, weather_date=date
         )
         # Add a delay to avoid hitting the API too quickly.
         # This is important to avoid being blocked by the API.
@@ -488,52 +466,59 @@ def plot_wind_vs_launches(weather_df, launches_df):
     START_HOUR = 9
     END_HOUR = 17
     weather_df = weather_df[
-        (weather_df['datetime'].dt.hour >= START_HOUR) &
-        (weather_df['datetime'].dt.hour < END_HOUR)
+        (weather_df["datetime"].dt.hour >= START_HOUR)
+        & (weather_df["datetime"].dt.hour < END_HOUR)
     ]
 
     # Aggregate launches by day
-    daily_launches = launches_df.groupby(
-        launches_df['Date'].dt.date
-    ).size().reset_index(name='Launches')
+    daily_launches = (
+        launches_df.groupby(launches_df["Date"].dt.date)
+        .size()
+        .reset_index(name="Launches")
+    )
 
     # Get average daily wind speed
-    daily_wind = weather_df.groupby(weather_df['datetime'].dt.date).agg({
-        'wind_speed_10m': 'mean',
-        'wind_gusts_10m': 'mean'
-    }).reset_index()
+    daily_wind = (
+        weather_df.groupby(weather_df["datetime"].dt.date)
+        .agg({"wind_speed_10m": "mean", "wind_gusts_10m": "mean"})
+        .reset_index()
+    )
 
     # Merge the data
     merged_df = daily_launches.merge(
-        daily_wind,
-        left_on='Date',
-        right_on='datetime',
-        how='inner'
+        daily_wind, left_on="Date", right_on="datetime", how="inner"
     )
 
     # Create a scatter plot with Altair
-    scatter = alt.Chart(merged_df).mark_circle(size=60).encode(
-        x=alt.X('wind_speed_10m:Q', title='Average Wind Speed (kts)'),
-        y=alt.Y('Launches:Q', title='Number of Launches'),
-        color=alt.Color('wind_gusts_10m:Q', title='Wind Gusts (kts)'),
-        tooltip=['datetime', 'Launches', 'wind_speed_10m', 'wind_gusts_10m']
-    ).properties(
-        title='Wind Speed vs Number of Launches',
-        width=600,
-        height=400
+    scatter = (
+        alt.Chart(merged_df)
+        .mark_circle(size=60)
+        .encode(
+            x=alt.X("wind_speed_10m:Q", title="Average Wind Speed (kts)"),
+            y=alt.Y("Launches:Q", title="Number of Launches"),
+            color=alt.Color("wind_gusts_10m:Q", title="Wind Gusts (kts)"),
+            tooltip=[
+                "datetime",
+                "Launches",
+                "wind_speed_10m",
+                "wind_gusts_10m",
+            ],
+        )
+        .properties(
+            title="Wind Speed vs Number of Launches", width=600, height=400
+        )
     )
 
     # Add a trend line
     trend = scatter.transform_regression(
-        'wind_speed_10m', 'Launches'
-    ).mark_line(color='red')
+        "wind_speed_10m", "Launches"
+    ).mark_line(color="red")
 
     # Display the chart
     st.altair_chart(scatter + trend, use_container_width=True)
 
 
-def plot_weather_vs_flight_time(weather_df, launches_df,
-                                selected_metric):
+def plot_weather_vs_flight_time(weather_df, launches_df, selected_metric):
     """Create a scatter plot showing how weather affects flight duration.
 
     Args:
@@ -545,93 +530,105 @@ def plot_weather_vs_flight_time(weather_df, launches_df,
     START_HOUR = 9
     END_HOUR = 17
     weather_df = weather_df[
-        (weather_df['datetime'].dt.hour >= START_HOUR) &
-        (weather_df['datetime'].dt.hour < END_HOUR)
+        (weather_df["datetime"].dt.hour >= START_HOUR)
+        & (weather_df["datetime"].dt.hour < END_HOUR)
     ]
 
     # Get median flight and number of launches per day
-    daily_launches = launches_df.groupby(
-        launches_df['Date'].dt.date
-    ).agg({
-        'TakeOffTime': 'count',
-        'FlightTime': 'median',
-    }).reset_index().rename(
-        columns={'TakeOffTime': 'Launches', 'FlightTime': 'MedianFlightTime'},
+    daily_launches = (
+        launches_df.groupby(launches_df["Date"].dt.date)
+        .agg(
+            {
+                "TakeOffTime": "count",
+                "FlightTime": "median",
+            }
+        )
+        .reset_index()
+        .rename(
+            columns={
+                "TakeOffTime": "Launches",
+                "FlightTime": "MedianFlightTime",
+            },
+        )
     )
 
     # Get median daily weather conditions
-    daily_weather = weather_df.groupby(weather_df['datetime'].dt.date).agg({
-        'wind_speed_10m': 'median',
-        'wind_gusts_10m': 'median',
-        'wind_direction_10m': 'median',
-        'cloud_base_ft': 'median',
-        'cloud_cover_low': 'median',
-        'precipitation': 'sum',
-        'temperature_2m': 'median',
-        'relative_humidity_2m': 'median',
-        'surface_pressure': 'median',
-        'dew_point_2m': 'median',
-    }).reset_index()
+    daily_weather = (
+        weather_df.groupby(weather_df["datetime"].dt.date)
+        .agg(
+            {
+                "wind_speed_10m": "median",
+                "wind_gusts_10m": "median",
+                "wind_direction_10m": "median",
+                "cloud_base_ft": "median",
+                "cloud_cover_low": "median",
+                "precipitation": "sum",
+                "temperature_2m": "median",
+                "relative_humidity_2m": "median",
+                "surface_pressure": "median",
+                "dew_point_2m": "median",
+            }
+        )
+        .reset_index()
+    )
 
     # Merge the data
     merged_df = daily_launches.merge(
-        daily_weather,
-        left_on='Date',
-        right_on='datetime',
-        how='inner'
+        daily_weather, left_on="Date", right_on="datetime", how="inner"
     )
 
     # Lookup the selected metric in the metadata.
-    metric_display_name = weather_metadata[selected_metric]['display_name']
+    metric_display_name = weather_metadata[selected_metric]["display_name"]
 
     # Append unit to the display name.
-    unit = weather_metadata[selected_metric]['unit']
-    metric_display_name += f' ({unit})'
+    unit = weather_metadata[selected_metric]["unit"]
+    metric_display_name += f" ({unit})"
 
     # Create a scatter plot with Altair
-    tooltips = [col for col in merged_df.columns if col != 'datetime']
+    tooltips = [col for col in merged_df.columns if col != "datetime"]
 
     # Set specific domain for surface pressure if that's the selected metric
-    x_encoding = alt.X(
-        f'{selected_metric}:Q',
-        title=metric_display_name
-    )
+    x_encoding = alt.X(f"{selected_metric}:Q", title=metric_display_name)
 
     # Set domain range specifically for surface pressure
-    if selected_metric == 'surface_pressure':
+    if selected_metric == "surface_pressure":
         x_encoding = alt.X(
-            f'{selected_metric}:Q',
+            f"{selected_metric}:Q",
             title=metric_display_name,
-            scale=alt.Scale(domain=[950, 1050])
+            scale=alt.Scale(domain=[950, 1050]),
         )
 
-    scatter = alt.Chart(merged_df).mark_circle().encode(
-        x=x_encoding,
-        y=alt.Y('Launches:Q', title='Number of Launches'),
-        size=alt.Size(
-            'MedianFlightTime:Q',
-            scale=alt.Scale(range=[20, 100]),
-            legend=alt.Legend(title="Flight Time (mins)")
-        ),
-        color=alt.Color('MedianFlightTime:Q'),
-        tooltip=tooltips
-    ).properties(
-        title=f'{metric_display_name} vs Number of Launches',
-        width=600,
-        height=400
+    scatter = (
+        alt.Chart(merged_df)
+        .mark_circle()
+        .encode(
+            x=x_encoding,
+            y=alt.Y("Launches:Q", title="Number of Launches"),
+            size=alt.Size(
+                "MedianFlightTime:Q",
+                scale=alt.Scale(range=[20, 100]),
+                legend=alt.Legend(title="Flight Time (mins)"),
+            ),
+            color=alt.Color("MedianFlightTime:Q"),
+            tooltip=tooltips,
+        )
+        .properties(
+            title=f"{metric_display_name} vs Number of Launches",
+            width=600,
+            height=400,
+        )
     )
 
     # Add a trend line for number of launches
     trend = scatter.transform_regression(
-        f'{selected_metric}', 'Launches'
-    ).mark_line(color='red')
+        f"{selected_metric}", "Launches"
+    ).mark_line(color="red")
 
     # Display the chart
     st.altair_chart(scatter + trend, use_container_width=True)
 
 
-def plot_launch_vs_nonlaunch_weather(weather_df, launches_df,
-                                     selected_metric):
+def plot_launch_vs_nonlaunch_weather(weather_df, launches_df, selected_metric):
     """Compare weather conditions on days with launches vs
     days without launches.
 
@@ -647,131 +644,147 @@ def plot_launch_vs_nonlaunch_weather(weather_df, launches_df,
     START_HOUR = 9
     END_HOUR = 17
     weather_df = weather_df[
-        (weather_df['datetime'].dt.hour >= START_HOUR) &
-        (weather_df['datetime'].dt.hour < END_HOUR)
+        (weather_df["datetime"].dt.hour >= START_HOUR)
+        & (weather_df["datetime"].dt.hour < END_HOUR)
     ]
 
     # Get all weekends.
     all_weekends = get_weekends(
-        start_date=launches_df['Date'].min(),
-        end_date=launches_df['Date'].max()
+        start_date=launches_df["Date"].min(),
+        end_date=launches_df["Date"].max(),
     )
 
     # Group launches by date.
-    daily_launches = launches_df.groupby(
-        launches_df['Date'].dt.date
-    ).agg({
-        'TakeOffTime': 'count',
-        'FlightTime': 'median',
-    }).reset_index().rename(
-        columns={'TakeOffTime': 'Launches', 'FlightTime': 'MedianFlightTime'},
+    daily_launches = (
+        launches_df.groupby(launches_df["Date"].dt.date)
+        .agg(
+            {
+                "TakeOffTime": "count",
+                "FlightTime": "median",
+            }
+        )
+        .reset_index()
+        .rename(
+            columns={
+                "TakeOffTime": "Launches",
+                "FlightTime": "MedianFlightTime",
+            },
+        )
     )
 
     # Place 0 for weekends with no launches while retaining midweek launches
     weekend_dates_set = set(all_weekends)
-    launch_dates_set = set(daily_launches['Date'])
+    launch_dates_set = set(daily_launches["Date"])
     missing_weekends = list(weekend_dates_set - launch_dates_set)
 
     if missing_weekends:
-        missing_df = pd.DataFrame({
-            'Date': missing_weekends,
-            'Launches': [0] * len(missing_weekends),
-            'MedianFlightTime': [0] * len(missing_weekends)
-        })
+        missing_df = pd.DataFrame(
+            {
+                "Date": missing_weekends,
+                "Launches": [0] * len(missing_weekends),
+                "MedianFlightTime": [0] * len(missing_weekends),
+            }
+        )
         daily_launches = pd.concat(
-            [daily_launches, missing_df],
-            ignore_index=True
+            [daily_launches, missing_df], ignore_index=True
         )
 
     # Sort the data by date.
-    daily_launches = daily_launches.sort_values(by='Date').reset_index(
+    daily_launches = daily_launches.sort_values(by="Date").reset_index(
         drop=True
     )
 
     # Get median daily weather conditions
-    daily_weather = weather_df.groupby(weather_df['datetime'].dt.date).agg({
-        'wind_speed_10m': 'median',
-        'wind_gusts_10m': 'median',
-        'wind_direction_10m': 'median',
-        'cloud_base_ft': 'median',
-        'cloud_cover_low': 'median',
-        'precipitation': 'sum',
-        'temperature_2m': 'median',
-        'relative_humidity_2m': 'median',
-        'surface_pressure': 'median',
-        'dew_point_2m': 'median',
-    }).reset_index()
+    daily_weather = (
+        weather_df.groupby(weather_df["datetime"].dt.date)
+        .agg(
+            {
+                "wind_speed_10m": "median",
+                "wind_gusts_10m": "median",
+                "wind_direction_10m": "median",
+                "cloud_base_ft": "median",
+                "cloud_cover_low": "median",
+                "precipitation": "sum",
+                "temperature_2m": "median",
+                "relative_humidity_2m": "median",
+                "surface_pressure": "median",
+                "dew_point_2m": "median",
+            }
+        )
+        .reset_index()
+    )
 
     # Merge the data
     merged_df = daily_launches.merge(
-        daily_weather,
-        left_on='Date',
-        right_on='datetime',
-        how='inner'
+        daily_weather, left_on="Date", right_on="datetime", how="inner"
     )
 
     # Split into days with and without launches
-    days_with_launches = merged_df[merged_df['Launches'] >= MIN_LAUNCHES]
-    days_low_launches = merged_df[merged_df['Launches'] < MIN_LAUNCHES]
+    days_with_launches = merged_df[merged_df["Launches"] >= MIN_LAUNCHES]
+    days_low_launches = merged_df[merged_df["Launches"] < MIN_LAUNCHES]
 
     # Show how many days with launches vs low launches
     col1, col2 = st.columns(2)
     with col1:
-        st.metric(
-            label="Flying days",
-            value=len(days_with_launches)
-        )
+        st.metric(label="Flying days", value=len(days_with_launches))
     with col2:
         st.metric(
             label=f"Poor flying days: (<{MIN_LAUNCHES} launches): ",
-            value=len(days_low_launches)
+            value=len(days_low_launches),
         )
 
     # Get the display name for the selected metric
-    metric_display_name = weather_metadata[selected_metric]['display_name']
-    metric_unit = weather_metadata[selected_metric]['unit']
+    metric_display_name = weather_metadata[selected_metric]["display_name"]
+    metric_unit = weather_metadata[selected_metric]["unit"]
 
     # Create a DataFrame for plotting
-    plot_data = pd.DataFrame({
-        'Weather Condition': [metric_display_name] * len(merged_df),
-        'Value': merged_df[selected_metric],
-        'Flying Day': merged_df['Launches'].apply(
-            lambda x: 'Launch Day' if x >= MIN_LAUNCHES else 'Low Launches'
-        )
-    })
+    plot_data = pd.DataFrame(
+        {
+            "Weather Condition": [metric_display_name] * len(merged_df),
+            "Value": merged_df[selected_metric],
+            "Flying Day": merged_df["Launches"].apply(
+                lambda x: "Launch Day" if x >= MIN_LAUNCHES else "Low Launches"
+            ),
+        }
+    )
 
     # Set specific domain for surface pressure if that's the selected metric
     x_encoding = alt.X(
-        'Value:Q',
+        "Value:Q",
         title=metric_display_name,
     )
 
     # Set domain range specifically for surface pressure
-    if selected_metric == 'surface_pressure':
+    if selected_metric == "surface_pressure":
         x_encoding = alt.X(
-            'Value:Q',
+            "Value:Q",
             title=f"{metric_display_name} ({metric_unit})",
-            scale=alt.Scale(domain=[950, 1050])
+            scale=alt.Scale(domain=[950, 1050]),
         )
 
     # Create a box plot comparing the metric between days with and
     # low launches
-    chart = alt.Chart(plot_data).mark_boxplot(
-        extent='min-max',
-        ticks=True,
-        median={'color': 'black'},
-        rule={'color': 'gray'},
-        box={'color': 'gray'},
-        outliers={'color': 'red'},
-    ).encode(
-        y=alt.Y('Flying Day:N', title=None),
-        x=x_encoding,
-        color=alt.Color('Flying Day:N', legend=None)
-    ).properties(
-        title=f"Comparison of {metric_display_name} on Launch vs "
-              "Low-Launch Days",
-        width=600,
-        height=400
+    chart = (
+        alt.Chart(plot_data)
+        .mark_boxplot(
+            extent="min-max",
+            ticks=True,
+            median={"color": "black"},
+            rule={"color": "gray"},
+            box={"color": "gray"},
+            outliers={"color": "red"},
+        )
+        .encode(
+            y=alt.Y("Flying Day:N", title=None),
+            x=x_encoding,
+            color=alt.Color("Flying Day:N", legend=None),
+        )
+        .properties(
+            title=f"Comparison of {metric_display_name} on Launch vs "
+            "Low-Launch Days",
+            width=600,
+            height=400,
+        )
     )
 
     # Display the chart
@@ -788,13 +801,13 @@ def plot_launch_vs_nonlaunch_weather(weather_df, launches_df,
         with col1:
             st.metric(
                 f"Median {metric_display_name} on Launch Days",
-                f"{launch_median:.0f} {metric_unit}"
+                f"{launch_median:.0f} {metric_unit}",
             )
         with col2:
             st.metric(
                 f"Median {metric_display_name} on Low-Launch Days",
                 f"{low_launch_median:.0f} {metric_unit}",
-                f"{low_launch_median - launch_median:.0f} {metric_unit}"
+                f"{low_launch_median - launch_median:.0f} {metric_unit}",
             )
 
 
@@ -807,16 +820,16 @@ def select_metric_to_plot():
     """
     metric_options = list(weather_metadata.keys())
     metric_display_names = [
-        weather_metadata[metric]['display_name']
+        weather_metadata[metric]["display_name"]
         for metric in metric_options
-        if metric != 'datetime'
+        if metric != "datetime"
     ]
-    metric_options.remove('datetime')
+    metric_options.remove("datetime")
     metric_display_name = st.selectbox(
-        'Select weather metric to compare:',
+        "Select weather metric to compare:",
         metric_display_names,
         index=0,
-        key='compare_weather_metric'
+        key="compare_weather_metric",
     )
 
     # Lookup the selected metric in the metadata

@@ -87,8 +87,8 @@ class WeatherFetcher():
             self.weather_date
         ).tz_localize(self.timezone)
         time_end = (
-            pd.to_datetime(self.weather_date) +
-            pd.Timedelta(days=1) - pd.Timedelta(seconds=1)
+            pd.to_datetime(self.weather_date)
+            + pd.Timedelta(days=1) - pd.Timedelta(seconds=1)
         ).tz_localize(self.timezone)
         interval = pd.Timedelta(seconds=data_obj.Interval())
 
