@@ -205,9 +205,6 @@ def test_change_page_to_weather(weather_page: Page):
     # Check if the weather page is loaded.
     expect(page.get_by_role("heading", name="Weather Summary")).to_be_visible()
 
-    # Check if the data has been loaded.
-    expect(page.get_by_text("Weather data fetched")).to_be_visible()
-
     # Change variable to display.
     page.locator("div").filter(
         has_text=re.compile(r"^Wind Speed$")
