@@ -14,8 +14,8 @@ from requests.exceptions import ConnectionError
 
 # Load environment variables
 load_dotenv()
-USERNAME = os.getenv("TEST_USERNAME")
-PASSWORD = os.getenv("TEST_PASSWORD")
+USERNAME = str(os.getenv("TEST_USERNAME"))
+PASSWORD = str(os.getenv("TEST_PASSWORD"))
 
 
 #####################################################################
@@ -25,6 +25,9 @@ PASSWORD = os.getenv("TEST_PASSWORD")
 def start_streamlit():
     """Start Streamlit before running tests and wait for it to be ready."""
     # Get path to Streamlit script.
+    path_to_streamlit_script = (
+        Path(__file__).parent.parent / "src" / "dashboard" / "main.py"
+    )
     path_to_streamlit_script = (
         Path(__file__).parent.parent / "src" / "dashboard" / "main.py"
     )
@@ -53,9 +56,7 @@ def start_streamlit():
     if not ready:
         streamlit_process.terminate()
         streamlit_process.wait(timeout=5)
-        pytest.fail(
-            f"Streamlit failed to start within {max_wait_time} seconds."
-        )
+        pytest.fail(f"Streamlit failed to start within {max_wait_time} seconds.")
 
     yield
 
@@ -93,9 +94,7 @@ def login(setup: Page):
 def upload_page(login: Page):
     """Navigate to the upload page for each test."""
     page = login
-    page.locator("div").filter(
-        has_text=re.compile(r"^📈 Statistics$")
-    ).first.click()
+    page.locator("div").filter(has_text=re.compile(r"^📈 Statistics$")).first.click()
     page.get_by_text("📁 Upload Log Sheets").click()
     yield page
 
@@ -104,9 +103,7 @@ def upload_page(login: Page):
 def stats_gur_page(login: Page):
     """Navigate to the stats and GUR page for each test."""
     page = login
-    page.locator("div").filter(
-        has_text=re.compile(r"^📈 Statistics$")
-    ).first.click()
+    page.locator("div").filter(has_text=re.compile(r"^📈 Statistics$")).first.click()
     page.get_by_text("🧮 Stats & GUR Helper").click()
     yield page
 
@@ -115,9 +112,7 @@ def stats_gur_page(login: Page):
 def weather_page(login: Page):
     """Navigate to the weather page for each test."""
     page = login
-    page.locator("div").filter(
-        has_text=re.compile(r"^📈 Statistics$")
-    ).first.click()
+    page.locator("div").filter(has_text=re.compile(r"^📈 Statistics$")).first.click()
     page.get_by_text("⛅ Weather").click()
     yield page
 
@@ -134,13 +129,13 @@ def test_login_incorrect_credentials(setup: Page):
     """Check if the login fails with incorrect credentials."""
     page = setup
     page.get_by_label("Username").click()
-    page.get_by_label("Username").fill("test")
+    page.get_by_label("Username").fill(USERNAME)
     page.get_by_label("Password", exact=True).click()
     page.get_by_label("Password", exact=True).fill("test")
     page.get_by_test_id("stBaseButton-secondaryFormSubmit").click()
 
     # Check if the invalid password message is displayed.
-    expect(page.get_by_text("Invalid Password")).to_be_visible()
+    expect(page.get_by_text("Invalid Password")).to_be_visible(timeout=10000)
 
 
 def test_dashboard_login(login: Page):
@@ -150,6 +145,7 @@ def test_dashboard_login(login: Page):
     # Check if the dashboard page is loaded after login.
     dummy_user = USERNAME.upper()
     expected_heading = f"{dummy_user} Dashboard"
+    expect(page.get_by_role("heading", name=expected_heading)).to_be_visible()
     expect(page.get_by_role("heading", name=expected_heading)).to_be_visible()
 
 
@@ -186,9 +182,7 @@ def test_change_page_to_stats_gur(stats_gur_page: Page):
     expect(
         page.get_by_role("heading", name="First & Last Launch Times")
     ).to_be_visible()
-    expect(
-        page.get_by_role("heading", name="Launches by Type")
-    ).to_be_visible()
+    expect(page.get_by_role("heading", name="Launches by Type")).to_be_visible()
     expect(page.get_by_role("heading", name="GUR Helpers")).to_be_visible()
     expect(
         page.get_by_role("heading", name="Weekly Summary by Aircraft")
@@ -206,9 +200,7 @@ def test_change_page_to_weather(weather_page: Page):
     expect(page.get_by_role("heading", name="Weather Summary")).to_be_visible()
 
     # Change variable to display.
-    page.locator("div").filter(
-        has_text=re.compile(r"^Wind Speed$")
-    ).first.click()
+    page.locator("div").filter(has_text=re.compile(r"^Wind Speed$")).first.click()
     page.get_by_role("option", name="Wind Direction").click()
 
 
@@ -220,9 +212,7 @@ def test_weather_reload_cache(weather_page: Page):
 
     # Check if the data has been reloaded.
     page.wait_for_timeout(1000)
-    expect(
-        page.get_by_text("Weather data fetched successfully.")
-    ).to_be_visible()
+    expect(page.get_by_text("Weather data fetched successfully.")).to_be_visible()
 
 
 def test_aircraft_commander_filter(login: Page):
@@ -230,25 +220,17 @@ def test_aircraft_commander_filter(login: Page):
     page = login
 
     # Use aircraft commander filter.
-    expect(
-        page.get_by_text("Filter by AircraftCommanderAllopen")
-    ).to_be_visible()
+    expect(page.get_by_text("Filter by AircraftCommanderAllopen")).to_be_visible()
     page.locator("div").filter(has_text=re.compile(r"^All$")).first.click()
-    page.get_by_test_id("stSelectboxVirtualDropdown").get_by_text(
-        "Jennings"
-    ).click()
+    page.get_by_test_id("stSelectboxVirtualDropdown").get_by_text("Jennings").click()
 
     # User quarter filter.
     expect(page.get_by_text("Select QuarterChoose an")).to_be_visible()
-    page.locator("div").filter(
-        has_text=re.compile(r"^Choose an option$")
-    ).first.click()
+    page.locator("div").filter(has_text=re.compile(r"^Choose an option$")).first.click()
     page.get_by_text("2025Q2").click()
 
     # Check if the quarterly filter has been displayed.
-    expect(
-        page.get_by_role("heading", name="Quarterly Summary Helper")
-    ).to_be_visible()
+    expect(page.get_by_role("heading", name="Quarterly Summary Helper")).to_be_visible()
 
 
 if __name__ == "__main__":

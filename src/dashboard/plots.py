@@ -86,12 +86,8 @@ def format_data_for_table(raw_df: pd.DataFrame) -> pd.DataFrame:
         .apply(lambda x: int(x.split(":")[0]) * 60 + int(x.split(":")[1]))
         .sum()
     )
-    total_flight_time_str = (
-        f"{total_flight_time // 60}:{total_flight_time % 60:02d}"
-    )
-    total_plfs = (
-        data_df["PLFs"].apply(lambda x: 0 if x == "" else int(x)).sum()
-    )
+    total_flight_time_str = f"{total_flight_time // 60}:{total_flight_time % 60:02d}"
+    total_plfs = data_df["PLFs"].apply(lambda x: 0 if x == "" else int(x)).sum()
 
     # Create a totals row.
     totals_row = pd.DataFrame(
@@ -121,9 +117,7 @@ def plot_launches_by_commander(df: pd.DataFrame):
     """
     # Group by AircraftCommander and count launches
     launches_by_commander = (
-        df.groupby("AircraftCommander")
-        .agg(Launches=("Date", "count"))
-        .reset_index()
+        df.groupby("AircraftCommander").agg(Launches=("Date", "count")).reset_index()
     )
 
     # Drop those with less than 5 launches.
@@ -197,17 +191,15 @@ def plot_firstlast_launch_table(df: pd.DataFrame):
     )
 
     # Convert Date to the desired format
-    first_last_launch["Date"] = first_last_launch["Date"].dt.strftime(
-        "%d %b %y"
-    )
+    first_last_launch["Date"] = first_last_launch["Date"].dt.strftime("%d %b %y")
 
     # Convert first and last launches to time-only format
-    first_last_launch["FirstLaunch"] = first_last_launch[
-        "FirstLaunch"
-    ].dt.strftime("%H:%M")
-    first_last_launch["LastLaunch"] = first_last_launch[
-        "LastLaunch"
-    ].dt.strftime("%H:%M")
+    first_last_launch["FirstLaunch"] = first_last_launch["FirstLaunch"].dt.strftime(
+        "%H:%M"
+    )
+    first_last_launch["LastLaunch"] = first_last_launch["LastLaunch"].dt.strftime(
+        "%H:%M"
+    )
 
     # Display the DataFrame in Streamlit
     st.subheader("First & Last Launch Times")
@@ -298,9 +290,7 @@ def get_aircraft_weekly_summary(df: pd.DataFrame) -> pd.DataFrame:
     Returns:
         pd.DataFrame: The summarized data"""
     # Convert 'Date' to week start format
-    df["Week Start"] = df["Date"] - pd.to_timedelta(
-        df["Date"].dt.weekday, unit="D"
-    )
+    df["Week Start"] = df["Date"] - pd.to_timedelta(df["Date"].dt.weekday, unit="D")
 
     # Group by week start and Aircraft
     gur_helper = (
@@ -586,9 +576,7 @@ def table_all_launches(df: pd.DataFrame):
     df["Date"] = df["Date"].dt.strftime("%d %b %y")
 
     # Convert the FlightTime (minutes) to a string in HH:MM format.
-    df["FlightTime"] = df["FlightTime"].apply(
-        lambda x: f"{x // 60}:{x % 60:02d}"
-    )
+    df["FlightTime"] = df["FlightTime"].apply(lambda x: f"{x // 60}:{x % 60:02d}")
 
     # Format TakeOffTime and LandingTime.
     df["TakeOffTime"] = df["TakeOffTime"].dt.strftime("%H:%M")
@@ -627,9 +615,7 @@ def show_logbook_helper(df: pd.DataFrame, commander: str):
         filtered_df = pd.concat([filtered_df, sct_df])
 
         # Sort the data by date in descending order.
-        filtered_df = filtered_df.sort_values(
-            by="TakeOffTime", ascending=False
-        )
+        filtered_df = filtered_df.sort_values(by="TakeOffTime", ascending=False)
     else:
         filtered_df = df
         commander = "All"
@@ -641,9 +627,7 @@ def show_logbook_helper(df: pd.DataFrame, commander: str):
     st.dataframe(data=display_df, hide_index=True, use_container_width=True)
 
 
-def quarterly_summary(
-    df: pd.DataFrame, commander: str, quarter: str
-) -> pd.DataFrame:
+def quarterly_summary(df: pd.DataFrame, commander: str, quarter: str) -> pd.DataFrame:
     """Show a quarterly summary of the number of launches
     for each AircraftCommander.
 
@@ -697,9 +681,7 @@ def quarterly_summary(
     )
 
     # Convert the FlightTime (minutes) to a string in HH:MM format.
-    summary["Hours"] = summary["Hours"].apply(
-        lambda x: f"{x // 60}:{x % 60:02d}"
-    )
+    summary["Hours"] = summary["Hours"].apply(lambda x: f"{x // 60}:{x % 60:02d}")
 
     # Display the summary table.
     st.header("Quarterly Summary Helper")
@@ -741,8 +723,7 @@ def show_logo(logo_path: Path):
 
     # Show centred text.
     st.markdown(
-        "<h2 style='text-align: center;'>"
-        "Volunteer Gliding Squadron Dashboard</h1>",
+        "<h2 style='text-align: center;'>" "Volunteer Gliding Squadron Dashboard</h1>",
         unsafe_allow_html=True,
     )
 
@@ -931,9 +912,7 @@ def get_aircraft_totals(aircraft_df: pd.DataFrame) -> pd.DataFrame:
     last_entry_list = []
     for aircraft in aircraft_list:
         # Get the most recent entry for the aircraft.
-        aircraft_entry = aircraft_df[aircraft_df["Aircraft"] == aircraft].iloc[
-            0
-        ]
+        aircraft_entry = aircraft_df[aircraft_df["Aircraft"] == aircraft].iloc[0]
         # Add the entry to the list.
         last_entry_list.append(aircraft_entry)
 
@@ -997,9 +976,7 @@ def table_gur_summary(aircraft_df: pd.DataFrame, launches_df: pd.DataFrame):
     last_entry_df = last_entry_df[last_entry_df["Date"] > six_months_ago]
 
     # Filter gur summary by aircraft in last entry.
-    gur_summary = gur_summary[
-        gur_summary["Aircraft"].isin(last_entry_df["Aircraft"])
-    ]
+    gur_summary = gur_summary[gur_summary["Aircraft"].isin(last_entry_df["Aircraft"])]
 
     # Get the first entry for each unique aircraft in gur_summary.
     last_weekly_summary = gur_summary.drop_duplicates(
@@ -1036,3 +1013,50 @@ def table_gur_summary(aircraft_df: pd.DataFrame, launches_df: pd.DataFrame):
 
     st.subheader("GUR Summary")
     st.dataframe(last_entry_df[columns_to_display.values()], hide_index=True)
+
+
+def table_solo_dual_summary(df: pd.DataFrame, commander: str):
+    """Show a table counting solo and dual launches for a selected pilot.
+
+    Args:
+        df (pd.DataFrame): The launches data.
+        commander (str): The selected pilot to analyze.
+    """
+    if not commander:
+        return
+
+    # Filter for launches where the selected pilot is either AircraftCommander or
+    # SecondPilot and Duty is "SCT U/T"
+    sct_df = df[
+        (df["Duty"] == "SCT U/T")
+        & ((df["AircraftCommander"] == commander) | (df["SecondPilot"] == commander))
+    ].copy()
+
+    if sct_df.empty:
+        st.info(f"No SCT U/T launches found for {commander}")
+        return
+
+    # Count solo launches (SecondPilot is 0, NaN, or empty string)
+    solo_count = sct_df[
+        (sct_df["SecondPilot"].isna())
+        | (sct_df["SecondPilot"] == 0)
+        | (sct_df["SecondPilot"] == "")
+        | (sct_df["SecondPilot"] == "0")
+    ].shape[0]
+
+    # Count dual launches (SecondPilot has a value and is not 0)
+    dual_count = sct_df[
+        (sct_df["SecondPilot"].notna())
+        & (sct_df["SecondPilot"] != 0)
+        & (sct_df["SecondPilot"] != "")
+        & (sct_df["SecondPilot"] != "0")
+    ].shape[0]
+
+    # Create summary dataframe
+    summary_data = {"Launch Type": ["Solo", "Dual"], "Count": [solo_count, dual_count]}
+    summary_df = pd.DataFrame(summary_data)
+
+    # Display the table
+    st.subheader(f"Solo/Dual Launch Summary for {commander}")
+    st.text("SCT U/T launches only")
+    st.dataframe(summary_df, hide_index=True, use_container_width=True)
