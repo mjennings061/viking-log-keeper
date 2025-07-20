@@ -220,7 +220,7 @@ def test_aircraft_commander_filter(login: Page):
     page = login
 
     # Use aircraft commander filter.
-    expect(page.get_by_text("Filter by AircraftCommanderAllopen")).to_be_visible()
+    expect(page.get_by_text("Filter by Pilot")).to_be_visible()
     page.locator("div").filter(has_text=re.compile(r"^All$")).first.click()
     page.get_by_test_id("stSelectboxVirtualDropdown").get_by_text("Jennings").click()
 
