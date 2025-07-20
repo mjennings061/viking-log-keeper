@@ -177,10 +177,10 @@ def show_data_dashboard(db: Database):
 
     # Filter by AircraftCommander.
     commander = st.sidebar.selectbox(
-        "Filter by AircraftCommander",
+        "Filter by Pilot",
         sorted(df["AircraftCommander"].unique()),
         index=None,
-        help="Select the AircraftCommander to filter by.",
+        help="Select the pilot to filter by.",
         placeholder="All",
         key="filter_commander"
     )
