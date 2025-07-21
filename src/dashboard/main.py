@@ -37,6 +37,7 @@ from dashboard.plots import (   # noqa: E402
     plot_gif_bar_chart,
     table_aircraft_totals,
     table_gur_summary,
+    table_solo_dual_summary,
 )
 from dashboard.weather import weather_page  # noqa: E402
 from dashboard.utils import (   # noqa: E402
@@ -87,7 +88,7 @@ def get_aircraft_for_dashboard(db: Database) -> pd.DataFrame:
 
 
 def get_personal_df(filtered_df: pd.DataFrame, client: Client) -> pd.DataFrame:
-    """Combine launches from CGS if any 661vgs Aircraft Commanders appear
+    """Combine launches from CGS if any VGS Aircraft Commanders appear
     in CGS data."""
 
     if filtered_df.empty:
@@ -128,9 +129,8 @@ def get_personal_df(filtered_df: pd.DataFrame, client: Client) -> pd.DataFrame:
 
             if not cgs_user_df.empty:
                 return pd.concat([filtered_df, cgs_user_df], ignore_index=True)
-        except Exception as e:
+        except Exception:
             st.error("Failed to pull or filter CGS launches.")
-            st.exception(e)
 
     return filtered_df
 
@@ -177,10 +177,10 @@ def show_data_dashboard(db: Database):
 
     # Filter by AircraftCommander.
     commander = st.sidebar.selectbox(
-        "Filter by AircraftCommander",
+        "Filter by Pilot",
         sorted(df["AircraftCommander"].unique()),
         index=None,
-        help="Select the AircraftCommander to filter by.",
+        help="Select the pilot to filter by.",
         placeholder="All",
         key="filter_commander"
     )
@@ -240,6 +240,9 @@ def show_data_dashboard(db: Database):
                 match_count = st.session_state["cgs_match_count"][commander]
                 if match_count > 0:
                     st.info(f"CGS launches for {commander}: {match_count}")
+
+            # Show solo/dual launch summary for selected pilot
+            table_solo_dual_summary(personal_df, commander)
 
             # Filter the data by the selected quarter.
             if quarter and commander:
