@@ -8,22 +8,20 @@ from typing import List
 import pandas as pd
 import streamlit as st
 
-# User imports.
-from log_keeper.get_config import Database
-from log_keeper.output import weather_to_db
-from log_keeper.weather import WeatherFetcher
 from dashboard import logger
 from dashboard.utils import get_weekends
 from dashboard.weather_plots import (
     plot_launch_vs_nonlaunch_weather,
     plot_weather_vs_flight_time,
     plot_wind_polar,
-    weather_table
+    weather_table,
 )
-from dashboard.weather_utils import (
-    calculate_cloud_base,
-    weather_metadata,
-)
+from dashboard.weather_utils import calculate_cloud_base, weather_metadata
+
+# User imports.
+from log_keeper.get_config import Database
+from log_keeper.output import weather_to_db
+from log_keeper.weather import WeatherFetcher
 
 
 def weather_page(db: Database, launches_df: pd.DataFrame):
@@ -44,9 +42,7 @@ def weather_page(db: Database, launches_df: pd.DataFrame):
                 icon="✅",
             )
             st.cache_data.clear()
-        st.info(
-            "Reset the cache to fetch the latest weather data from the API."
-        )
+        st.info("Reset the cache to fetch the latest weather data from the API.")
 
     # Use session state to check if the weather data needs to be refreshed.
     refresh = st.session_state.get("refresh_weather", False)
@@ -58,9 +54,7 @@ def weather_page(db: Database, launches_df: pd.DataFrame):
             # Decide whether to fetch new data or use cached data
             if refresh or not weather:
                 # Fetch new data and store it in session state
-                weather_df = get_weather_data(
-                    db=db, df=launches_df, show_progress=True
-                )
+                weather_df = get_weather_data(db=db, df=launches_df, show_progress=True)
                 st.session_state["weather"] = True
                 st.session_state["refresh_weather"] = False
             else:
@@ -100,10 +94,7 @@ def weather_page(db: Database, launches_df: pd.DataFrame):
         selected_metric = select_metric_to_plot()
         plot_weather_vs_flight_time(weather_df, launches_df, selected_metric)
         st.subheader("Weather on Launch vs Non-Launch Days")
-        plot_launch_vs_nonlaunch_weather(
-            weather_df, launches_df, selected_metric
-        )
-
+        plot_launch_vs_nonlaunch_weather(weather_df, launches_df, selected_metric)
         # Display the weather data in a table.
         weather_table(weather_df)
 
@@ -152,9 +143,7 @@ def get_weather_data(
     dates = df["Date"].dt.date.unique().tolist()
 
     # Get all weekends and add any missing weekends to the dates.
-    all_weekends = get_weekends(
-        start_date=df["Date"].min(), end_date=df["Date"].max()
-    )
+    all_weekends = get_weekends(start_date=df["Date"].min(), end_date=df["Date"].max())
     dates.extend(all_weekends)
     dates = sorted(set(dates))
 
@@ -169,16 +158,12 @@ def get_weather_data(
         missing_dates = dates
     else:
         # Check if all dates are present in the weather data.
-        missing_dates = list(
-            set(dates) - set(weather_df["datetime"].dt.date.unique())
-        )
+        missing_dates = list(set(dates) - set(weather_df["datetime"].dt.date.unique()))
 
     # Check all 24 hours of weather are present for each date.
     if not weather_df.empty:
         # Create a set of dates with incomplete hourly data
-        date_hour_counts = weather_df.groupby(
-            weather_df["datetime"].dt.date
-        ).size()
+        date_hour_counts = weather_df.groupby(weather_df["datetime"].dt.date).size()
         dates_missing_hours = set(
             date
             for date, count in date_hour_counts.items()
@@ -198,8 +183,7 @@ def get_weather_data(
     if missing_dates:
         # Get the missing dates from the API.
         logger.debug(
-            "Fetching missing weather data for dates: \n"
-            f"{missing_dates.__str__()}"
+            "Fetching missing weather data for dates: \n" f"{missing_dates.__str__()}"
         )
         logger.info(f"Fetching weather data for {len(missing_dates)} dates.")
         missing_weather_df = get_api_weather_data(
@@ -212,14 +196,12 @@ def get_weather_data(
         else:
             # Concatenate and keep only the latest data for duplicates
             weather_df = pd.concat([weather_df, missing_weather_df])
-            weather_df = weather_df.drop_duplicates(
-                subset=["datetime"], keep="last"
-            )
+            weather_df = weather_df.drop_duplicates(subset=["datetime"], keep="last")
 
         # Sort by datetime in descending order
-        weather_df = weather_df.sort_values(
-            by="datetime", ascending=False
-        ).reset_index(drop=True)
+        weather_df = weather_df.sort_values(by="datetime", ascending=False).reset_index(
+            drop=True
+        )
 
         # Save the new data to the database.
         weather_to_db(
@@ -339,7 +321,5 @@ def select_metric_to_plot():
     )
 
     # Lookup the selected metric in the metadata
-    selected_metric = metric_options[
-        metric_display_names.index(metric_display_name)
-    ]
+    selected_metric = metric_options[metric_display_names.index(metric_display_name)]
     return selected_metric

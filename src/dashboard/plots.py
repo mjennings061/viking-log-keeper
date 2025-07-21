@@ -627,7 +627,7 @@ def show_logbook_helper(df: pd.DataFrame, commander: str):
     st.dataframe(data=display_df, hide_index=True, use_container_width=True)
 
 
-def quarterly_summary(df: pd.DataFrame, commander: str, quarter: str) -> pd.DataFrame:
+def quarterly_summary(df: pd.DataFrame, commander: str, quarter: str):
     """Show a quarterly summary of the number of launches
     for each AircraftCommander.
 
