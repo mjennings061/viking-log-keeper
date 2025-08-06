@@ -1,31 +1,33 @@
 """get_config.py - Get the database configuration from keyring"""
 
 # Get packages.
-import inquirer
 import random
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from pathlib import Path
-from dataclasses import dataclass, field
 from typing import Optional
-from pymongo.mongo_client import MongoClient
-from pymongo.server_api import ServerApi
-from pymongo.errors import OperationFailure
-from pymongo.collection import Collection
+
+import inquirer
 import keyring as kr
 import pandas as pd
+from pymongo.collection import Collection
+from pymongo.errors import OperationFailure
+from pymongo.mongo_client import MongoClient
+from pymongo.server_api import ServerApi
 
 # User defined modules.
 from dashboard import logger
 
 
 @dataclass
-class DbUser():
+class DbUser:
     """Store the database user configuration values.
 
     Attributes:
         username (str): The username of the database user.
         password (str): The password of the database user.
         uri (str): The URI of the database."""
+
     username: str
     password: str
     uri: str
@@ -56,7 +58,7 @@ class Client(MongoClient):
         # Validate db_user.
         super().__init__(
             db_user.get_connection_string(),
-            server_api=ServerApi('1'),
+            server_api=ServerApi("1"),
             tls=True,
             tlsAllowInvalidCertificates=True,
         )
@@ -72,9 +74,9 @@ class Client(MongoClient):
             bool: True if the user is logged in, otherwise False."""
         try:
             # Try to ping the database.
-            self.admin.command('ping')
+            self.admin.command("ping")
             self._authenticated = True
-            logger.info("Logged in to DB.")
+            logger.info("%s logged in to DB.", self.db_user.username)
             # Retrieve the list of databases.
             self._available_databases = self._get_readable_databases()
             # Set the default database.
@@ -101,10 +103,8 @@ class Client(MongoClient):
             # Get the list of databases.
             databases = self.list_database_names()
             # Filter "admin" and "local" databases.
-            databases = [
-                db for db in databases if db not in ["admin", "local"]
-            ]
-            logger.info("User can access: %s", databases)
+            databases = [db for db in databases if db not in ["admin", "local"]]
+            logger.debug("User can access: %s", databases)
             return databases
         except OperationFailure:
             logger.error("Could not get readable databases.")
@@ -151,6 +151,7 @@ class Client(MongoClient):
 
 class Database:
     """MongoDB database class to connect to a database."""
+
     def __init__(self, client: Client, database_name: str):
         # Set collection names.
         self.info_collection = "info"
@@ -200,7 +201,7 @@ class Database:
         # Check if the collection has data.
         if collection.count_documents({}) == 0:
             logger.warning("Collection is empty.")
-        logger.info("Collection %s fetched.", collection_name)
+        logger.debug("Collection %s fetched.", collection_name)
         return collection
 
     def get_launches_collection(self) -> Collection:
@@ -289,9 +290,9 @@ class Database:
             collection = self.get_weather_collection()
             df = pd.DataFrame(collection.find())
             # Make sure datetime is properly converted to timezone-aware format
-            df['datetime'] = pd.to_datetime(df['datetime'], utc=True)
+            df["datetime"] = pd.to_datetime(df["datetime"], utc=True)
             # Convert to the local timezone
-            df['datetime'] = df['datetime'].dt.tz_convert('Europe/London')
+            df["datetime"] = df["datetime"].dt.tz_convert("Europe/London")
             df = df.sort_values(by="datetime")
             df = df.drop(columns=["_id"], axis=1).reset_index(drop=True)
         except Exception:
@@ -300,15 +301,66 @@ class Database:
             df = pd.DataFrame()
         return df
 
+    def get_weather_dataframe_by_dates(
+        self, start_date: datetime, end_date: datetime
+    ) -> pd.DataFrame:
+        """Get the weather collection filtered by date range as a DataFrame.
+
+        Args:
+            start_date (datetime): The start date for filtering.
+            end_date (datetime): The end date for filtering.
+
+        Returns:
+            pandas.DataFrame: The filtered weather collection as a DataFrame."""
+        try:
+            # Get the collection
+            collection = self.get_weather_collection()
+
+            # Convert dates to UTC for MongoDB query
+            start_utc = (
+                pd.to_datetime(start_date)
+                .tz_localize("Europe/London")
+                .tz_convert("UTC")
+            )
+            end_utc = (
+                pd.to_datetime(end_date).tz_localize("Europe/London").tz_convert("UTC")
+            )
+
+            # Add one day to end_date to make it inclusive
+            end_utc = end_utc + timedelta(days=1)
+
+            # Create MongoDB query to filter by date range
+            query = {
+                "datetime": {
+                    "$gte": start_utc.to_pydatetime(),
+                    "$lt": end_utc.to_pydatetime(),
+                }
+            }
+
+            # Query the collection with date filter
+            df = pd.DataFrame(collection.find(query))
+
+            if not df.empty:
+                # Make sure datetime is properly converted to timezone-aware format
+                df["datetime"] = pd.to_datetime(df["datetime"], utc=True)
+                # Convert to the local timezone
+                df["datetime"] = df["datetime"].dt.tz_convert("Europe/London")
+                df = df.sort_values(by="datetime")
+                df = df.drop(columns=["_id"], axis=1).reset_index(drop=True)
+
+        except Exception:
+            # Log error and return an empty DataFrame.
+            logger.error("Could not fetch filtered weather data from the collection.")
+            df = pd.DataFrame()
+        return df
+
     @staticmethod
     def dummy_launches_dataframe():
         """Create a dummy DataFrame with varied data."""
         n_days = 10
         n_rep = 30
-        base_date = datetime.now().replace(
-            hour=0, minute=0, second=0, microsecond=0
-        )
-        dates = [base_date - timedelta(days=i*7) for i in range(n_days)]
+        base_date = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        dates = [base_date - timedelta(days=i * 7) for i in range(n_days)]
 
         all_data = []
 
@@ -319,8 +371,7 @@ class Database:
 
         for day in sorted(dates):
             take_off_times = [
-                day + timedelta(hours=random.randint(6, 12))
-                for _ in range(n_rep)
+                day + timedelta(hours=random.randint(6, 12)) for _ in range(n_rep)
             ]
             flight_time = [random.randint(5, 10) for _ in range(n_rep)]
             landing_times = [
@@ -330,15 +381,9 @@ class Database:
 
             daily_data = {
                 "Date": [day for _ in range(n_rep)],
-                "Aircraft": [
-                    random.choice(aircraft_list) for _ in range(n_rep)
-                ],
-                "AircraftCommander": [
-                    random.choice(commanders) for _ in range(n_rep)
-                ],
-                "SecondPilot": [
-                    random.choice(second_pilots) for _ in range(n_rep)
-                ],
+                "Aircraft": [random.choice(aircraft_list) for _ in range(n_rep)],
+                "AircraftCommander": [random.choice(commanders) for _ in range(n_rep)],
+                "SecondPilot": [random.choice(second_pilots) for _ in range(n_rep)],
                 "Duty": [random.choice(duties) for _ in range(n_rep)],
                 "FlightTime": flight_time,
                 "TakeOffTime": take_off_times,
@@ -369,10 +414,7 @@ class Database:
         aircraft = [random.choice(aircraft_choices) for i in range(n_reps)]
         date = [datetime.now() - timedelta(weeks=1) for i in range(n_reps)]
         launches_after = [random.randint(10000, 30000) for i in range(n_reps)]
-        hours_after = [
-            random.randint(10000, 30000)
-            for i in range(n_reps)
-        ]
+        hours_after = [random.randint(10000, 30000) for i in range(n_reps)]
 
         # Create the DataFrame.
         df = pd.DataFrame(
@@ -394,6 +436,7 @@ class LogSheetConfig:
         db_collection_name (Optional[str]): The name of the MongoDB collection.
         log_sheets_dir (Optional[str]): The path to the directory containing
             the log sheets."""
+
     # Define fields with default values of None.
     db_hostname: Optional[str] = field(default=None)
     db_username: Optional[str] = field(default=None)
@@ -408,17 +451,23 @@ class LogSheetConfig:
         Returns:
             bool: True if all values are present and valid, otherwise False."""
         # Check if any of the values are None.
-        if not all([self.db_hostname, self.db_username, self.db_password,
-                    self.db_name, self.db_collection_name,
-                    self.log_sheets_dir]):
+        if not all(
+            [
+                self.db_hostname,
+                self.db_username,
+                self.db_password,
+                self.db_name,
+                self.db_collection_name,
+                self.log_sheets_dir,
+            ]
+        ):
             logger.warning("Configuration values are missing.")
             return False
         # Check if the log_sheets_dir is a directory.
         if not Path(self.log_sheets_dir).is_dir():
-            logger.warning("Invalid log sheets directory: %s",
-                           self.log_sheets_dir)
+            logger.warning("Invalid log sheets directory: %s", self.log_sheets_dir)
             return False
-        logger.info("Config valid.")
+        logger.debug("Config valid.")
         return True
 
     def connect_to_db(self):
@@ -432,20 +481,22 @@ class LogSheetConfig:
         db_password = self.db_password
 
         # Create the DB connection URL.
-        db_url = (f"mongodb+srv://{db_username}:{db_password}@{db_hostname}"
-                  "/?retryWrites=true&w=majority")
+        db_url = (
+            f"mongodb+srv://{db_username}:{db_password}@{db_hostname}"
+            "/?retryWrites=true&w=majority"
+        )
 
         # Create a new client and connect to the server.
         client = MongoClient(
             db_url,
-            server_api=ServerApi('1'),
+            server_api=ServerApi("1"),
             tls=True,
             tlsAllowInvalidCertificates=True,
         )
 
         # Print success message if ping is successful.
-        if client.admin.command('ping')['ok'] == 1.0:
-            logger.info("Connected to DB.")
+        if client.admin.command("ping")["ok"] == 1.0:
+            logger.debug("Connected to DB.")
         else:
             raise ConnectionError("Could not connect to DB.")
 
@@ -458,11 +509,11 @@ class LogSheetConfig:
         Returns:
             str: The log sheet directory."""
         try:
-            self.log_sheets_dir = kr.get_password("log_keeper",
-                                                  "log_sheets_dir")
+            self.log_sheets_dir = kr.get_password("log_keeper", "log_sheets_dir")
         except Exception:
-            logger.warning("Could not fetch log_sheets_dir from keyring.",
-                           exc_info=True)
+            logger.warning(
+                "Could not fetch log_sheets_dir from keyring.", exc_info=True
+            )
 
         if not self.log_sheets_dir:
             self.update_log_sheets_dir()
@@ -475,10 +526,10 @@ class LogSheetConfig:
         questions = [
             inquirer.Text(
                 "log_sheets_dir",
-                message="Log sheets directory " +
-                        "e.g. C:\\Users\\YOUR_USERNAME\\OneDrive\\Documents\n",
-                validate=lambda _, x: Path(x).is_dir(
-                ) or "Path does not exist or is not a directory.",
+                message="Log sheets directory "
+                + "e.g. C:\\Users\\YOUR_USERNAME\\OneDrive\\Documents\n",
+                validate=lambda _, x: Path(x).is_dir()
+                or "Path does not exist or is not a directory.",
             )
         ]
         answers = inquirer.prompt(questions)
@@ -486,11 +537,9 @@ class LogSheetConfig:
 
         # Save to keyring.
         try:
-            kr.set_password("log_keeper", "log_sheets_dir",
-                            self.log_sheets_dir)
+            kr.set_password("log_keeper", "log_sheets_dir", self.log_sheets_dir)
         except Exception:
-            logger.error("Could not save log_sheets_dir to keyring.",
-                         exc_info=True)
+            logger.error("Could not save log_sheets_dir to keyring.", exc_info=True)
 
     def fetch_data_from_mongodb(self):
         """Fetch data from MongoDB.
@@ -520,4 +569,5 @@ def update_log_sheets_dir_wrapper():
 if __name__ == "__main__":
     # Get the config file.
     config = LogSheetConfig()
+    print(config)
     print(config)
