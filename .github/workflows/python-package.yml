@@ -27,8 +27,9 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        python -m pip install wheel build setuptools flake8 pytest pytest-playwright
-        playwright install
+        python -m pip install wheel build setuptools ruff pytest pytest-playwright
+        playwright install-deps chromium
+        playwright install chromium
 
     - name: Build
       run: python -m build
@@ -36,15 +37,14 @@ jobs:
     - name: Build and install package
       run: python -m pip install dist/*.whl
 
-    - name: Lint with flake8
+    - name: Lint with Ruff (excluding tests)
       run: |
-        # stop the build if there are Python syntax errors or undefined names
-        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-        # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
-        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+        # Lint all code except tests directory
+        ruff check . --exclude tests
 
     - name: Create secrets.toml file
       run: |
+        mkdir -p .streamlit
         echo 'MONGO_URI = "${{ secrets.MONGO_URI }}"' >> .streamlit/secrets.toml
 
     - name: Run Playwright tests

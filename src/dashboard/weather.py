@@ -2,7 +2,7 @@
 
 import time
 from datetime import date
-from typing import Optional, List, Any
+from typing import List
 
 import pandas as pd
 import streamlit as st
