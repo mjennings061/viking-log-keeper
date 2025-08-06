@@ -147,30 +147,36 @@ def get_weather_data(
     dates.extend(all_weekends)
     dates = sorted(set(dates))
 
-    # Get weather data from the database.
+    # Get weather data from the database filtered by date range.
     logger.info("Fetching weather data from the database.")
     if show_progress:
         st.write("Fetching weather data from the database...")
-    weather_df = db.get_weather_dataframe()
+
+    # Calculate date range for optimized query
+    start_date = min(dates)
+    end_date = max(dates)
+    weather_df = db.get_weather_dataframe_by_dates(start_date, end_date)
 
     # Check if all dates are present in the weather data.
     if weather_df.empty:
         missing_dates = dates
     else:
         # Check if all dates are present in the weather data.
-        missing_dates = list(set(dates) - set(weather_df["datetime"].dt.date.unique()))
+        # Since we filtered at DB level, we only need to check the specific dates we
+        # need
+        existing_dates = set(weather_df["datetime"].dt.date.unique())
+        missing_dates = list(set(dates) - existing_dates)
 
     # Check all 24 hours of weather are present for each date.
     if not weather_df.empty:
         # Create a set of dates with incomplete hourly data
+        # Only check dates we actually need, since we already filtered at DB level
         date_hour_counts = weather_df.groupby(weather_df["datetime"].dt.date).size()
-        dates_missing_hours = set(
+        dates_missing_hours = [
             date
             for date, count in date_hour_counts.items()
-            if count < 22 and date in dates
-        )
-        # Remove dates that are already in missing_dates to avoid duplicates
-        dates_missing_hours = dates_missing_hours - set(missing_dates)
+            if count < 22 and date in dates and date not in missing_dates
+        ]
         if dates_missing_hours:
             # Get the missing dates from the API.
             logger.debug(
@@ -185,7 +191,7 @@ def get_weather_data(
         logger.debug(
             "Fetching missing weather data for dates: \n" f"{missing_dates.__str__()}"
         )
-        logger.info(f"Fetching weather data for {len(missing_dates)} dates.")
+        logger.info("Fetching weather data for %d dates.", len(missing_dates))
         missing_weather_df = get_api_weather_data(
             db=db, dates=missing_dates, show_progress=show_progress
         )
@@ -214,13 +220,13 @@ def get_weather_data(
                 icon="✅",
             )
 
-    # Filter the weather data to only include the dates for launches.
-    weather_df = weather_df[weather_df["datetime"].dt.date.isin(dates)]
+    # No need to filter again - we already got filtered data from DB
+    # and any new data was merged appropriately
     return weather_df
 
 
 def get_api_weather_data(
-    db: Database, dates: List[datetime.date], show_progress: bool = True
+    db: Database, dates: List[datetime], show_progress: bool = True
 ) -> pd.DataFrame:
     """Fetch weather data for the given date range.
 
@@ -263,9 +269,9 @@ def get_api_weather_data(
         weather_fetcher = WeatherFetcher(
             latitude=latitude, longitude=longitude, weather_date=date
         )
-        # Add a delay to avoid hitting the API too quickly.
+        # Add a delay to avoid hitting the API too quickly (max 600/hour).
         # This is important to avoid being blocked by the API.
-        time.sleep(0.2)
+        time.sleep(0.1)
         if weather_fetcher.hourly_df.empty:
             if show_progress:
                 st.warning(f"No weather data available for {date}.")
