@@ -1,34 +1,55 @@
 """weather.py: Weather data retrieval and processing."""
 
 # Import modules.
-import openmeteo_requests
-import requests_cache
-import pandas as pd
-import numpy as np
-from retry_requests import retry
+
 from dataclasses import dataclass, field
-from typing import Optional, List
+from datetime import date, time
+from typing import List
+
+import numpy as np
+import openmeteo_requests
+import pandas as pd
+import requests_cache
+from retry_requests import retry
 
 
 @dataclass
-class WeatherFetcher():
+class WeatherFetcher:
     """Fetch and process weather data."""
-    weather_date: pd.Timestamp
+
+    weather_date: date = field(default_factory=lambda: date.today())
+    # Default location: Kirknewton, Scotland.
     latitude: float = 55.875599555800726  # Kirknewton.
     longitude: float = -3.401593692255116
-    hourly: List[str] = field(default_factory=lambda: [
-        "temperature_2m", "relative_humidity_2m", "dew_point_2m",
-        "precipitation", "surface_pressure", "cloud_cover_low",
-        "wind_speed_10m", "wind_direction_10m", "wind_gusts_10m"
-    ])
-    daily: List[str] = field(default_factory=lambda: [
-        "weather_code", "precipitation_sum", "sunrise", "sunset",
-        "precipitation_hours", "wind_direction_10m_dominant"
-    ])
+    hourly: List[str] = field(
+        default_factory=lambda: [
+            "temperature_2m",
+            "relative_humidity_2m",
+            "dew_point_2m",
+            "precipitation",
+            "surface_pressure",
+            "cloud_cover_low",
+            "wind_speed_10m",
+            "wind_direction_10m",
+            "wind_gusts_10m",
+        ]
+    )
+    daily: List[str] = field(
+        default_factory=lambda: [
+            "weather_code",
+            "precipitation_sum",
+            "sunrise",
+            "sunset",
+            "precipitation_hours",
+            "wind_direction_10m_dominant",
+        ]
+    )
     wind_speed_unit: str = "kn"
     timezone: str = "Europe/London"
-    hourly_df: Optional[pd.DataFrame] = field(default=None, init=False)
-    daily_df: Optional[pd.DataFrame] = field(default=None, init=False)
+
+    # Dataframes populated after fetching.
+    hourly_df: pd.DataFrame = field(default_factory=pd.DataFrame, init=False)
+    daily_df: pd.DataFrame = field(default_factory=pd.DataFrame, init=False)
 
     # Constants.
     _API_URL: str = "https://archive-api.open-meteo.com/v1/archive"
@@ -38,7 +59,7 @@ class WeatherFetcher():
 
     def _fetch_weather_data(self):
         """Get weather data from Open Meteo API."""
-        cache_session = requests_cache.CachedSession('.cache', expire_after=-1)
+        cache_session = requests_cache.CachedSession(".cache", expire_after=-1)
         retry_session = retry(cache_session, retries=5, backoff_factor=0.2)
         openmeteo = openmeteo_requests.Client(session=retry_session)
 
@@ -51,7 +72,7 @@ class WeatherFetcher():
             "hourly": self.hourly,
             "daily": self.daily,
             "timezone": self.timezone,
-            "wind_speed_unit": self.wind_speed_unit
+            "wind_speed_unit": self.wind_speed_unit,
         }
 
         # Fetch data.
@@ -83,58 +104,58 @@ class WeatherFetcher():
         # The API will return data for the entire date range, starting at
         # 00:00 local time on the start date and ending 23:00 local time on the
         # end date. The data is returned as local time.
-        time_start = pd.to_datetime(
-            self.weather_date
-        ).tz_localize(self.timezone)
-        time_end = (
-            pd.to_datetime(self.weather_date)
-            + pd.Timedelta(days=1) - pd.Timedelta(seconds=1)
-        ).tz_localize(self.timezone)
+        # Always resolve time_start to 00:00 and time_end to 23:59 in the specified
+        # timezone.
+        time_start = pd.Timestamp.combine(self.weather_date, time(0, 0))
+        time_start = pd.Timestamp(time_start).tz_localize(self.timezone)
+        time_end = pd.Timestamp.combine(self.weather_date, time(23, 59))
+        time_end = pd.Timestamp(time_end).tz_localize(self.timezone)
         interval = pd.Timedelta(seconds=data_obj.Interval())
 
         # Create a date range.
         timestamps = pd.date_range(
-            start=time_start,
-            end=time_end,
-            freq=interval,
-            inclusive="left"
+            start=time_start, end=time_end, freq=interval, inclusive="left"
         )
 
         # Create a dictionary to hold the data.
         data = {"date": timestamps}
 
         # Extract data variables
-        for i, var in enumerate(variables):
-            data[var] = data_obj.Variables(i).ValuesAsNumpy()
+        for i_var, weather_variable in enumerate(variables):
+            if weather_variable == "date":
+                continue  # Avoid overwriting the date/timestamps key
+            arr = data_obj.Variables(i_var).ValuesAsNumpy()
 
-            # Ensure data[var] is an array
-            if not isinstance(data[var], np.ndarray) and data_type == "Daily":
-                data[var] = np.array([data[var]])
+            # Ensure arr is an array
+            if not isinstance(arr, np.ndarray) and data_type == "Daily":
+                arr = np.array([arr])
+                data[weather_variable] = arr.tolist()
                 continue
 
             # Handle cases where a time is missing e.g. BST change.
-            if len(timestamps) < len(data[var]):
+            if len(timestamps) < len(arr):
                 # Spring forward, an hour should be removed from second hour.
-                data[var] = np.delete(data[var], 1)
-            elif len(timestamps) > len(data[var]):
+                arr = np.delete(arr, 1)
+            elif len(timestamps) > len(arr):
                 # Fall back, an hour should be added to second hour.
-                data[var] = np.insert(data[var], 1, np.nan)
+                arr = np.insert(arr, 1, np.nan)
+            data[weather_variable] = arr.tolist()
 
         # Convert to DataFrame
-        weather_df = pd.DataFrame(data).rename(
-            columns={"date": "datetime"}
-        ).sort_values(
-            by="datetime"
-        ).dropna().reset_index(drop=True)
+        weather_df = (
+            pd.DataFrame(data)
+            .rename(columns={"date": "datetime"})
+            .sort_values(by="datetime")
+            .dropna()
+            .reset_index(drop=True)
+        )
         return weather_df
 
 
 if __name__ == "__main__":
     # Test the WeatherFetcher class.
-    start_date = pd.Timestamp(2025, 2, 22)
-    weather_fetcher = WeatherFetcher(
-        weather_date=start_date
-    )
+    start_date = pd.Timestamp(2025, 3, 30)
+    weather_fetcher = WeatherFetcher(weather_date=start_date)
     # Print the first few rows of the hourly and daily dataframes.
     print(weather_fetcher.hourly_df.head())
     print(weather_fetcher.daily_df.head())

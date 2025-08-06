@@ -6,7 +6,7 @@ from pathlib import Path
 import streamlit as st
 from typing import List
 from io import BytesIO
-from datetime import datetime, timedelta
+from datetime import date, timedelta, datetime
 
 # User defined modules.
 from log_keeper.ingest import ingest_log_sheet_from_upload, sanitise_log_sheets
@@ -383,22 +383,22 @@ def date_filter(df: pd.DataFrame, key: str = "date_filter"):
 
 
 def get_weekends(
-    start_date: datetime, end_date: datetime
-) -> List[datetime.date]:
+    start_date: date | str, end_date: date | str
+) -> List[date]:
     """Get a list of weekends between two dates (inclusive).
 
     Args:
-        start_date (datetime.datetime): The start date.
-        end_date (datetime.datetime): The end date.
+        start_date (date): The start date.
+        end_date (date): The end date.
 
     Returns:
-        List[datetime.date]: A list of weekends between the two dates.
+        List[date]: A list of weekends between the two dates.
     """
     # Ensure dates are datetime objects.
     if isinstance(start_date, str):
-        start_date = datetime.strptime(start_date, '%Y-%m-%d')
+        start_date = date.fromisoformat(start_date)
     if isinstance(end_date, str):
-        end_date = datetime.strptime(end_date, '%Y-%m-%d')
+        end_date = date.fromisoformat(end_date)
 
     # Create a list of all dates in range and filter for weekends.
     all_dates = pd.date_range(start=start_date, end=end_date)

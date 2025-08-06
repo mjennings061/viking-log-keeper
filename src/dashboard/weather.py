@@ -1,8 +1,7 @@
 """weather.py - Plot weather data."""
 
-# Module imports.
 import time
-from datetime import datetime
+from datetime import date
 from typing import List
 
 import pandas as pd
@@ -17,11 +16,39 @@ from dashboard.weather_plots import (
     weather_table,
 )
 from dashboard.weather_utils import calculate_cloud_base, weather_metadata
-
-# User imports.
 from log_keeper.get_config import Database
 from log_keeper.output import weather_to_db
 from log_keeper.weather import WeatherFetcher
+
+
+# --- Cached API batch fetch ---
+@st.cache_data(ttl="12h", show_spinner=True)
+def fetch_weather_for_dates_cached(
+    latitude: float, longitude: float, dates: tuple
+) -> pd.DataFrame:
+    """Fetch weather data for a batch of dates using the API, with caching.
+    Args:
+        latitude (float): Latitude of the site.
+        longitude (float): Longitude of the site.
+        dates (tuple): Tuple of datetime.date objects.
+    Returns:
+        pd.DataFrame: Concatenated weather data for all dates.
+    """
+    # Create a WeatherFetcher instance for each date and collect the data.
+    logger.info("Fetching weather data for %d dates.", len(dates))
+    all_data = []
+    for day in dates:
+        weather_fetcher = WeatherFetcher(
+            latitude=latitude, longitude=longitude, weather_date=day
+        )
+        if not weather_fetcher.hourly_df.empty:
+            all_data.append(weather_fetcher.hourly_df.copy())
+        time.sleep(0.1)  # Throttle API requests to 600/minute
+
+    # Concatenate all dataframes and sort by datetime.
+    if all_data:
+        return pd.concat(all_data).sort_values(by="datetime").reset_index(drop=True)
+    return pd.DataFrame()
 
 
 def weather_page(db: Database, launches_df: pd.DataFrame):
@@ -45,30 +72,14 @@ def weather_page(db: Database, launches_df: pd.DataFrame):
         st.info("Reset the cache to fetch the latest weather data from the API.")
 
     # Use session state to check if the weather data needs to be refreshed.
-    refresh = st.session_state.get("refresh_weather", False)
-    weather = st.session_state.get("weather", False)
-
     # Get the weather data from the database or API.
     with st.status("Fetching weather data...", expanded=True) as status:
         try:
-            # Decide whether to fetch new data or use cached data
-            if refresh or not weather:
-                # Fetch new data and store it in session state
-                weather_df = get_weather_data(db=db, df=launches_df, show_progress=True)
-                st.session_state["weather"] = True
-                st.session_state["refresh_weather"] = False
-            else:
-                # Use the cached function with launches dataframe attributes
-                # This will trigger cache update when dates change.
-                # Generate a hash of the unique dates in launches_df to
-                # use as cache key
-                launches_dates = tuple(
-                    sorted(launches_df["Date"].dt.date.unique().tolist())
-                )
-                weather_df = get_cached_weather_data(
-                    _db=db,
-                    launches_df_hash=launches_dates,
-                )
+            # Always fetch new data from the database
+            # (API caching will be handled separately)
+            weather_df = get_weather_data(db=db, df=launches_df)
+            st.session_state["weather"] = True
+            st.session_state["refresh_weather"] = False
 
             # Calculate cloud base from weather data.
             weather_df = calculate_cloud_base(weather_df)
@@ -103,39 +114,11 @@ def weather_page(db: Database, launches_df: pd.DataFrame):
         plot_wind_polar(weather_df)
 
 
-@st.cache_data(ttl="1h", show_spinner=False)
-def get_cached_weather_data(
-    _db: Database,  # Not hashed.
-    launches_df_hash: str,
-) -> pd.DataFrame:
-    """Cached wrapper for get_weather_data that updates only
-    when launches_df changes.
-
-    Args:
-        _db (Database): Database instance
-        launches_df_hash: Hash value representing the launches dataframe
-
-    Returns:
-        Weather dataframe
-    """
-    # Create a dummy dataframe with the date range
-    dummy_df = pd.DataFrame({"Date": list(pd.to_datetime(launches_df_hash))})
-    logger.debug("Fetching weather from cache.")
-
-    # Get weather data. Setting show_progress to False
-    # to avoid showing the progress bar in the cache.
-    # This fixes the streamlit cache error.
-    return get_weather_data(_db, dummy_df, show_progress=False)
-
-
-def get_weather_data(
-    db: Database, df: pd.DataFrame, show_progress: bool = True
-) -> pd.DataFrame:
+def get_weather_data(db: Database, df: pd.DataFrame) -> pd.DataFrame:
     """Get weather data from the database or API.
     Args:
         db (Database): Database instance.
         df (pd.DataFrame): DataFrame containing the data.
-        show_progress (bool): Whether to show progress bar.
     Returns:
         pd.DataFrame: DataFrame containing the weather data.
     """
@@ -147,30 +130,35 @@ def get_weather_data(
     dates.extend(all_weekends)
     dates = sorted(set(dates))
 
-    # Get weather data from the database.
+    # Calculate date range for optimised query
+    start_date = min(dates)
+    end_date = max(dates)
+
+    # Get weather data from the database filtered by date range.
     logger.info("Fetching weather data from the database.")
-    if show_progress:
-        st.write("Fetching weather data from the database...")
-    weather_df = db.get_weather_dataframe()
+    st.write(f"Fetching weather from the database for {start_date} to {end_date}...")
+    weather_df = db.get_weather_dataframe_by_dates(start_date, end_date)
 
     # Check if all dates are present in the weather data.
     if weather_df.empty:
         missing_dates = dates
     else:
         # Check if all dates are present in the weather data.
-        missing_dates = list(set(dates) - set(weather_df["datetime"].dt.date.unique()))
+        # Since we filtered at DB level, we only need to check the specific dates we
+        # need
+        existing_dates = set(weather_df["datetime"].dt.date.unique())
+        missing_dates = list(set(dates) - existing_dates)
 
     # Check all 24 hours of weather are present for each date.
     if not weather_df.empty:
         # Create a set of dates with incomplete hourly data
+        # Only check dates we actually need, since we already filtered at DB level
         date_hour_counts = weather_df.groupby(weather_df["datetime"].dt.date).size()
-        dates_missing_hours = set(
+        dates_missing_hours = [
             date
             for date, count in date_hour_counts.items()
-            if count < 22 and date in dates
-        )
-        # Remove dates that are already in missing_dates to avoid duplicates
-        dates_missing_hours = dates_missing_hours - set(missing_dates)
+            if count < 22 and date in dates and date not in missing_dates
+        ]
         if dates_missing_hours:
             # Get the missing dates from the API.
             logger.debug(
@@ -185,9 +173,12 @@ def get_weather_data(
         logger.debug(
             "Fetching missing weather data for dates: \n" f"{missing_dates.__str__()}"
         )
-        logger.info(f"Fetching weather data for {len(missing_dates)} dates.")
+        logger.info("Fetching weather data for %d dates.", len(missing_dates))
+        # Format missing dates as a comma-separated string (YYYY-MM-DD)
+        formatted_dates = ", ".join([d.strftime("%Y-%m-%d") for d in missing_dates])
+        st.write(f"Fetching missing dates from the API: {formatted_dates}")
         missing_weather_df = get_api_weather_data(
-            db=db, dates=missing_dates, show_progress=show_progress
+            db=db, dates=missing_dates
         )
 
         # Merge the new data with the existing weather data
@@ -204,97 +195,40 @@ def get_weather_data(
         )
 
         # Save the new data to the database.
-        weather_to_db(
-            weather_df=weather_df,
-            db=db,
-        )
-        if show_progress:
-            st.toast(
-                "Weather data saved to the database.",
-                icon="✅",
-            )
+        st.write("Saving new weather data to the database...")
+        weather_to_db(weather_df=weather_df, db=db)
+        st.toast("Weather data saved to the database.", icon="✅")
 
-    # Filter the weather data to only include the dates for launches.
-    weather_df = weather_df[weather_df["datetime"].dt.date.isin(dates)]
+    # No need to filter again - we already got filtered data from DB
+    # and any new data was merged appropriately
     return weather_df
 
 
-def get_api_weather_data(
-    db: Database, dates: List[datetime.date], show_progress: bool = True
-) -> pd.DataFrame:
+def get_api_weather_data(db: Database, dates: List[date]) -> pd.DataFrame:
     """Fetch weather data for the given date range.
 
     Args:
         db (Database): Database instance.
         dates (List[datetime.date]): List of dates to fetch weather data.
-        show_progress (bool): Whether to show progress bar.
     Returns:
         pd.DataFrame: DataFrame containing the weather data."""
     # Get the VGS location from the database.
     vgs_info = db.get_info()
     # Handle empty vgs_info.
     if vgs_info is None:
-        if show_progress:
-            st.warning("No VGS information available.")
+        st.warning("No VGS information available.")
         return pd.DataFrame()
 
     # Get the latitude and longitude from the database.
     latitude = vgs_info["latitude"].iloc[0]
     longitude = vgs_info["longitude"].iloc[0]
 
-    # Get weather data for the given dates.
-    weather_data = []
-
-    # Create a progress bar
-    if show_progress:
-        progress_bar = st.progress(0)
-        status_text = st.empty()
-
-    for i_date, date in enumerate(dates):
-        # Update progress bar and status text
-        if show_progress:
-            progress = i_date / len(dates)
-            progress_bar.progress(progress)
-            status_text.text(
-                f"Fetching weather data for {date} ({i_date + 1}/{len(dates)})"
-            )
-
-        # Fetch weather data for the given date range.
-        weather_fetcher = WeatherFetcher(
-            latitude=latitude, longitude=longitude, weather_date=date
-        )
-        # Add a delay to avoid hitting the API too quickly.
-        # This is important to avoid being blocked by the API.
-        time.sleep(0.2)
-        if weather_fetcher.hourly_df.empty:
-            if show_progress:
-                st.warning(f"No weather data available for {date}.")
-            continue
-        weather_data.append(weather_fetcher.hourly_df)
-
-    # Complete the progress bar
-    if show_progress:
-        progress_bar.progress(1.0)
-        status_text.text("Weather data fetching complete!")
-        time.sleep(0.5)
-        status_text.empty()
-        progress_bar.empty()
-
-    # Concatenate all DataFrames into a single DataFrame.
-    if not weather_data:
-        if show_progress:
-            st.warning("No weather data available for the selected dates.")
-        return pd.DataFrame()
-
-    # Concatenate all DataFrames into a single DataFrame.
-    weather_df = pd.concat(weather_data)
-    weather_df = weather_df.sort_values(
-        by="datetime",
-    ).reset_index(drop=True)
+    # Convert to tuple for cache key
+    date_tuple = tuple(sorted(dates))
+    weather_df = fetch_weather_for_dates_cached(latitude, longitude, date_tuple)
 
     if weather_df.empty:
-        if show_progress:
-            st.warning("No weather data available for the selected dates.")
+        st.warning("No weather data available for the selected dates.")
         return pd.DataFrame()
     return weather_df
 
