@@ -54,6 +54,7 @@ This is a Python project for building a log keeper system for glider launches. T
 
 - "The best code is no code at all" - strive for simplicity
 - Follow PEP 8 naming conventions
+- Ensure code is well commented and documented
 - Use type hints and docstrings for all functions
 - Functional testing prioritised over unit testing
 - Support both Windows and Linux environments
