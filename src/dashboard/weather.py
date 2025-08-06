@@ -174,7 +174,9 @@ def get_weather_data(db: Database, df: pd.DataFrame) -> pd.DataFrame:
             "Fetching missing weather data for dates: \n" f"{missing_dates.__str__()}"
         )
         logger.info("Fetching weather data for %d dates.", len(missing_dates))
-        st.write(f"Fetching missing dates: {missing_dates} from the API...")
+        # Format missing dates as a comma-separated string (YYYY-MM-DD)
+        formatted_dates = ", ".join([d.strftime("%Y-%m-%d") for d in missing_dates])
+        st.write(f"Fetching missing dates from the API: {formatted_dates}")
         missing_weather_df = get_api_weather_data(
             db=db, dates=missing_dates
         )
