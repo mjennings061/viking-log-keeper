@@ -322,7 +322,8 @@ def test_aircraft_commander_filter(login: Page):
     # User quarter filter.
     expect(page.get_by_text("Select QuarterChoose an")).to_be_visible()
     page.locator("div").filter(has_text=re.compile(r"^Choose an option$")).first.click()
-    page.get_by_text("2025Q2").click()
+    # Quarter options change with data; pick the first available dropdown option.
+    page.get_by_test_id("stSelectboxVirtualDropdown").get_by_role("option").first.click()
 
     # Check if the quarterly filter has been displayed.
     expect(page.get_by_role("heading", name="Quarterly Summary Helper")).to_be_visible()
