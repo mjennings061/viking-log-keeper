@@ -172,8 +172,9 @@ def setup(page: Page):
 def login(setup: Page):
     """Log in to the dashboard for each test."""
     page = setup
-    page.get_by_label("Username").click()
-    page.get_by_label("Username").fill(USERNAME)
+    # Avoid Playwright strict-mode collision with the "Help for Username" button.
+    page.get_by_label("Username", exact=True).click()
+    page.get_by_label("Username", exact=True).fill(USERNAME)
     page.get_by_label("Password", exact=True).click()
     page.get_by_label("Password", exact=True).fill(PASSWORD)
     page.get_by_test_id("stBaseButton-secondaryFormSubmit").click()
@@ -220,8 +221,9 @@ def test_root_page(setup: Page):
 def test_login_incorrect_credentials(setup: Page):
     """Check if the login fails with incorrect credentials."""
     page = setup
-    page.get_by_label("Username").click()
-    page.get_by_label("Username").fill(USERNAME)
+    # Avoid Playwright strict-mode collision with the "Help for Username" button.
+    page.get_by_label("Username", exact=True).click()
+    page.get_by_label("Username", exact=True).fill(USERNAME)
     page.get_by_label("Password", exact=True).click()
     page.get_by_label("Password", exact=True).fill("test")
     page.get_by_test_id("stBaseButton-secondaryFormSubmit").click()
