@@ -172,8 +172,9 @@ def setup(page: Page):
 def login(setup: Page):
     """Log in to the dashboard for each test."""
     page = setup
-    page.get_by_label("Username").click()
-    page.get_by_label("Username").fill(USERNAME)
+    # Avoid Playwright strict-mode collision with the "Help for Username" button.
+    page.get_by_label("Username", exact=True).click()
+    page.get_by_label("Username", exact=True).fill(USERNAME)
     page.get_by_label("Password", exact=True).click()
     page.get_by_label("Password", exact=True).fill(PASSWORD)
     page.get_by_test_id("stBaseButton-secondaryFormSubmit").click()
@@ -220,8 +221,9 @@ def test_root_page(setup: Page):
 def test_login_incorrect_credentials(setup: Page):
     """Check if the login fails with incorrect credentials."""
     page = setup
-    page.get_by_label("Username").click()
-    page.get_by_label("Username").fill(USERNAME)
+    # Avoid Playwright strict-mode collision with the "Help for Username" button.
+    page.get_by_label("Username", exact=True).click()
+    page.get_by_label("Username", exact=True).fill(USERNAME)
     page.get_by_label("Password", exact=True).click()
     page.get_by_label("Password", exact=True).fill("test")
     page.get_by_test_id("stBaseButton-secondaryFormSubmit").click()
@@ -320,7 +322,8 @@ def test_aircraft_commander_filter(login: Page):
     # User quarter filter.
     expect(page.get_by_text("Select QuarterChoose an")).to_be_visible()
     page.locator("div").filter(has_text=re.compile(r"^Choose an option$")).first.click()
-    page.get_by_text("2025Q2").click()
+    # Quarter options change with data; pick the first available dropdown option.
+    page.get_by_test_id("stSelectboxVirtualDropdown").get_by_role("option").first.click()
 
     # Check if the quarterly filter has been displayed.
     expect(page.get_by_role("heading", name="Quarterly Summary Helper")).to_be_visible()
