@@ -1,10 +1,43 @@
 from typing import Any
-
 import pandas as pd
 from pathlib import Path
 import calendar
-
 from pandas import DataFrame
+from pathlib import Path
+
+
+def get_roster_file_paths(directory_path='../../rsc/attendance_xls'):
+    """
+    Returns a list of all Excel file paths in the specified directory.
+    """
+    base_dir = Path(directory_path)
+
+    # .glob('*xlsx') finds all files ending in .xlsx
+    # We sort them so they appear in chronological order (2022, 2023, etc.)
+    file_paths = sorted(list(base_dir.glob('*.xlsx')))
+
+    # Convert PosixPath objects to strings for easier use later
+    return [str(path) for path in file_paths]
+
+
+def get_all_years_attendance() -> pd.Series:
+    """
+    Extract attendance data from all excel rosters in the specified directory.
+    Output a combined pandas series with dates as indices and attendance levels as values.
+
+    Returns:
+    - combined_series (pandas.Series): The combined attendance data from all rosters.
+    """
+    file_paths = get_roster_file_paths()
+    all_series = []
+    for file_path in file_paths:
+        series = xls_to_dataframe(file_path)
+        all_series.append(series)
+
+    combined_series = pd.concat(all_series)
+    combined_series = combined_series.sort_index()
+
+    return combined_series
 
 
 def xls_to_dataframe(file_path: str) -> DataFrame:
@@ -28,13 +61,13 @@ def xls_to_dataframe(file_path: str) -> DataFrame:
     # Read the excel file.
     with pd.ExcelFile(file_path) as xls:
         # Extract the attendace.
-        sr = extract_attendance(xls)
+        sr = extract_attendance(xls, year=int(Path(file_path).stem))  # Assuming filename is the year (e.g., "2023.xlsx")
         big_series = pd.concat(sr)
         big_series = big_series.sort_index()
 
     return big_series
 
-def extract_attendance(xls: pd.ExcelFile) -> list[Any]:
+def extract_attendance(xls: pd.ExcelFile, year: int) -> list[Any]:
     """Extract the attendance levels from the excel file.
 
     Args:
@@ -44,7 +77,6 @@ def extract_attendance(xls: pd.ExcelFile) -> list[Any]:
         pd.DataFrame: The extracted attendance dataframe with dates as columns."""
     raw_all_months = pd.read_excel(xls, sheet_name=None, header=1)
     all_months = []
-    year = 2025 # HARD CODED
 
 
     # {1: 'January', 2: 'February', ...}
@@ -112,8 +144,8 @@ def clean_data(sr: pd.Series, month: int, year: int) -> pd.Series:
     # 2. Filter the series to keep only the valid numeric days
     sr = sr[numeric_index.notna()].copy()
 
-    # 3. Remove entries with zero values
-    sr = sr[sr != 0]
+    # 3. Remove entries with Small or zero attendance (assuming these are not valid days)
+    sr = sr[sr > 6]
 
     # Update our numeric index after filtering
     clean_days = pd.to_numeric(sr.index).astype(int)
@@ -133,3 +165,7 @@ def clean_data(sr: pd.Series, month: int, year: int) -> pd.Series:
         'day': clean_days
     })
     return sr
+
+
+
+print(get_all_years_attendance())

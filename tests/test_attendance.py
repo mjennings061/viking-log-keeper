@@ -9,7 +9,7 @@ class TestIngestRoster(unittest.TestCase):
 
     def setUp(self):
         """Set up test fixtures."""
-        self.test_roster_path = "rsc/Roster 2025.xlsx"
+        self.test_roster_path = "rsc/2025.xlsx"
         self.invalid_file_path = "rsc/NonExistent.xlsx"
         self.invalid_extension_path = "rsc/Roster.txt"
 
@@ -48,7 +48,7 @@ class TestExtractAttendance(unittest.TestCase):
 
     def setUp(self):
         """Set up test fixtures."""
-        self.test_roster_path = "rsc/Roster 2025.xlsx"
+        self.test_roster_path = "rsc/2025.xlsx"
         self.xls = pd.ExcelFile(self.test_roster_path)
 
     def tearDown(self):
@@ -83,7 +83,7 @@ class TestSheetDFToSeries(unittest.TestCase):
 
     def setUp(self):
         """Set up test fixtures."""
-        self.test_roster_path = "rsc/Roster 2025.xlsx"
+        self.test_roster_path = "rsc/2025.xlsx"
 
     def test_sheet_df_to_series_returns_series(self):
         """Test that sheet_df_to_series returns a pandas Series."""
@@ -169,7 +169,7 @@ class TestIntegration(unittest.TestCase):
 
     def setUp(self):
         """Set up test fixtures."""
-        self.test_roster_path = "rsc/Roster 2025.xlsx"
+        self.test_roster_path = "rsc/2025.xlsx"
 
     def test_full_pipeline(self):
         """Test the complete pipeline from file to final series."""
