@@ -4,8 +4,10 @@ import pandas as pd
 from pathlib import Path
 import calendar
 
+from pandas import DataFrame
 
-def ingest_roster(file_path: str) -> pd.Series:
+
+def xls_to_dataframe(file_path: str) -> DataFrame:
     """
     Extract data from an excel roster.
     Output a pandas dataframe.
@@ -51,7 +53,7 @@ def extract_attendance(xls: pd.ExcelFile) -> list[Any]:
     for month_num, month_name in months_dict.items():
         if month_name in raw_all_months:
             raw_series = sheet_df_to_series(raw_all_months[month_name])
-            series = convert_day_to_date(raw_series, month_num, year)
+            series = clean_data(raw_series, month_num, year)
             all_months.append(series)
 
     return all_months
@@ -60,6 +62,7 @@ def sheet_df_to_series(raw_df: pd.DataFrame) -> pd.Series:
     """Parse the raw dataframe to extract the attendance levels.
 
     Args:
+        raw_df:
         df (pd.DataFrame): The raw dataframe extracted from the excel file.
 
     Returns:
@@ -93,24 +96,29 @@ def sheet_df_to_series(raw_df: pd.DataFrame) -> pd.Series:
 
     return series
 
-def convert_day_to_date(sr: pd.Series, month: int, year: int) -> pd.Series:
+def clean_data(sr: pd.Series, month: int, year: int) -> pd.Series:
     """Convert the day numbers in the series to actual date objects.
 
     Args:
-        series (pd.Series): The attendance series with day numbers as indices.
+        sr (pd.Series): The attendance series with day numbers as indices.
+        month (int): The month number (1-12).
+        year (int): The year.
 
     Returns:
-        pd.Series: The attendance series with date objects as indices."""
+        pd.Series: The attendance series with date objects as indices, excluding zero values."""
     # 1. Convert index to numeric, turning 'Unnamed: X' into NaN
     numeric_index = pd.to_numeric(sr.index, errors='coerce')
 
     # 2. Filter the series to keep only the valid numeric days
     sr = sr[numeric_index.notna()].copy()
 
+    # 3. Remove entries with zero values
+    sr = sr[sr != 0]
+
     # Update our numeric index after filtering
     clean_days = pd.to_numeric(sr.index).astype(int)
 
-    # 3. Determine the months (handling your first-element logic)
+    # 4. Determine the months (handling your first-element logic)
     new_months = []
     for i, day in enumerate(clean_days):
         if i == 0 and day > 20:
@@ -118,20 +126,10 @@ def convert_day_to_date(sr: pd.Series, month: int, year: int) -> pd.Series:
         else:
             new_months.append(month)
 
-    # 4. Final Conversion
+    # 5. Final Conversion
     sr.index = pd.to_datetime({
         'year': year,
         'month': new_months,
         'day': clean_days
     })
     return sr
-
-
-
-def main():
-     print(ingest_roster("../rsc/Roster 2025.xlsx"))
-
-
-
-
-main()
