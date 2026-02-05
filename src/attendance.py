@@ -1,5 +1,6 @@
 import pandas as pd
 from pathlib import Path
+import calendar
 
 
 def ingest_roster(file_path: str) -> pd.DataFrame:
@@ -36,40 +37,50 @@ def extract_attendance(xls: pd.ExcelFile) -> pd.DataFrame:
 
     Returns:
         pd.DataFrame: The extracted attendance dataframe with dates as columns."""
-    # Constants.
-    SHEET_NAME = "January"
+    raw_all_months = pd.read_excel(xls, sheet_name=None, header=1)
+    all_months = []
 
-    # Read from the log sheet with no header first
-    raw_df = pd.read_excel(
-        xls,
-        sheet_name=SHEET_NAME,
-        header=1
-    )
+    # {1: 'January', 2: 'February', ...}
+    months_dict = {i: name for i, name in enumerate(calendar.month_name) if name}
+
+    for month_num, month_name in months_dict.items():
+        if month_name in raw_all_months:
+            all_months.append(sheet_df_to_series(raw_all_months[month_name]))
 
 
-    return raw_df
 
-def parse_df(raw_df: pd.DataFrame) -> pd.DataFrame:
+    return all_months
+
+def sheet_df_to_series(raw_df: pd.DataFrame) -> pd.Series:
     """Parse the raw dataframe to extract the attendance levels.
 
     Args:
         df (pd.DataFrame): The raw dataframe extracted from the excel file.
 
     Returns:
-        pd.DataFrame: The parsed attendance dataframe with dates as columns."""
+        pd.Series: The parsed attendance series with dates as indices."""
+    # raw_df.columns = raw_df.iloc[0]
+    # raw_df = raw_df[1:].reset_index(drop=True)
     # Find the summary row that contains numeric values after Y/N data
     df = raw_df.iloc[:, 1:]
 
-
+    staffing_idx = None
     """Find the first row that contains numeric summaries after Y/N data"""
     for idx, row in df.iterrows():
         # Check if row has numeric values (not Y/N strings)
         # Skip rows that are all NaN or contain Y/N
         non_null = row.dropna()
         if len(non_null) > 0:
-            # Check if values are numeric (not 'Y' or 'N')
-            if all(isinstance(val, (int, float)) for val in non_null if pd.notna(val)):
+            # Check if values contain predominantly numeric data (not 'Y' or 'N')
+            # Allow for some string/datetime values in extra columns
+            numeric_count = sum(1 for val in non_null if isinstance(val, (int, float)))
+            # If we have multiple numeric values, this is likely the summary row
+            if numeric_count >= 3:  # At least 3 numeric values indicate a summary row
                 staffing_idx = idx
+                break
+
+    if staffing_idx is None:
+        raise ValueError("No numeric summary row found in the dataframe")
 
     series = df.iloc[staffing_idx]
 
@@ -78,4 +89,4 @@ def parse_df(raw_df: pd.DataFrame) -> pd.DataFrame:
     return series
 
 
-print(parse_df(ingest_roster("../rsc/Roster 2025.xlsx")))
+print(extract_attendance(("../rsc/Roster 2025.xlsx")))
