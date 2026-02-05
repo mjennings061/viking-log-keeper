@@ -1,9 +1,11 @@
+from typing import Any
+
 import pandas as pd
 from pathlib import Path
 import calendar
 
 
-def ingest_roster(file_path: str) -> pd.DataFrame:
+def ingest_roster(file_path: str) -> pd.Series:
     """
     Extract data from an excel roster.
     Output a pandas dataframe.
@@ -24,12 +26,13 @@ def ingest_roster(file_path: str) -> pd.DataFrame:
     # Read the excel file.
     with pd.ExcelFile(file_path) as xls:
         # Extract the attendace.
-        raw_df = extract_attendance(xls)
-    return raw_df
+        sr = extract_attendance(xls)
+        big_series = pd.concat(sr)
+        big_series = big_series.sort_index()
 
+    return big_series
 
-
-def extract_attendance(xls: pd.ExcelFile) -> pd.DataFrame:
+def extract_attendance(xls: pd.ExcelFile) -> list[Any]:
     """Extract the attendance levels from the excel file.
 
     Args:
@@ -39,15 +42,17 @@ def extract_attendance(xls: pd.ExcelFile) -> pd.DataFrame:
         pd.DataFrame: The extracted attendance dataframe with dates as columns."""
     raw_all_months = pd.read_excel(xls, sheet_name=None, header=1)
     all_months = []
+    year = 2025 # HARD CODED
+
 
     # {1: 'January', 2: 'February', ...}
     months_dict = {i: name for i, name in enumerate(calendar.month_name) if name}
 
     for month_num, month_name in months_dict.items():
         if month_name in raw_all_months:
-            all_months.append(sheet_df_to_series(raw_all_months[month_name]))
-
-
+            raw_series = sheet_df_to_series(raw_all_months[month_name])
+            series = convert_day_to_date(raw_series, month_num, year)
+            all_months.append(series)
 
     return all_months
 
@@ -88,5 +93,45 @@ def sheet_df_to_series(raw_df: pd.DataFrame) -> pd.Series:
 
     return series
 
+def convert_day_to_date(sr: pd.Series, month: int, year: int) -> pd.Series:
+    """Convert the day numbers in the series to actual date objects.
 
-print(extract_attendance(("../rsc/Roster 2025.xlsx")))
+    Args:
+        series (pd.Series): The attendance series with day numbers as indices.
+
+    Returns:
+        pd.Series: The attendance series with date objects as indices."""
+    # 1. Convert index to numeric, turning 'Unnamed: X' into NaN
+    numeric_index = pd.to_numeric(sr.index, errors='coerce')
+
+    # 2. Filter the series to keep only the valid numeric days
+    sr = sr[numeric_index.notna()].copy()
+
+    # Update our numeric index after filtering
+    clean_days = pd.to_numeric(sr.index).astype(int)
+
+    # 3. Determine the months (handling your first-element logic)
+    new_months = []
+    for i, day in enumerate(clean_days):
+        if i == 0 and day > 20:
+            new_months.append(month - 1)
+        else:
+            new_months.append(month)
+
+    # 4. Final Conversion
+    sr.index = pd.to_datetime({
+        'year': year,
+        'month': new_months,
+        'day': clean_days
+    })
+    return sr
+
+
+
+def main():
+     print(ingest_roster("../rsc/Roster 2025.xlsx"))
+
+
+
+
+main()
