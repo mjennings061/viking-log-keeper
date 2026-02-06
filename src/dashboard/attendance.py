@@ -1,85 +1,90 @@
-from typing import Any
-import pandas as pd
-from pathlib import Path
+"""attendance.py - Attendance data extraction and processing.
+
+This module handles reading attendance data from Excel roster files
+and provides the attendance dashboard page.
+"""
+
 import calendar
-from pandas import DataFrame
 from pathlib import Path
 
+import pandas as pd
+import streamlit as st
 
-def get_roster_file_paths(directory_path='../../rsc/attendance_xls'):
-    """
-    Returns a list of all Excel file paths in the specified directory.
+from dashboard import logger
+
+
+def get_roster_file_paths(directory_path: str | Path) -> list[str]:
+    """Get all Excel file paths from the specified directory.
+
+    Args:
+        directory_path: Path to the directory containing roster files.
+
+    Returns:
+        Sorted list of Excel file paths as strings.
     """
     base_dir = Path(directory_path)
-
-    # .glob('*xlsx') finds all files ending in .xlsx
-    # We sort them so they appear in chronological order (2022, 2023, etc.)
-    file_paths = sorted(list(base_dir.glob('*.xlsx')))
-
-    # Convert PosixPath objects to strings for easier use later
+    file_paths = sorted(base_dir.glob('*.xlsx'))
     return [str(path) for path in file_paths]
 
 
-def get_all_years_attendance() -> pd.Series:
-    """
-    Extract attendance data from all excel rosters in the specified directory.
-    Output a combined pandas series with dates as indices and attendance levels as values.
+def get_all_years_attendance(directory_path: str | Path) -> pd.Series:
+    """Extract and combine attendance data from all roster files.
+
+    Args:
+        directory_path: Path to directory containing yearly roster files.
 
     Returns:
-    - combined_series (pandas.Series): The combined attendance data from all rosters.
+        Combined Series with dates as index and attendance counts as values.
     """
-    file_paths = get_roster_file_paths()
-    all_series = []
-    for file_path in file_paths:
-        series = xls_to_dataframe(file_path)
-        all_series.append(series)
-
-    combined_series = pd.concat(all_series)
-    combined_series = combined_series.sort_index()
-
+    file_paths = get_roster_file_paths(directory_path)
+    all_series = [xls_to_dataframe(path) for path in file_paths]
+    combined_series = pd.concat(all_series).sort_index()
     return combined_series
 
 
-def xls_to_dataframe(file_path: str) -> DataFrame:
-    """
-    Extract data from an excel roster.
-    Output a pandas dataframe.
-
-    Parameters:
-    - file_path (str): The path to the excel roster file.
-
-    Returns:
-    - raw_df (pandas.DataFrame): The extracted data as a pandas dataframe.
-    """
-    # Validate the file path.
-    if not Path(file_path).is_file():
-        raise FileNotFoundError(f"File not found: {file_path}")
-    # Validate the file extension.
-    if Path(file_path).suffix != ".xlsx":
-        raise ValueError("Invalid file extension. Expected .xlsx")
-
-    # Read the excel file.
-    with pd.ExcelFile(file_path) as xls:
-        # Extract the attendace.
-        sr = extract_attendance(xls, year=int(Path(file_path).stem))  # Assuming filename is the year (e.g., "2023.xlsx")
-        big_series = pd.concat(sr)
-        big_series = big_series.sort_index()
-
-    return big_series
-
-def extract_attendance(xls: pd.ExcelFile, year: int) -> list[Any]:
-    """Extract the attendance levels from the excel file.
+def xls_to_dataframe(file_path: str) -> pd.DataFrame:
+    """Extract attendance data from an Excel roster file.
 
     Args:
-        xls (pd.ExcelFile): The excel file object.
+        file_path: Path to the Excel roster file.
 
     Returns:
-        pd.DataFrame: The extracted attendance dataframe with dates as columns."""
+        DataFrame with attendance data.
+
+    Raises:
+        FileNotFoundError: If the file does not exist.
+        ValueError: If the file is not an .xlsx file.
+    """
+    path = Path(file_path)
+    if not path.is_file():
+        raise FileNotFoundError(f"File not found: {file_path}")
+    if path.suffix != ".xlsx":
+        raise ValueError("Invalid file extension. Expected .xlsx")
+
+    # Extract year from filename (e.g., "2023.xlsx" -> 2023)
+    year = int(path.stem)
+
+    with pd.ExcelFile(file_path) as xls:
+        series_list = extract_attendance(xls, year=year)
+        combined = pd.concat(series_list).sort_index()
+
+    return combined
+
+
+def extract_attendance(xls: pd.ExcelFile, year: int) -> list[pd.Series]:
+    """Extract attendance data from all monthly sheets in a roster file.
+
+    Args:
+        xls: Excel file object containing monthly sheets.
+        year: The year of the roster.
+
+    Returns:
+        List of Series, one per month with attendance data.
+    """
     raw_all_months = pd.read_excel(xls, sheet_name=None, header=1)
     all_months = []
 
-
-    # {1: 'January', 2: 'February', ...}
+    # Map month numbers to names: {1: 'January', 2: 'February', ...}
     months_dict = {i: name for i, name in enumerate(calendar.month_name) if name}
 
     for month_num, month_name in months_dict.items():
@@ -90,67 +95,66 @@ def extract_attendance(xls: pd.ExcelFile, year: int) -> list[Any]:
 
     return all_months
 
+
 def sheet_df_to_series(raw_df: pd.DataFrame) -> pd.Series:
-    """Parse the raw dataframe to extract the attendance levels.
+    """Extract the attendance summary row from a monthly sheet.
+
+    The function searches for the first row containing numeric summary
+    values (attendance counts) after the Y/N attendance markers.
 
     Args:
-        raw_df:
-        df (pd.DataFrame): The raw dataframe extracted from the excel file.
+        raw_df: Raw DataFrame from Excel sheet.
 
     Returns:
-        pd.Series: The parsed attendance series with dates as indices."""
-    # raw_df.columns = raw_df.iloc[0]
-    # raw_df = raw_df[1:].reset_index(drop=True)
-    # Find the summary row that contains numeric values after Y/N data
+        Series with day numbers as index and attendance counts as values.
+
+    Raises:
+        ValueError: If no numeric summary row is found.
+    """
+    # Skip the first column (usually contains row labels)
     df = raw_df.iloc[:, 1:]
 
+    # Find the summary row with numeric attendance counts
     staffing_idx = None
-    """Find the first row that contains numeric summaries after Y/N data"""
     for idx, row in df.iterrows():
-        # Check if row has numeric values (not Y/N strings)
-        # Skip rows that are all NaN or contain Y/N
         non_null = row.dropna()
         if len(non_null) > 0:
-            # Check if values contain predominantly numeric data (not 'Y' or 'N')
-            # Allow for some string/datetime values in extra columns
-            numeric_count = sum(1 for val in non_null if isinstance(val, (int, float)))
-            # If we have multiple numeric values, this is likely the summary row
-            if numeric_count >= 3:  # At least 3 numeric values indicate a summary row
+            numeric_count = sum(
+                1 for val in non_null if isinstance(val, (int, float))
+            )
+            # At least 3 numeric values indicate a summary row
+            if numeric_count >= 3:
                 staffing_idx = idx
                 break
 
     if staffing_idx is None:
         raise ValueError("No numeric summary row found in the dataframe")
 
-    series = df.iloc[staffing_idx]
+    return df.iloc[staffing_idx].dropna()
 
-    series = series.dropna()
-
-    return series
 
 def clean_data(sr: pd.Series, month: int, year: int) -> pd.Series:
-    """Convert the day numbers in the series to actual date objects.
+    """Convert day numbers to date objects and filter invalid entries.
 
     Args:
-        sr (pd.Series): The attendance series with day numbers as indices.
-        month (int): The month number (1-12).
-        year (int): The year.
+        sr: Attendance series with day numbers as index.
+        month: Month number (1-12).
+        year: Year.
 
     Returns:
-        pd.Series: The attendance series with date objects as indices, excluding zero values."""
-    # 1. Convert index to numeric, turning 'Unnamed: X' into NaN
+        Series with datetime index, excluding low attendance days.
+    """
+    # Convert index to numeric, filtering out non-numeric labels
     numeric_index = pd.to_numeric(sr.index, errors='coerce')
-
-    # 2. Filter the series to keep only the valid numeric days
     sr = sr[numeric_index.notna()].copy()
 
-    # 3. Remove entries with Small or zero attendance (assuming these are not valid days)
+    # Remove days with attendance <= 6 (likely invalid)
     sr = sr[sr > 6]
 
-    # Update our numeric index after filtering
+    # Get clean day numbers
     clean_days = pd.to_numeric(sr.index).astype(int)
 
-    # 4. Determine the months (handling your first-element logic)
+    # Handle month boundary: if first entry is late in month, it's from previous month
     new_months = []
     for i, day in enumerate(clean_days):
         if i == 0 and day > 20:
@@ -158,7 +162,7 @@ def clean_data(sr: pd.Series, month: int, year: int) -> pd.Series:
         else:
             new_months.append(month)
 
-    # 5. Final Conversion
+    # Convert to datetime index
     sr.index = pd.to_datetime({
         'year': year,
         'month': new_months,
@@ -167,5 +171,49 @@ def clean_data(sr: pd.Series, month: int, year: int) -> pd.Series:
     return sr
 
 
+def attendance_page(launches_df: pd.DataFrame) -> None:
+    """Display the attendance dashboard page.
 
-print(get_all_years_attendance())
+    Args:
+        launches_df: DataFrame containing launch data for correlation analysis.
+    """
+    # Import here to avoid circular import
+    from dashboard.attendance_plots import (
+        plot_attendance_vs_flight_time,
+        attendance_table,
+    )
+
+    st.header("Attendance Summary")
+
+    attendance_df = None
+
+    with st.status("Fetching attendance data...", expanded=True) as status:
+        try:
+            attendance_dir = (
+                Path(__file__).parent.parent.parent / 'rsc' / 'attendance_xls'
+            )
+            attendance_df = get_all_years_attendance(attendance_dir)
+            st.session_state["attendance"] = True
+            st.session_state["refresh_attendance"] = False
+
+            status.update(
+                label="Attendance data fetched successfully.",
+                state="complete",
+                expanded=False
+            )
+            logger.info("Attendance data fetched successfully.")
+        except Exception as e:
+            status.update(
+                label="Error fetching attendance data.",
+                expanded=True,
+                state="error",
+            )
+            st.error(f"Error fetching attendance data: {e}")
+            logger.error("Attendance data fetch failed: %s", e, exc_info=True)
+            return
+
+    if attendance_df is not None:
+        st.subheader("Attendance Impact on Flying")
+        plot_attendance_vs_flight_time(attendance_df, launches_df)
+        attendance_table(attendance_df)
+

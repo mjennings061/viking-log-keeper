@@ -1,65 +1,121 @@
-import matplotlib.pyplot as plt
-import numpy as np
+"""attendance_plots.py - Visualisation functions for attendance data.
+
+This module provides plotting functions to display attendance trends,
+tables, and correlations with flight operations.
+"""
+
 import pandas as pd
-from attendance import xls_to_dataframe
-from dashboard.attendance import get_all_years_attendance
-
-s = get_all_years_attendance()
+import streamlit as st
+import altair as alt
 
 
-def plot_attendance_by_day(s, window=4):
+def attendance_table(s: pd.Series) -> None:
+    """Display a table of the most recent daily attendance levels.
+
+    Args:
+        s: Attendance data with dates as index and counts as values.
     """
-    Takes a Pandas Series of attendance data, cleans it,
-    and plots a scatter plot with a rolling average trend line.
+    # Convert Series to DataFrame for display
+    df = s.to_frame(name='Attendance')
+    df.index.name = 'Date'
+    df.reset_index(inplace=True)
 
-    Parameters:
-    s (pd.Series): Index = dates, Values = attendance counts
-    window (int): The number of periods for the rolling average (default 4 for ~1 month)
+    # Format date as YY Mon DD for readability
+    df['Date'] = pd.to_datetime(df['Date']).dt.strftime('%y %b %d')
+
+    # Show only the most recent entries
+    n_rows_to_display = 16
+    st.table(df.head(n_rows_to_display))
+
+
+def plot_attendance_vs_flight_time(
+    attendance_df: pd.Series,
+    launches_df: pd.DataFrame
+) -> None:
+    """Create a scatter plot showing how attendance affects flight operations.
+
+    Displays the relationship between daily attendance and number of launches,
+    with bubble colour indicating median flight time. Includes a regression
+    trend line.
+
+    Args:
+        attendance_df: Attendance data with dates as index.
+        launches_df: Launch records containing Date, TakeOffTime, and FlightTime.
     """
+    # Prepare attendance data
+    attendance_data = attendance_df.to_frame(name='attendance')
+    attendance_data.index = pd.to_datetime(attendance_data.index)
+    attendance_data['attendance'] = pd.to_numeric(
+        attendance_data['attendance'], errors='coerce'
+    )
 
-    # 1. Convert Series to DataFrame to allow for multiple columns
-    # We name the value column 'attendance' so we can reference it easily
-    df = s.to_frame(name='attendance')
+    # Aggregate attendance by day
+    daily_attendance = (
+        attendance_data
+        .groupby(attendance_data.index.normalize())['attendance']
+        .sum()
+        .reset_index()
+        .rename(columns={'index': 'Date', 'attendance': 'Attendance'})
+    )
 
-    # 2. DATA CLEANING
-    # Fix Index: Convert string dates to actual datetime objects
-    df.index = pd.to_datetime(df.index)
+    # Aggregate launches by day
+    launches_df = launches_df.copy()
+    launches_df['Date'] = pd.to_datetime(launches_df['Date']).dt.normalize()
 
-    # Fix Values: Convert object/strings to integers (coercing errors to NaN)
-    df['attendance'] = pd.to_numeric(df['attendance'], errors='coerce')
+    daily_launches = (
+        launches_df.groupby('Date')
+        .agg({
+            "TakeOffTime": "count",
+            "FlightTime": "median",
+        })
+        .reset_index()
+        .rename(columns={
+            "TakeOffTime": "Launches",
+            "FlightTime": "MedianFlightTime",
+        })
+    )
 
-    # Sort by date (crucial for rolling average to work correctly)
-    df = df.sort_index()
+    # Merge attendance and launch data
+    merged_df = daily_launches.merge(daily_attendance, on="Date", how="inner")
 
-    # 3. ANALYSIS
-    # Calculate rolling average (smooths out the noise)
-    df['rolling_avg'] = df['attendance'].rolling(window=window).mean()
+    # Configure chart encoding
+    x_encoding = alt.X(
+        "Attendance:Q",
+        title="Attendance",
+        scale=alt.Scale(domain=[5, merged_df["Attendance"].max()])
+    )
 
-    # 4. PLOTTING
-    plt.figure(figsize=(12, 6))
+    tooltips = [col for col in merged_df.columns if col != "datetime"]
 
-    # Scatter plot for raw data (The "Cloud")
-    plt.scatter(df.index, df['attendance'],
-                alpha=0.4, color='steelblue', label='Actual Attendance')
+    # Create scatter plot with size encoding for flight time
+    scatter = (
+        alt.Chart(merged_df)
+        .mark_circle()
+        .encode(
+            x=x_encoding,
+            y=alt.Y("Launches:Q", title="Number of Launches"),
+            size=alt.Size(
+                "MedianFlightTime:Q",
+                scale=alt.Scale(range=[20, 100]),
+                legend=alt.Legend(title="Flight Time (mins)"),
+            ),
+            color=alt.Color("MedianFlightTime:Q"),
+            tooltip=tooltips,
+        )
+        .properties(
+            title="Attendance vs Number of Launches",
+            width=600,
+            height=400,
+        )
+    )
 
-    # Line plot for rolling average (The "Trend")
-    plt.plot(df.index, df['rolling_avg'],
-             color='firebrick', linewidth=2.5, label=f'{window}-Session Rolling Avg')
+    # Add regression trend line
+    trend = (
+        alt.Chart(merged_df)
+        .mark_line(color='red', strokeDash=[5, 5])
+        .encode(x=x_encoding, y=alt.Y("Launches:Q"))
+        .transform_regression('Attendance', 'Launches')
+    )
 
-    # Formatting
-    plt.title('661 Attendance Log (2022-2026)')
-    plt.xlabel('Date')
-    plt.ylabel('Attendees')
-    plt.legend()
-    plt.grid(True, linestyle='--', alpha=0.5)
+    st.altair_chart(scatter + trend, use_container_width=True)
 
-    # Rotate date labels to prevent overlap
-    plt.xticks(rotation=45)
-    plt.tight_layout()
-
-    plt.show()
-
-
-
-
-plot_attendance_by_day(s)

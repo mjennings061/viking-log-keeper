@@ -1,23 +1,27 @@
-"""dashboard.py - Streamlit app for displaying the stats dashboard.
+"""main.py - Streamlit dashboard for VGS launch statistics and analytics.
+
+This module provides the main entry point for the Viking Log Keeper dashboard,
+including authentication, database selection, and page navigation.
 """
 
-# Import modules.
+# Import standard libraries
 import sys
 import os
 import subprocess
+
+# Import third-party libraries
 import streamlit as st
 import pandas as pd
-from pathlib import Path
 
-# Ensure the src directory is in the sys.path.
+# Ensure the src directory is in the sys.path for local imports
 src_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 if src_path not in sys.path:
     sys.path.append(src_path)
 
-# User defined modules.
+# User defined modules
 from log_keeper.get_config import DbUser, Client, Database  # noqa: E402
-from dashboard import logger    # noqa: E402
-from dashboard.plots import (   # noqa: E402
+from dashboard import logger  # noqa: E402
+from dashboard.plots import (  # noqa: E402
     plot_duty_pie_chart,
     plot_launches_by_commander,
     plot_longest_flight_times,
@@ -39,13 +43,14 @@ from dashboard.plots import (   # noqa: E402
     table_gur_summary,
     table_solo_dual_summary,
 )
+from dashboard.attendance import attendance_page  # noqa: E402
 from dashboard.weather import weather_page  # noqa: E402
-from dashboard.utils import (   # noqa: E402
-    LOGO_PATH,
-    upload_log_sheets,
-    date_filter
-)
+from dashboard.utils import LOGO_PATH, upload_log_sheets, date_filter  # noqa: E402
 
+
+# =============================================================================
+# Data Fetching Functions
+# =============================================================================
 
 def get_launches_for_dashboard(db: Database) -> pd.DataFrame:
     """Get the launches from the database. Store in session state.
@@ -156,7 +161,7 @@ def show_data_dashboard(db: Database):
 
     # Sidebar for page navigation
     pages = ["📈 Statistics", "📁 Upload Log Sheets",
-             "🧮 Stats & GUR Helper", "⛅ Weather", "🌍 All Data"]
+             "🧮 Stats & GUR Helper", "⛅ Weather", "👤 Attendance", "🌍 All Data"]
     page = st.selectbox("Select a Page:", pages, key="select_page")
 
     # Get dataframe of launches and aircraft info.
@@ -292,6 +297,9 @@ def show_data_dashboard(db: Database):
 
         case "⛅ Weather":
             weather_page(db, filtered_df)
+
+        case "👤 Attendance":
+            attendance_page(filtered_df)
 
         case "📁 Upload Log Sheets":
             # Display the upload log sheets page.
