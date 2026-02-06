@@ -8,6 +8,7 @@ from typing import List
 from io import BytesIO
 from datetime import date, timedelta, datetime
 
+from dashboard.attendance import xls_to_dataframe
 # User defined modules.
 from log_keeper.ingest import ingest_log_sheet_from_upload, sanitise_log_sheets
 from log_keeper.output import update_launches_collection, update_aircraft_info
@@ -405,6 +406,73 @@ def get_weekends(
     # Filter for weekends (5=Saturday, 6=Sunday) and convert to date objects
     weekends = [date.date() for date in all_dates if date.weekday() in [5, 6]]
     return weekends
+
+
+def upload_attendance_sheets(files: List[BytesIO]):
+    """Upload multiple attendance sheets to the database.
+
+    Args:
+        files (List[BytesIO]): The log sheet files to upload."""
+    # Output preallocated list.
+    attendance_sheet_list = []
+
+    # Progress bar.
+    n_files = len(files)
+    logger.info("Processing %d log sheets...", int(n_files))
+    st.toast(f"Processing {n_files} Log Sheets...", icon="⏳")
+    progress_bar = st.progress(0, f"Uploading 0/{n_files}")
+
+    for index, file in enumerate(files):
+        # Update the progress bar.
+        progress_bar.progress((index + 1) / n_files,
+                              text=f"Uploading {index + 1}/{n_files}")
+
+        # Validate the file is an Excel file.
+        if not validate_log_sheet(file):
+            continue
+
+        try:
+            # Read the attendance sheet to a DataFrame.
+            sheet_df = xls_to_dataframe(file)
+
+            # Append attendance sheets to a list of dataframes.
+            attendance_sheet_list.append(sheet_df)
+        except Exception:  # pylint
+            warning_msg = f"Log sheet invalid: {file.name}"
+            st.warning(warning_msg)
+            logger.warning(warning_msg)
+
+    # Update GUI elements.
+    progress_bar.empty()
+
+    # Process the uploaded log sheets.
+    with st.status("Uploading to Database...", expanded=True) as status_text:
+
+        # Concatenate the log sheets.
+        st.write("Concatenating attendance sheets...")
+        collated_df = pd.concat(attendance_sheet_list, ignore_index=True)
+
+
+        try:
+            # Upload the attendance sheets to the database.
+            st.write("Uploading to DB...")
+            update_launches_collection(
+                attendance_df=collated_df,
+                db=st.session_state["attendance_sheet_db"]
+            )
+            status_text.update(label="Attendance Sheets Uploaded!",
+                               state="complete", expanded=False)
+
+            # Display a success message.
+            logger.info("Done uploading attendance sheets.")
+            st.toast("Attendance Sheets Uploaded!", icon="✅")
+        except Exception:  # pylint: disable=broad-except
+            # Log the error.
+            logger.error("Failed to upload attendance sheets.", exc_info=True)
+            st.error("Failed to upload attendance sheets.")
+            status_text.update(label="Failed to upload attendance sheets.",
+                               state="error", expanded=True)
+
 
 
 if __name__ == "__main__":
