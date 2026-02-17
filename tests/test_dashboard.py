@@ -279,8 +279,40 @@ def test_pilot_filter_functionality(page: Page):
     # Verify quarterly summary appears
     expect(page.get_by_role("heading", name="Quarterly Summary Helper")).to_be_visible()
 
-# TODO: Add file upload E2E tests when dummy DB user is configured:
-# - Valid file upload
-# - Invalid file upload
-# - Verify data appears after upload
-# - Verify data replacement after re-upload
+
+def test_file_upload_valid(page: Page):
+    """Test uploading a valid Excel log sheet."""
+    login_user(page)
+
+    # Navigate to upload page
+    page.locator("div").filter(has_text=re.compile(r"^📈 Statistics$")).first.click()
+    page.get_by_text("📁 Upload Log Sheets").click()
+    expect(page.get_by_test_id("stFileUploaderDropzone")).to_be_visible()
+
+    # Upload valid file
+    valid_file = "tests/fixtures/2965D_260214_ZE633.xlsx"
+    page.set_input_files("input[type='file']", [valid_file])
+
+    # Assert success message appears in toast notification
+    expect(
+        page.get_by_test_id("stToastContainer").get_by_text("Log Sheets Uploaded!")
+    ).to_be_visible(timeout=15000)
+
+
+def test_file_upload_invalid(page: Page):
+    """Test uploading an invalid Excel file shows warning."""
+    login_user(page)
+
+    # Navigate to upload page
+    page.locator("div").filter(has_text=re.compile(r"^📈 Statistics$")).first.click()
+    page.get_by_text("📁 Upload Log Sheets").click()
+    expect(page.get_by_test_id("stFileUploaderDropzone")).to_be_visible()
+
+    # Upload invalid xlsx file (has .xlsx extension but is not a valid Excel file)
+    invalid_file = "tests/fixtures/invalid.xlsx"
+    page.set_input_files("input[type='file']", [invalid_file])
+
+    # Assert warning message appears indicating the log sheet is invalid
+    expect(
+        page.get_by_text(re.compile(r"Log sheet invalid.*invalid\.xlsx"))
+    ).to_be_visible(timeout=10000)
