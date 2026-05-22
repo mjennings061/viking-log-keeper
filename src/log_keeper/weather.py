@@ -138,7 +138,7 @@ class WeatherFetcher:
                 arr = np.delete(arr, 1)
             elif len(timestamps) > len(arr):
                 # Fall back, an hour should be added to second hour.
-                arr = np.insert(arr, 1, np.nan)
+                arr = np.insert(arr.astype(float), 1, np.nan)
             data[weather_variable] = arr.tolist()
 
         # Convert to DataFrame
