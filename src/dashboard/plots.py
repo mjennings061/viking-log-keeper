@@ -165,7 +165,7 @@ def plot_launches_by_commander(df: pd.DataFrame):
     # Display the chart in Streamlit.
     st.subheader("Launches by Pilot")
     st.text(f"Only pilots with {min_launches} or more launches shown.")
-    st.altair_chart(chart, use_container_width=True)
+    st.altair_chart(chart, width="stretch")
 
 
 def plot_firstlast_launch_table(df: pd.DataFrame):
@@ -254,7 +254,7 @@ def plot_longest_flight_times(df: pd.DataFrame):
 
     # Display the chart in Streamlit
     st.subheader("Longest Flight Times")
-    st.altair_chart(chart, use_container_width=True)
+    st.altair_chart(chart, width="stretch")
 
 
 def launches_by_type_table(df: pd.DataFrame):
@@ -423,7 +423,7 @@ def plot_duty_pie_chart(df: pd.DataFrame):
 
     # Display the pie chart in Streamlit
     st.subheader("Launches by Duty")
-    st.altair_chart(chart, use_container_width=True)
+    st.altair_chart(chart, width="stretch")
 
 
 def plot_monthly_launches(df: pd.DataFrame):
@@ -512,7 +512,7 @@ def plot_monthly_launches(df: pd.DataFrame):
 
     # Display the bar chart in Streamlit
     st.subheader("Monthly Launches")
-    st.altair_chart(final_chart, use_container_width=True)
+    st.altair_chart(final_chart, width="stretch")
 
 
 def table_all_launches(df: pd.DataFrame):
@@ -589,7 +589,7 @@ def table_all_launches(df: pd.DataFrame):
     df = df.reset_index(drop=True)
 
     # Plot all data.
-    st.dataframe(df, use_container_width=True)
+    st.dataframe(df, width="stretch")
 
 
 def show_logbook_helper(df: pd.DataFrame, commander: str):
@@ -624,7 +624,7 @@ def show_logbook_helper(df: pd.DataFrame, commander: str):
     display_df = format_data_for_table(filtered_df)
     st.header("Logbook Helper")
     st.text(f"Launches by {commander}")
-    st.dataframe(data=display_df, hide_index=True, use_container_width=True)
+    st.dataframe(data=display_df, hide_index=True, width="stretch")
 
 
 def quarterly_summary(df: pd.DataFrame, commander: str, quarter: str):
@@ -719,7 +719,7 @@ def show_logo(logo_path: Path):
     st.logo(str(logo_path))
     _, centre, _ = st.columns(3)
     with centre:
-        st.image(str(logo_path), use_container_width=True)
+        st.image(str(logo_path), width="stretch")
 
     # Show centred text.
     st.markdown(
@@ -885,7 +885,7 @@ def plot_gif_bar_chart(df: pd.DataFrame):
     # Display the chart in Streamlit.
     st.subheader("Cumulative GIFs Flown per Week")
     st.text(f"Financial Year: {year}")
-    st.altair_chart(chart, use_container_width=True)
+    st.altair_chart(chart, width="stretch")
 
 
 def get_aircraft_totals(aircraft_df: pd.DataFrame) -> pd.DataFrame:
@@ -992,11 +992,13 @@ def table_gur_summary(aircraft_df: pd.DataFrame, launches_df: pd.DataFrame):
     last_entry_df = last_entry_df.sort_values(by="Date", ascending=False)
     latest_week = last_entry_df.iloc[0]["Week Start"]
 
-    # Set totals columns to zero if they are not this week.
-    last_entry_df.loc[
-        last_entry_df["Week Start"] != latest_week,
-        ["Total Launches", "Total Flight Time"],
-    ] = 0
+    # Set totals columns to zero if they are not this week. Each column is set
+    # to a value matching its own dtype: "Total Launches" is numeric, while
+    # "Total Flight Time" is a formatted "H:MM" string (pandas 3.0 string dtype
+    # rejects assigning an integer).
+    not_latest_week = last_entry_df["Week Start"] != latest_week
+    last_entry_df.loc[not_latest_week, "Total Launches"] = 0
+    last_entry_df.loc[not_latest_week, "Total Flight Time"] = "0:00"
 
     # Sort by aircraft.
     last_entry_df = last_entry_df.sort_values(by="Aircraft")
@@ -1059,4 +1061,4 @@ def table_solo_dual_summary(df: pd.DataFrame, commander: str):
     # Display the table
     st.subheader(f"Solo/Dual Launch Summary for {commander}")
     st.text("SCT U/T launches only")
-    st.dataframe(summary_df, hide_index=True, use_container_width=True)
+    st.dataframe(summary_df, hide_index=True, width="stretch")

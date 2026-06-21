@@ -208,7 +208,7 @@ def plot_flying_non_flying_violin(weather_df, selected_metric):
     )
 
     # Display the chart
-    st.altair_chart(violin, use_container_width=True)
+    st.altair_chart(violin, width="stretch")
 
 
 def plot_weather_vs_flight_time(weather_df, launches_df, selected_metric):
@@ -319,7 +319,7 @@ def plot_weather_vs_flight_time(weather_df, launches_df, selected_metric):
     ).mark_line(color="red")
 
     # Display the chart
-    st.altair_chart(scatter + trend, use_container_width=True)
+    st.altair_chart(scatter + trend, width="stretch")
 
 
 def plot_wind_polar(weather_df):
@@ -428,7 +428,7 @@ def weather_table(weather_df: pd.DataFrame):
 
     st.dataframe(
         display_df,
-        use_container_width=True,
+        width="stretch",
         hide_index=True,
         column_order=[
             "datetime",
