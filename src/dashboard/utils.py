@@ -164,11 +164,14 @@ def validate_log_sheet(file: BytesIO) -> bool:
     return True
 
 
-def upload_log_sheets(files: List[BytesIO]):
+def upload_log_sheets(files: List[BytesIO]) -> bool:
     """Upload multiple log sheets to the database.
 
     Args:
-        files (List[BytesIO]): The log sheet files to upload."""
+        files (List[BytesIO]): The log sheet files to upload.
+
+    Returns:
+        bool: True if the upload to the database succeeded, False otherwise."""
     # Output preallocated list.
     log_sheet_list = []
     aircraft_info_list = []
@@ -232,12 +235,14 @@ def upload_log_sheets(files: List[BytesIO]):
             # Display a success message.
             logger.info("Done uploading log sheets.")
             st.toast("Log Sheets Uploaded!", icon="✅")
+            return True
         except Exception:  # pylint: disable=broad-except
             # Log the error.
             logger.error("Failed to upload log sheets.", exc_info=True)
             st.error("Failed to upload log sheets.")
             status_text.update(label="Failed to upload log sheets.",
                                state="error", expanded=True)
+            return False
 
 
 def gifs_flown_per_day(df: pd.DataFrame) -> pd.DataFrame:
@@ -267,6 +272,52 @@ def gifs_flown_per_day(df: pd.DataFrame) -> pd.DataFrame:
     # Sort by 'Date' in descending order.
     grouped = grouped.sort_values(by='Date', ascending=False)
     return grouped
+
+
+def last_flying_day_summary(df: pd.DataFrame) -> dict:
+    """Summarise the most recent flying day for the ops form helper.
+
+    Args:
+        df (pd.DataFrame): The launches DataFrame.
+
+    Returns:
+        dict: Keys ``date`` (pd.Timestamp), ``first_launch`` and
+            ``last_launch`` (str, %H:%M), ``aircraft`` (sorted list of str),
+            ``gif_cadets`` (int), ``launches_by_duty`` (DataFrame of Duty and
+            Launches). Empty dict if ``df`` is empty.
+    """
+    if df.empty:
+        return {}
+
+    # Restrict to the most recent flying day.
+    last_day = df["Date"].max()
+    day_df = df[df["Date"] == last_day]
+
+    # First and last launch times of the day.
+    first_launch = day_df["TakeOffTime"].min().strftime("%H:%M")
+    last_launch = day_df["TakeOffTime"].max().strftime("%H:%M")
+
+    # Aircraft flown that day.
+    aircraft = sorted(day_df["Aircraft"].unique().tolist())
+
+    # GIF cadets flown: unique aircraft, commander, second pilot and GIF duty.
+    gif_cadets = int(gifs_flown_per_day(day_df)["GIFs Flown"].sum())
+
+    # Launches grouped by duty type, most common first.
+    launches_by_duty = (
+        day_df["Duty"].value_counts()
+        .rename_axis("Duty")
+        .reset_index(name="Launches")
+    )
+
+    return {
+        "date": last_day,
+        "first_launch": first_launch,
+        "last_launch": last_launch,
+        "aircraft": aircraft,
+        "gif_cadets": gif_cadets,
+        "launches_by_duty": launches_by_duty,
+    }
 
 
 def format_minutes_to_HHHH_mm(minutes):

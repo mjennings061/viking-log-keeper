@@ -190,25 +190,41 @@ def test_navigation_to_upload_page(page: Page):
     expect(page.get_by_test_id("stFileUploaderDropzone")).to_be_visible()
 
 
-def test_navigation_to_stats_gur_page(page: Page):
-    """Test navigation to Stats & GUR page."""
-    login_user(page)
-
-    # Open Statistics dropdown and navigate to Stats & GUR page
+def navigate_to_stats_gur_page(page: Page) -> None:
+    """Helper to open the Stats & GUR page."""
     page.locator("div").filter(has_text=re.compile(r"^📈 Statistics$")).first.click()
     page.get_by_text("🧮 Stats & GUR Helper").click()
-
-    # Wait for page to load - check for main heading
     expect(page.get_by_role("heading", name="Stats Helpers")).to_be_visible(
         timeout=10000
     )
 
-    # Verify other key sections are present
+
+def test_navigation_to_stats_gur_page(page: Page):
+    """Test the Stats & GUR page shows the ops form helper by default."""
+    login_user(page)
+    navigate_to_stats_gur_page(page)
+
+    # The ops form helper is shown by default; detail tables are hidden.
+    expect(page.get_by_role("link", name="📝 Open Stats Return Form")).to_be_visible()
+    expect(page.get_by_text("Show more stats")).to_be_visible()
+    expect(page.get_by_role("heading", name="GUR Helpers")).to_be_visible()
+
+
+def test_show_more_stats_reveals_tables(page: Page):
+    """Test clicking 'Show more stats' reveals the detail tables."""
+    login_user(page)
+    navigate_to_stats_gur_page(page)
+
+    # Tables are hidden until the toggle is clicked.
+    expect(page.get_by_role("heading", name="First & Last Launch Times")).to_be_hidden()
+
+    # The visible switch is the clickable label; the input itself is hidden.
+    page.get_by_text("Show more stats").click()
+
     expect(
         page.get_by_role("heading", name="First & Last Launch Times")
     ).to_be_visible()
     expect(page.get_by_role("heading", name="Launches by Type")).to_be_visible()
-    expect(page.get_by_role("heading", name="GUR Helpers")).to_be_visible()
 
 
 def test_navigation_to_weather_page(page: Page):

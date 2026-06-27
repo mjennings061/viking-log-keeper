@@ -38,6 +38,7 @@ from dashboard.plots import (   # noqa: E402
     table_aircraft_totals,
     table_gur_summary,
     table_solo_dual_summary,
+    ops_form_helper,
 )
 from dashboard.weather import weather_page  # noqa: E402
 from dashboard.utils import (   # noqa: E402
@@ -157,6 +158,9 @@ def show_data_dashboard(db: Database):
     # Sidebar for page navigation
     pages = ["📈 Statistics", "📁 Upload Log Sheets",
              "🧮 Stats & GUR Helper", "⛅ Weather", "🌍 All Data"]
+    # Honour a redirect after a log sheet upload before the widget is instantiated.
+    if st.session_state.pop("redirect_to_stats", False):
+        st.session_state["select_page"] = "🧮 Stats & GUR Helper"
     page = st.selectbox("Select a Page:", pages, key="select_page")
 
     # Get dataframe of launches and aircraft info.
@@ -267,15 +271,21 @@ def show_data_dashboard(db: Database):
             # Show statistics and glider utilisation return helpers.
             # Stats helpers.
             st.header("Stats Helpers")
-            left, right = st.columns(2, gap="medium")
-            with left:
-                # Show the first and last launch time table.
-                plot_firstlast_launch_table(filtered_df)
-                # Show number of GIFs flown by day.
-                table_gifs_per_date(filtered_df)
-            with right:
-                # Show launches by sortie type.
-                launches_by_type_table(filtered_df)
+
+            # Stats return - summarise the last flying day by default.
+            ops_form_helper(df)
+
+            # Hide the detailed tables behind a toggle.
+            if st.toggle("Show more stats", key="more_stats_shown"):
+                left, right = st.columns(2, gap="medium")
+                with left:
+                    # Show the first and last launch time table.
+                    plot_firstlast_launch_table(filtered_df)
+                    # Show number of GIFs flown by day.
+                    table_gifs_per_date(filtered_df)
+                with right:
+                    # Show launches by sortie type.
+                    launches_by_type_table(filtered_df)
 
             # GUR helpers.
             st.divider()
@@ -306,8 +316,13 @@ def show_data_dashboard(db: Database):
 
             if files:
                 # Upload the log sheets and refresh data.
-                upload_log_sheets(files)
+                success = upload_log_sheets(files)
                 refresh_data()
+                # Only redirect on a successful upload.
+                if success:
+                    # Flag a redirect to the stats page.
+                    st.session_state["redirect_to_stats"] = True
+                    st.rerun()
 
 
 def login(username: str, password: str):
