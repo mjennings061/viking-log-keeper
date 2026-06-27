@@ -49,6 +49,7 @@
 
     ```bash
     echo "MONGO_URI=<YOUR_MONGO_URI>" > .streamlit/secrets.toml
+    echo "OPS_FORM_URL=<YOUR_OPS_FORM_URL>" >> .streamlit/secrets.toml
     ```
 
 1. run the following command:
