@@ -206,7 +206,7 @@ def test_navigation_to_stats_gur_page(page: Page):
 
     # The ops form helper is shown by default; detail tables are hidden.
     expect(page.get_by_role("link", name="📝 Open Stats Return Form")).to_be_visible()
-    expect(page.get_by_role("checkbox", name="Show more stats")).to_be_visible()
+    expect(page.get_by_text("Show more stats")).to_be_visible()
     expect(page.get_by_role("heading", name="GUR Helpers")).to_be_visible()
 
 
@@ -218,7 +218,8 @@ def test_show_more_stats_reveals_tables(page: Page):
     # Tables are hidden until the toggle is clicked.
     expect(page.get_by_role("heading", name="First & Last Launch Times")).to_be_hidden()
 
-    page.get_by_role("checkbox", name="Show more stats").click()
+    # The visible switch is the clickable label; the input itself is hidden.
+    page.get_by_text("Show more stats").click()
 
     expect(
         page.get_by_role("heading", name="First & Last Launch Times")
