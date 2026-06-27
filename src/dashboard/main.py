@@ -157,6 +157,9 @@ def show_data_dashboard(db: Database):
     # Sidebar for page navigation
     pages = ["📈 Statistics", "📁 Upload Log Sheets",
              "🧮 Stats & GUR Helper", "⛅ Weather", "🌍 All Data"]
+    # Honour a redirect after a log sheet upload before the widget is instantiated.
+    if st.session_state.pop("redirect_to_stats", False):
+        st.session_state["select_page"] = "🧮 Stats & GUR Helper"
     page = st.selectbox("Select a Page:", pages, key="select_page")
 
     # Get dataframe of launches and aircraft info.
@@ -308,6 +311,10 @@ def show_data_dashboard(db: Database):
                 # Upload the log sheets and refresh data.
                 upload_log_sheets(files)
                 refresh_data()
+                # Flag a redirect to the stats page; applied on the next run
+                # before the page selectbox is instantiated.
+                st.session_state["redirect_to_stats"] = True
+                st.rerun()
 
 
 def login(username: str, password: str):
