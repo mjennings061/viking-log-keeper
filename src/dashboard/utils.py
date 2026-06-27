@@ -164,11 +164,14 @@ def validate_log_sheet(file: BytesIO) -> bool:
     return True
 
 
-def upload_log_sheets(files: List[BytesIO]):
+def upload_log_sheets(files: List[BytesIO]) -> bool:
     """Upload multiple log sheets to the database.
 
     Args:
-        files (List[BytesIO]): The log sheet files to upload."""
+        files (List[BytesIO]): The log sheet files to upload.
+
+    Returns:
+        bool: True if the upload to the database succeeded, False otherwise."""
     # Output preallocated list.
     log_sheet_list = []
     aircraft_info_list = []
@@ -232,12 +235,14 @@ def upload_log_sheets(files: List[BytesIO]):
             # Display a success message.
             logger.info("Done uploading log sheets.")
             st.toast("Log Sheets Uploaded!", icon="✅")
+            return True
         except Exception:  # pylint: disable=broad-except
             # Log the error.
             logger.error("Failed to upload log sheets.", exc_info=True)
             st.error("Failed to upload log sheets.")
             status_text.update(label="Failed to upload log sheets.",
                                state="error", expanded=True)
+            return False
 
 
 def gifs_flown_per_day(df: pd.DataFrame) -> pd.DataFrame:

@@ -273,8 +273,7 @@ def show_data_dashboard(db: Database):
             st.header("Stats Helpers")
 
             # Stats return - summarise the last flying day by default.
-            if not df.empty:
-                ops_form_helper(df)
+            ops_form_helper(df)
 
             # Hide the detailed tables behind a toggle.
             if st.toggle("Show more stats", key="more_stats_shown"):
@@ -317,12 +316,13 @@ def show_data_dashboard(db: Database):
 
             if files:
                 # Upload the log sheets and refresh data.
-                upload_log_sheets(files)
+                success = upload_log_sheets(files)
                 refresh_data()
-                # Flag a redirect to the stats page; applied on the next run
-                # before the page selectbox is instantiated.
-                st.session_state["redirect_to_stats"] = True
-                st.rerun()
+                # Only redirect on a successful upload.
+                if success:
+                    # Flag a redirect to the stats page.
+                    st.session_state["redirect_to_stats"] = True
+                    st.rerun()
 
 
 def login(username: str, password: str):

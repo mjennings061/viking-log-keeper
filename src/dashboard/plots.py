@@ -18,12 +18,8 @@ from dashboard.utils import (
     total_launches_for_financial_year,
 )
 
-# Stats return URL
-OPS_FORM_URL = (
-    "https://forms.office.com/Pages/ResponsePage.aspx?id="
-    "7WB3vlNZS0iuldChbfoJ5THponPsE9lHlUm3gSbOXXl"
-    "UMFRPSkk4Nk1SRVhTQzFIWFJCVFRXTzk3MS4u"
-)
+# Stats return URL (fail if not set).
+OPS_FORM_URL = st.secrets["OPS_FORM_URL"]
 
 
 def format_data_for_table(raw_df: pd.DataFrame) -> pd.DataFrame:
