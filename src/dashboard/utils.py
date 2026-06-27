@@ -269,6 +269,52 @@ def gifs_flown_per_day(df: pd.DataFrame) -> pd.DataFrame:
     return grouped
 
 
+def last_flying_day_summary(df: pd.DataFrame) -> dict:
+    """Summarise the most recent flying day for the ops form helper.
+
+    Args:
+        df (pd.DataFrame): The launches DataFrame.
+
+    Returns:
+        dict: Keys ``date`` (pd.Timestamp), ``first_launch`` and
+            ``last_launch`` (str, %H:%M), ``aircraft`` (sorted list of str),
+            ``gif_cadets`` (int), ``launches_by_duty`` (DataFrame of Duty and
+            Launches). Empty dict if ``df`` is empty.
+    """
+    if df.empty:
+        return {}
+
+    # Restrict to the most recent flying day.
+    last_day = df["Date"].max()
+    day_df = df[df["Date"] == last_day]
+
+    # First and last launch times of the day.
+    first_launch = day_df["TakeOffTime"].min().strftime("%H:%M")
+    last_launch = day_df["TakeOffTime"].max().strftime("%H:%M")
+
+    # Aircraft flown that day.
+    aircraft = sorted(day_df["Aircraft"].unique().tolist())
+
+    # GIF cadets flown: unique aircraft, commander, second pilot and GIF duty.
+    gif_cadets = int(gifs_flown_per_day(day_df)["GIFs Flown"].sum())
+
+    # Launches grouped by duty type, most common first.
+    launches_by_duty = (
+        day_df["Duty"].value_counts()
+        .rename_axis("Duty")
+        .reset_index(name="Launches")
+    )
+
+    return {
+        "date": last_day,
+        "first_launch": first_launch,
+        "last_launch": last_launch,
+        "aircraft": aircraft,
+        "gif_cadets": gif_cadets,
+        "launches_by_duty": launches_by_duty,
+    }
+
+
 def format_minutes_to_HHHH_mm(minutes):
     """Format minutes to HHHH:mm.
 

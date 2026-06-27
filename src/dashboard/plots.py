@@ -14,7 +14,15 @@ from dashboard.utils import (
     format_minutes_to_HHHH_mm,
     get_financial_year,
     gifs_flown_per_day,
+    last_flying_day_summary,
     total_launches_for_financial_year,
+)
+
+# Stats return URL
+OPS_FORM_URL = (
+    "https://forms.office.com/Pages/ResponsePage.aspx?id="
+    "7WB3vlNZS0iuldChbfoJ5THponPsE9lHlUm3gSbOXXl"
+    "UMFRPSkk4Nk1SRVhTQzFIWFJCVFRXTzk3MS4u"
 )
 
 
@@ -810,6 +818,36 @@ def table_gifs_per_date(df: pd.DataFrame):
     # Display in Streamlit app.
     st.subheader("GIFs Flown per Day")
     st.dataframe(gif_df, hide_index=True)
+
+
+def ops_form_helper(df: pd.DataFrame):
+    """Show last flying day stats to copy into the ops form, plus a link.
+
+    Args:
+        df (pd.DataFrame): The full launches DataFrame (so the latest flying
+            day is not masked by a sidebar date filter).
+    """
+    summary = last_flying_day_summary(df)
+    if not summary:
+        st.info("No flying data available.")
+        return
+
+    st.caption("Last flying day: " + summary["date"].strftime("%d %b %y"))
+
+    # First and last launch times.
+    left, right = st.columns(2)
+    left.metric("First Launch", summary["first_launch"])
+    right.metric("Last Launch", summary["last_launch"])
+
+    # GIF cadets flown and aircraft used.
+    st.metric("GIF Cadets", summary["gif_cadets"])
+    st.write("**Aircraft used:** " + ", ".join(summary["aircraft"]))
+
+    # Launches by duty type.
+    st.dataframe(summary["launches_by_duty"], hide_index=True)
+
+    # Open the ops form in a new tab to complete it.
+    st.link_button("📝 Open Stats Return Form", OPS_FORM_URL)
 
 
 def plot_gif_bar_chart(df: pd.DataFrame):

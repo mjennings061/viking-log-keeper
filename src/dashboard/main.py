@@ -38,6 +38,7 @@ from dashboard.plots import (   # noqa: E402
     table_aircraft_totals,
     table_gur_summary,
     table_solo_dual_summary,
+    ops_form_helper,
 )
 from dashboard.weather import weather_page  # noqa: E402
 from dashboard.utils import (   # noqa: E402
@@ -270,15 +271,22 @@ def show_data_dashboard(db: Database):
             # Show statistics and glider utilisation return helpers.
             # Stats helpers.
             st.header("Stats Helpers")
-            left, right = st.columns(2, gap="medium")
-            with left:
-                # Show the first and last launch time table.
-                plot_firstlast_launch_table(filtered_df)
-                # Show number of GIFs flown by day.
-                table_gifs_per_date(filtered_df)
-            with right:
-                # Show launches by sortie type.
-                launches_by_type_table(filtered_df)
+
+            # Stats return - summarise the last flying day by default.
+            if not df.empty:
+                ops_form_helper(df)
+
+            # Hide the detailed tables behind a toggle.
+            if st.toggle("Show more stats", key="more_stats_shown"):
+                left, right = st.columns(2, gap="medium")
+                with left:
+                    # Show the first and last launch time table.
+                    plot_firstlast_launch_table(filtered_df)
+                    # Show number of GIFs flown by day.
+                    table_gifs_per_date(filtered_df)
+                with right:
+                    # Show launches by sortie type.
+                    launches_by_type_table(filtered_df)
 
             # GUR helpers.
             st.divider()
