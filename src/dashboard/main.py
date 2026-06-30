@@ -49,8 +49,8 @@ from dashboard.utils import (   # noqa: E402
     update_template_from_upload,
 )
 from dashboard.session import (   # noqa: E402
-    COOKIE_MANAGER_KEY,
     COOKIE_NAME,
+    clear_auth_cookie,
     cookie_expiry,
     decrypt_credentials,
     encrypt_credentials,
@@ -423,6 +423,8 @@ def login(username: str, password: str):
         # (completing) run - setting it here then immediately calling st.rerun()
         # drops it, because the set-component never gets to render.
         st.session_state["_auth_token"] = encrypt_credentials(username, password)
+        # A fresh login cancels any pending logout from earlier this session.
+        st.session_state.pop("_logging_out", None)
         st.toast("Login successful")
         st.rerun()
     else:
@@ -438,6 +440,11 @@ def restore_session(cookie_manager):
     if st.session_state.get("authenticated"):
         return
 
+    # A logout is pending or done this session: never restore from the cookie.
+    # _process_logout() owns deleting it; we must not race that by re-reading.
+    if st.session_state.get("_logging_out"):
+        return
+
     # The cookie iframe reports nothing on the first Cloud run; give it one
     # rerun to deliver cookies before falling through to the login form.
     cookies = cookie_manager.get_all()
@@ -446,18 +453,6 @@ def restore_session(cookie_manager):
         st.rerun()
 
     token = cookie_manager.get(COOKIE_NAME)
-
-    # After an explicit logout, keep suppressing restore until the cookie is gone.
-    if st.session_state.get("_just_logged_out"):
-        if not token:
-            del st.session_state["_just_logged_out"]
-        else:
-            try:
-                cookie_manager.delete(COOKIE_NAME, key="del_stale")
-            except KeyError:
-                pass
-        return
-
     credentials = decrypt_credentials(token) if token else None
     if not credentials:
         return
@@ -481,10 +476,7 @@ def restore_session(cookie_manager):
         # Stale or invalid cookie - drop the connection and clear the cookie.
         if client:
             client.close()
-        try:
-            cookie_manager.delete(COOKIE_NAME, key="del_stale")
-        except KeyError:
-            pass
+        clear_auth_cookie(cookie_manager, key="del_stale")
 
 
 def authenticate():
@@ -526,20 +518,28 @@ def _persist_cookie(cookie_manager):
         token,
         key="set_auth",
         expires_at=cookie_expiry(),
-        same_site="strict",
+        same_site="lax",  # Strict withholds the cookie on link/bookmark entry.
         secure=True,  # Bearer credential - never send over plain HTTP.
     )
+
+
+def _process_logout(cookie_manager):
+    """Delete the auth cookie on a completing run while a logout is pending."""
+    if not st.session_state.get("_logging_out"):
+        return
+    # Overwrite the cookie expired on this completing run.
+    clear_auth_cookie(cookie_manager, key="del_logout")
+    # Keep _logging_out set so restore stays suppressed until login or reload.
+    for key in ("authenticated", "client", "_auth_token"):
+        st.session_state.pop(key, None)
 
 
 def _logout_button():
     """Render a logout button pinned to the bottom of the sidebar."""
     st.sidebar.divider()
     if st.sidebar.button("🚪 Log out", use_container_width=True, key="logout"):
-        # Keep the cookie cache so restore_session can delete the cookie reliably.
-        for state_key in list(st.session_state.keys()):
-            if state_key != COOKIE_MANAGER_KEY:
-                del st.session_state[state_key]
-        st.session_state["_just_logged_out"] = True
+        # _process_logout() does the work next run, on a completing run.
+        st.session_state["_logging_out"] = True
         st.rerun()
 
 
@@ -628,6 +628,9 @@ def main():
             "Add it under Settings -> Secrets to keep users logged in."
         )
         st.session_state["_warned_no_persist"] = True
+
+    # Finish any pending logout before reading the cookie for restore.
+    _process_logout(cookie_manager)
 
     # Restore a previous login from the encrypted auth cookie if present
     restore_session(cookie_manager)

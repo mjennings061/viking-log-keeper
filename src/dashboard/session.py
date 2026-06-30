@@ -78,8 +78,7 @@ def decrypt_credentials(token: str) -> Optional[Tuple[str, str]]:
 
     Returns:
         Optional[Tuple[str, str]]: ``(username, password)``, or None if the
-        token is missing, tampered with, expired, or encryption is
-        unavailable."""
+        token is missing, tampered with, expired, or encryption is unavailable."""
     cipher = _fernet()
     if not cipher or not token:
         return None
@@ -95,7 +94,18 @@ def cookie_expiry() -> datetime:
     """Absolute (UTC) expiry timestamp for a freshly-set auth cookie.
 
     Returns:
-        datetime: ``COOKIE_DAYS`` from now, in UTC. The component serialises
-        this with ``.isoformat()``, so a UTC-aware value carries an explicit
-        offset the browser cannot misread as its own local time."""
+        datetime: ``COOKIE_DAYS`` from now, in UTC."""
     return datetime.now(timezone.utc) + timedelta(days=COOKIE_DAYS)
+
+
+def clear_auth_cookie(cookie_manager, key: str = "del_auth") -> None:
+    """Remove the auth cookie by overwriting it expired, with matching attrs."""
+    # delete() uses non-matching attributes and fails.
+    cookie_manager.set(
+        COOKIE_NAME,
+        "",
+        key=key,
+        expires_at=datetime.now(timezone.utc) - timedelta(days=1),
+        same_site="lax",
+        secure=True,
+    )

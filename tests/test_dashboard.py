@@ -186,8 +186,11 @@ def test_login_persists_after_reload(page: Page):
 
 
 def test_logout_clears_session(page: Page):
-    """Logging out returns the user to the login form, even after a reload."""
+    """Logging out clears the auth cookie and survives a reload."""
     login_user(page)
+    page.wait_for_function(
+        "() => document.cookie.includes('vgs_auth')", timeout=10000
+    )
 
     # Log out via the sidebar button.
     page.get_by_role("button", name="Log out").click()
@@ -195,7 +198,12 @@ def test_logout_clears_session(page: Page):
     # The login form should reappear...
     expect(page.get_by_test_id("stForm")).to_be_visible(timeout=10000)
 
-    # ...and stay gone after a reload (cookie was cleared).
+    # ...the auth cookie must actually be removed (else a reload re-logs in)...
+    page.wait_for_function(
+        "() => !document.cookie.includes('vgs_auth')", timeout=15000
+    )
+
+    # ...and the login form stays after a reload.
     page.reload()
     expect(page.get_by_test_id("stForm")).to_be_visible(timeout=15000)
 
