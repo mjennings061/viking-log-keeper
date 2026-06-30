@@ -54,6 +54,7 @@ from dashboard.session import (   # noqa: E402
     decrypt_credentials,
     encrypt_credentials,
     get_cookie_manager,
+    persistence_available,
 )
 
 
@@ -436,6 +437,13 @@ def restore_session(cookie_manager):
     if st.session_state.get("authenticated"):
         return
 
+    # The cookie iframe reports nothing on the first Cloud run; give it one
+    # rerun to deliver cookies before falling through to the login form.
+    cookies = cookie_manager.get_all()
+    if not cookies and not st.session_state.get("_cookies_settled"):
+        st.session_state["_cookies_settled"] = True
+        st.rerun()
+
     token = cookie_manager.get(COOKIE_NAME)
 
     # After an explicit logout, keep suppressing restore until the cookie is gone.
@@ -469,7 +477,9 @@ def restore_session(cookie_manager):
         st.session_state["_auth_token"] = token
         logger.info("Restored session for %s from cookie.", username)
     else:
-        # Stale or invalid cookie - clear it so the login form is shown.
+        # Stale or invalid cookie - drop the connection and clear the cookie.
+        if client:
+            client.close()
         try:
             cookie_manager.delete(COOKIE_NAME, key="del_stale")
         except KeyError:
@@ -516,6 +526,7 @@ def _persist_cookie(cookie_manager):
         key="set_auth",
         expires_at=cookie_expiry(),
         same_site="strict",
+        secure=True,  # Bearer credential - never send over plain HTTP.
     )
 
 
@@ -615,6 +626,15 @@ def main():
 
     # Cookie manager used to persist the login across page refreshes.
     cookie_manager = get_cookie_manager()
+
+    # Warn once if persistence is unconfigured - the usual cause of logins not
+    # surviving a refresh on Streamlit Cloud (COOKIE_SECRET missing from secrets).
+    if not persistence_available() and not st.session_state.get("_warned_no_persist"):
+        logger.warning(
+            "COOKIE_SECRET is not set - login persistence is disabled. "
+            "Add it under Settings -> Secrets to keep users logged in."
+        )
+        st.session_state["_warned_no_persist"] = True
 
     # Restore a previous login from the encrypted auth cookie if present
     restore_session(cookie_manager)

@@ -47,3 +47,11 @@ def test_missing_secret_disables_persistence(monkeypatch):
     monkeypatch.setattr(session, "_fernet", lambda: None)
     assert session.encrypt_credentials("661vgs", "s3cret") is None
     assert session.decrypt_credentials("anything") is None
+
+
+def test_malformed_secret_disables_persistence(monkeypatch):
+    """A malformed COOKIE_SECRET disables persistence instead of crashing."""
+    # A non-32-byte base64 key makes Fernet() raise; _fernet must swallow it.
+    monkeypatch.setattr(session.st, "secrets", {"COOKIE_SECRET": "not-a-valid-key"})
+    assert session._fernet() is None
+    assert session.encrypt_credentials("661vgs", "s3cret") is None

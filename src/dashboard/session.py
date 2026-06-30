@@ -4,7 +4,7 @@ Encryption uses ``st.secrets["COOKIE_SECRET"]``. If that secret is not configure
 the helpers no-op and the app falls back to its previous behaviour"""
 
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, Tuple
 
 import extra_streamlit_components as stx
@@ -33,9 +33,22 @@ def _fernet() -> Optional[Fernet]:
     """Build the Fernet cipher from the configured secret.
 
     Returns:
-        Optional[Fernet]: The cipher, or None if ``COOKIE_SECRET`` is unset."""
+        Optional[Fernet]: The cipher, or None if ``COOKIE_SECRET`` is unset or
+        malformed - persistence then disables itself rather than breaking
+        login (Fernet raises ValueError on a non-32-byte base64 key)."""
     secret = st.secrets.get("COOKIE_SECRET")
-    return Fernet(secret.encode()) if secret else None
+    if not secret:
+        return None
+    try:
+        return Fernet(secret.encode())
+    except (ValueError, TypeError):
+        logger.warning("COOKIE_SECRET is malformed; login persistence disabled.")
+        return None
+
+
+def persistence_available() -> bool:
+    # Persistence needs COOKIE_SECRET (Streamlit Cloud: Settings -> Secrets).
+    return _fernet() is not None
 
 
 def encrypt_credentials(username: str, password: str) -> Optional[str]:
@@ -77,8 +90,10 @@ def decrypt_credentials(token: str) -> Optional[Tuple[str, str]]:
 
 
 def cookie_expiry() -> datetime:
-    """Absolute expiry timestamp for a freshly-set auth cookie.
+    """Absolute (UTC) expiry timestamp for a freshly-set auth cookie.
 
     Returns:
-        datetime: ``COOKIE_DAYS`` from now."""
-    return datetime.now() + timedelta(days=COOKIE_DAYS)
+        datetime: ``COOKIE_DAYS`` from now, in UTC. The component serialises
+        this with ``.isoformat()``, so a UTC-aware value carries an explicit
+        offset the browser cannot misread as its own local time."""
+    return datetime.now(timezone.utc) + timedelta(days=COOKIE_DAYS)
