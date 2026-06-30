@@ -49,6 +49,7 @@ from dashboard.utils import (   # noqa: E402
     update_template_from_upload,
 )
 from dashboard.session import (   # noqa: E402
+    COOKIE_MANAGER_KEY,
     COOKIE_NAME,
     cookie_expiry,
     decrypt_credentials,
@@ -530,22 +531,14 @@ def _persist_cookie(cookie_manager):
     )
 
 
-def _logout_button(cookie_manager):
-    """Render a logout button pinned to the bottom of the sidebar.
-
-    Args:
-        cookie_manager: The cookie manager component."""
+def _logout_button():
+    """Render a logout button pinned to the bottom of the sidebar."""
     st.sidebar.divider()
     if st.sidebar.button("🚪 Log out", use_container_width=True, key="logout"):
-        # Remove the persisted login.
-        try:
-            cookie_manager.delete(COOKIE_NAME, key="del_auth")
-        except KeyError:
-            pass
-        # Wipe the session, flagging the deliberate logout so restore_session
-        # does not re-authenticate from a not-yet-deleted cookie next run.
+        # Keep the cookie cache so restore_session can delete the cookie reliably.
         for state_key in list(st.session_state.keys()):
-            del st.session_state[state_key]
+            if state_key != COOKIE_MANAGER_KEY:
+                del st.session_state[state_key]
         st.session_state["_just_logged_out"] = True
         st.rerun()
 
@@ -663,7 +656,7 @@ def main():
         # Logout control, pinned to the bottom of the sidebar. Only shown if we
         # did not just clear the session due to an error above.
         if st.session_state.get("authenticated"):
-            _logout_button(cookie_manager)
+            _logout_button()
 
 
 def display_dashboard():

@@ -15,6 +15,8 @@ from dashboard import logger
 
 # Name of the browser cookie holding the encrypted credentials.
 COOKIE_NAME = "vgs_auth"
+# Session-state key caching the browser's cookies; must survive a logout wipe.
+COOKIE_MANAGER_KEY = "vgs_cookies"
 # How many days a login is remembered for.
 COOKIE_DAYS = 10
 # Fernet max token age (seconds).
@@ -26,7 +28,7 @@ def get_cookie_manager() -> stx.CookieManager:
 
     Returns:
         stx.CookieManager: The cookie manager."""
-    return stx.CookieManager(key="vgs_cookies")
+    return stx.CookieManager(key=COOKIE_MANAGER_KEY)
 
 
 def _fernet() -> Optional[Fernet]:
