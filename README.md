@@ -50,7 +50,15 @@
     ```bash
     echo "MONGO_URI=<YOUR_MONGO_URI>" > .streamlit/secrets.toml
     echo "OPS_FORM_URL=<YOUR_OPS_FORM_URL>" >> .streamlit/secrets.toml
+    # COOKIE_SECRET keeps users logged in across page refreshes. Generate one:
+    echo "COOKIE_SECRET=\"$(python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())')\"" >> .streamlit/secrets.toml
     ```
+
+    > When deploying to Streamlit Community Cloud, add the same secrets
+    > (`MONGO_URI`, `OPS_FORM_URL`, `COOKIE_SECRET`) under the app's
+    > *Settings → Secrets*. If `COOKIE_SECRET` is omitted the app still works,
+    > but logins are not persisted across refreshes. Rotating it logs everyone
+    > out once.
 
 1. run the following command:
 

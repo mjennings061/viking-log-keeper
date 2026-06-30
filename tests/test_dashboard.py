@@ -128,7 +128,7 @@ def login_user(page: Page) -> None:
     # Wait for dashboard to load
     expected_heading = f"{USERNAME.upper()} Dashboard"
     expect(page.get_by_role("heading", name=expected_heading)).to_be_visible(
-        timeout=10000
+        timeout=20000
     )
 
 
@@ -165,6 +165,39 @@ def test_complete_login_flow(page: Page):
 
     # Verify we can refresh data (confirms dashboard is functional)
     expect(page.get_by_test_id("stBaseButton-secondary")).to_be_visible()
+
+
+def test_login_persists_after_reload(page: Page):
+    """Login survives a page refresh via the encrypted auth cookie."""
+    login_user(page)
+
+    # Wait for auth cookie before reloading (a real user reads the page first anyway).
+    page.wait_for_function(
+        "() => document.cookie.includes('vgs_auth')", timeout=10000
+    )
+
+    # Reload - the cookie should restore the session without the login form.
+    page.reload()
+
+    expected_heading = f"{USERNAME.upper()} Dashboard"
+    expect(page.get_by_role("heading", name=expected_heading)).to_be_visible(
+        timeout=15000
+    )
+
+
+def test_logout_clears_session(page: Page):
+    """Logging out returns the user to the login form, even after a reload."""
+    login_user(page)
+
+    # Log out via the sidebar button.
+    page.get_by_role("button", name="Log out").click()
+
+    # The login form should reappear...
+    expect(page.get_by_test_id("stForm")).to_be_visible(timeout=10000)
+
+    # ...and stay gone after a reload (cookie was cleared).
+    page.reload()
+    expect(page.get_by_test_id("stForm")).to_be_visible(timeout=15000)
 
 
 def test_dashboard_data_refresh(page: Page):

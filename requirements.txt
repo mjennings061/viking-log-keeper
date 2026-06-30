@@ -1,3 +1,4 @@
+cryptography~=48.0
 extra-streamlit-components~=0.1.81
 inquirer~=3.4.1
 keyring~=25.7.0

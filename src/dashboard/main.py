@@ -48,6 +48,13 @@ from dashboard.utils import (   # noqa: E402
     get_prefilled_log_sheet,
     update_template_from_upload,
 )
+from dashboard.session import (   # noqa: E402
+    COOKIE_NAME,
+    cookie_expiry,
+    decrypt_credentials,
+    encrypt_credentials,
+    get_cookie_manager,
+)
 
 
 def get_launches_for_dashboard(db: Database) -> pd.DataFrame:
@@ -387,7 +394,11 @@ def show_data_dashboard(db: Database):
 
 
 def login(username: str, password: str):
-    """Login to the dashboard."""
+    """Login to the dashboard.
+
+    Args:
+        username (str): The VGS username.
+        password (str): The VGS password."""
     try:
         # Create the DB user.
         db_user = DbUser(
@@ -406,10 +417,63 @@ def login(username: str, password: str):
         # User is authenticated remove the form.
         st.session_state["authenticated"] = True
         st.session_state["client"] = client
+        # Stash the encrypted credentials. main() writes the cookie on the next
+        # (completing) run - setting it here then immediately calling st.rerun()
+        # drops it, because the set-component never gets to render.
+        st.session_state["_auth_token"] = encrypt_credentials(username, password)
         st.toast("Login successful")
         st.rerun()
     else:
         st.error("Invalid Password")
+
+
+def restore_session(cookie_manager):
+    """Restore a login from the auth cookie after a page refresh.
+
+    Args:
+        cookie_manager: The cookie manager component."""
+    # Nothing to do if already authenticated this session.
+    if st.session_state.get("authenticated"):
+        return
+
+    token = cookie_manager.get(COOKIE_NAME)
+
+    # After an explicit logout, keep suppressing restore until the cookie is gone.
+    if st.session_state.get("_just_logged_out"):
+        if not token:
+            del st.session_state["_just_logged_out"]
+        else:
+            try:
+                cookie_manager.delete(COOKIE_NAME, key="del_stale")
+            except KeyError:
+                pass
+        return
+
+    credentials = decrypt_credentials(token) if token else None
+    if not credentials:
+        return
+
+    username, password = credentials
+    try:
+        client = Client(DbUser(
+            username=username,
+            password=password,
+            uri=st.secrets["MONGO_URI"],
+        ))
+    except ValueError:
+        client = None
+
+    if client and client.log_in():
+        st.session_state["authenticated"] = True
+        st.session_state["client"] = client
+        st.session_state["_auth_token"] = token
+        logger.info("Restored session for %s from cookie.", username)
+    else:
+        # Stale or invalid cookie - clear it so the login form is shown.
+        try:
+            cookie_manager.delete(COOKIE_NAME, key="del_stale")
+        except KeyError:
+            pass
 
 
 def authenticate():
@@ -433,6 +497,46 @@ def authenticate():
                 username=st.session_state["username"],
                 password=password_value,
             )
+
+
+def _persist_cookie(cookie_manager):
+    """Write the auth cookie once the login has settled.
+
+    Args:
+        cookie_manager: The cookie manager component."""
+    token = st.session_state.get("_auth_token")
+    if not token:
+        return
+    # Already stored - nothing to do.
+    if cookie_manager.get(COOKIE_NAME) == token:
+        return
+    cookie_manager.set(
+        COOKIE_NAME,
+        token,
+        key="set_auth",
+        expires_at=cookie_expiry(),
+        same_site="strict",
+    )
+
+
+def _logout_button(cookie_manager):
+    """Render a logout button pinned to the bottom of the sidebar.
+
+    Args:
+        cookie_manager: The cookie manager component."""
+    st.sidebar.divider()
+    if st.sidebar.button("🚪 Log out", use_container_width=True, key="logout"):
+        # Remove the persisted login.
+        try:
+            cookie_manager.delete(COOKIE_NAME, key="del_auth")
+        except KeyError:
+            pass
+        # Wipe the session, flagging the deliberate logout so restore_session
+        # does not re-authenticate from a not-yet-deleted cookie next run.
+        for state_key in list(st.session_state.keys()):
+            del st.session_state[state_key]
+        st.session_state["_just_logged_out"] = True
+        st.rerun()
 
 
 def set_db():
@@ -509,11 +613,19 @@ def main():
     configure_app(LOGO_PATH)
     show_logo(LOGO_PATH)
 
+    # Cookie manager used to persist the login across page refreshes.
+    cookie_manager = get_cookie_manager()
+
+    # Restore a previous login from the encrypted auth cookie if present
+    restore_session(cookie_manager)
+
     # Authenticate the user.
     authenticate()
 
     # User is authenticated display the dashboard.
     if st.session_state["authenticated"]:
+        # Persist the login cookie now that we are on a run that completes.
+        _persist_cookie(cookie_manager)
         try:
             # Choose the database to use.
             choose_db(client=st.session_state["client"])
@@ -527,6 +639,11 @@ def main():
 
             # Clear the session state.
             st.session_state.clear()
+
+        # Logout control, pinned to the bottom of the sidebar. Only shown if we
+        # did not just clear the session due to an error above.
+        if st.session_state.get("authenticated"):
+            _logout_button(cookie_manager)
 
 
 def display_dashboard():
