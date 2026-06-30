@@ -44,7 +44,9 @@ from dashboard.weather import weather_page  # noqa: E402
 from dashboard.utils import (   # noqa: E402
     LOGO_PATH,
     upload_log_sheets,
-    date_filter
+    date_filter,
+    get_prefilled_log_sheet,
+    update_template_from_upload,
 )
 
 
@@ -145,6 +147,77 @@ def refresh_data():
     st.toast("Data Refreshed!", icon="✅")
 
 
+def show_log_sheets_page(db: Database, aircraft_df: pd.DataFrame):
+    """Render Log Sheets page: pre-filled download, template update and sheet upload.
+
+    Args:
+        db (Database): The VGS database class.
+        aircraft_df (pd.DataFrame): Aircraft info for the brought-forward
+            lookup and the aircraft drop-down."""
+    # Download a pre-filled 2965D for a chosen aircraft.
+    st.subheader("⬇️ Download pre-filled log sheet")
+    known_aircraft = (
+        sorted(aircraft_df["Aircraft"].dropna().unique())
+        if not aircraft_df.empty else []
+    )
+    chosen = st.selectbox(
+        "Aircraft",
+        known_aircraft,
+        index=None,
+        accept_new_options=True,
+        placeholder="Select or type an aircraft, e.g. ZE683",
+        key="prefill_aircraft",
+        help="Pick a known aircraft or type a new tail number.",
+    )
+    if chosen:
+        result = get_prefilled_log_sheet(
+            db, chosen.strip().upper(), aircraft_df)
+        if result:
+            data, filename = result
+            st.download_button(
+                "Download pre-filled log sheet",
+                data=data,
+                file_name=filename,
+                mime="application/vnd.openxmlformats-officedocument."
+                     "spreadsheetml.sheet",
+                key="download_prefilled",
+            )
+
+    # Replace the stored template (holds squadron-specific INPUT_DATA).
+    with st.expander("⚙️ Update log sheet template"):
+        template_file = st.file_uploader(
+            "Upload a new 2965D template (.xltx/.xlsx) with the "
+            "INPUT_DATA sheet filled in.",
+            type=["xltx", "xlsx"],
+            key="template_upload",
+        )
+        if template_file and st.button("Store template", key="store_template"):
+            update_template_from_upload(db, template_file)
+
+    st.divider()
+
+    # Upload completed log sheets.
+    st.subheader("⬆️ Upload completed log sheets")
+    files = st.file_uploader(
+        "Upload log sheets below. Existing files will be updated.",
+        type=["xlsx"],
+        accept_multiple_files=True,
+        key="upload_log_sheets",
+        on_change=None,
+        help="Upload the log sheets to update the dashboard.",
+    )
+
+    if files:
+        # Upload the log sheets and refresh data.
+        success = upload_log_sheets(files)
+        refresh_data()
+        # Only redirect on a successful upload.
+        if success:
+            # Flag a redirect to the stats page.
+            st.session_state["redirect_to_stats"] = True
+            st.rerun()
+
+
 def show_data_dashboard(db: Database):
     """Display the dashboard.
 
@@ -156,7 +229,7 @@ def show_data_dashboard(db: Database):
     st.title(f"{vgs} Dashboard")
 
     # Sidebar for page navigation
-    pages = ["📈 Statistics", "📁 Upload Log Sheets",
+    pages = ["📈 Statistics", "📁 Log Sheets",
              "🧮 Stats & GUR Helper", "⛅ Weather", "🌍 All Data"]
     # Honour a redirect after a log sheet upload before the widget is instantiated.
     if st.session_state.pop("redirect_to_stats", False):
@@ -303,26 +376,8 @@ def show_data_dashboard(db: Database):
         case "⛅ Weather":
             weather_page(db, filtered_df)
 
-        case "📁 Upload Log Sheets":
-            # Display the upload log sheets page.
-            files = st.file_uploader(
-                "Upload log sheets below. Existing files will be updated.",
-                type=["xlsx"],
-                accept_multiple_files=True,
-                key="upload_log_sheets",
-                on_change=None,
-                help="Upload the log sheets to update the dashboard.",
-            )
-
-            if files:
-                # Upload the log sheets and refresh data.
-                success = upload_log_sheets(files)
-                refresh_data()
-                # Only redirect on a successful upload.
-                if success:
-                    # Flag a redirect to the stats page.
-                    st.session_state["redirect_to_stats"] = True
-                    st.rerun()
+        case "📁 Log Sheets":
+            show_log_sheets_page(db, aircraft_df)
 
 
 def login(username: str, password: str):
