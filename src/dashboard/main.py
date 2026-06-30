@@ -29,7 +29,7 @@ from dashboard.plots import (   # noqa: E402
     launches_by_type_table,
     table_aircraft_weekly_summary,
     generate_aircraft_daily_summary,
-    show_launch_delta_metric,
+    show_single_metrics,
     show_logo,
     aircraft_flown_per_day,
     launches_daily_summary,
@@ -215,7 +215,7 @@ def show_data_dashboard(db: Database):
                 refresh_data()
 
             # Display metrics for financial year.
-            show_launch_delta_metric(filtered_df)
+            show_single_metrics(filtered_df)
 
             left, right = st.columns(2, gap="medium")
             with left:
