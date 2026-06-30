@@ -158,6 +158,7 @@ class Database:
         self.launches_collection = "log_sheets"
         self.aircraft_info_collection = "aircraft"
         self.weather_collection = "weather"
+        self.template_collection = "template"
         # Validate client.
         if not client.authenticated():
             raise ConnectionError("Could not log in to the database.")
@@ -272,6 +273,36 @@ class Database:
             logger.error("Could not fetch data from aircraft collection.")
             df = pd.DataFrame()
         return df
+
+    def get_template(self) -> Optional[bytes]:
+        """Get the stored 2965D log sheet template.
+
+        Returns:
+            Optional[bytes]: The template file bytes, or None if not set."""
+        try:
+            doc = self.db[self.template_collection].find_one({"name": "2965D"})
+        except Exception:  # pylint: disable=broad-except
+            logger.exception("Could not fetch the log sheet template.")
+            return None
+        return bytes(doc["data"]) if doc and "data" in doc else None
+
+    def update_template(self, data: bytes, filename: str) -> None:
+        """Replace the stored 2965D log sheet template.
+
+        Args:
+            data (bytes): The template file bytes.
+            filename (str): The original filename, kept for display."""
+        self.db[self.template_collection].replace_one(
+            {"name": "2965D"},
+            {
+                "name": "2965D",
+                "filename": filename,
+                "data": data,
+                "uploaded_at": datetime.now(),
+            },
+            upsert=True,
+        )
+        logger.info("Log sheet template '%s' stored.", filename)
 
     def get_weather_collection(self) -> Collection:
         """Get the weather collection from the database.

@@ -4,13 +4,17 @@ import logging
 import pandas as pd
 from pathlib import Path
 import streamlit as st
-from typing import List
+from typing import List, Sequence
 from io import BytesIO
 from datetime import date, timedelta, datetime
 
 # User defined modules.
 from log_keeper.ingest import ingest_log_sheet_from_upload, sanitise_log_sheets
-from log_keeper.output import update_launches_collection, update_aircraft_info
+from log_keeper.output import (
+    update_launches_collection,
+    update_aircraft_info,
+    fill_log_sheet,
+)
 
 # Get the logger instance.
 logger = logging.getLogger(__name__)
@@ -164,11 +168,11 @@ def validate_log_sheet(file: BytesIO) -> bool:
     return True
 
 
-def upload_log_sheets(files: List[BytesIO]) -> bool:
+def upload_log_sheets(files: Sequence[BytesIO]) -> bool:
     """Upload multiple log sheets to the database.
 
     Args:
-        files (List[BytesIO]): The log sheet files to upload.
+        files (Sequence[BytesIO]): The log sheet files to upload.
 
     Returns:
         bool: True if the upload to the database succeeded, False otherwise."""
@@ -243,6 +247,89 @@ def upload_log_sheets(files: List[BytesIO]) -> bool:
             status_text.update(label="Failed to upload log sheets.",
                                state="error", expanded=True)
             return False
+
+
+def get_prefilled_log_sheet(db, aircraft: str, aircraft_df: pd.DataFrame):
+    """Build a pre-filled 2965D log sheet for an aircraft.
+
+    Args:
+        db (Database): The VGS database.
+        aircraft (str): Aircraft number, e.g. "ZE683".
+        aircraft_df (pd.DataFrame): Aircraft info (already in session state).
+
+    Returns:
+        tuple[bytes, str] | None: (file bytes, filename), or None if no template
+        is stored."""
+    template = db.get_template()
+    if not template:
+        st.warning("No log sheet template stored yet. Use 'Update log sheet "
+                   "template' below to add one.")
+        return None
+
+    # Most recent brought-forward totals for this aircraft, if it has any.
+    launches_bf = hours_bf = None
+    if not aircraft_df.empty:
+        rows = aircraft_df[aircraft_df["Aircraft"] == aircraft]
+        if not rows.empty:
+            row = rows.iloc[0]  # aircraft_df is sorted by Date descending.
+            # Nullable UInt32 columns hold pd.NA, which int() can't convert;
+            if pd.notna(row["Launches After"]) and pd.notna(row["Hours After"]):
+                launches_bf = int(row["Launches After"])
+                hours_bf = int(row["Hours After"])
+
+    today = date.today()
+    if launches_bf is None:
+        st.info(f"No brought-forward data for {aircraft} — Launches B/F and "
+                "Hours B/F will be left blank.")
+    else:
+        st.caption(f"Launches B/F: {launches_bf}  |  Hours B/F: "
+                   f"{format_minutes_to_HHHH_mm(hours_bf)}  |  "
+                   f"Date: {today:%d %b %y}")
+
+    data = fill_log_sheet(template, aircraft, launches_bf, hours_bf, today)
+    return data, f"2965D_{today:%y%m%d}_{aircraft}.xlsx"
+
+
+def update_template_from_upload(db, uploaded_file) -> bool:
+    """Validate an uploaded 2965D template and store it in the database.
+
+    Args:
+        db (Database): The VGS database.
+        uploaded_file (BytesIO): The uploaded template (.xltx/.xlsx).
+
+    Returns:
+        bool: True if the template was stored, False otherwise."""
+    REQUIRED_SHEETS = {"2965D", "FORMATTED", "_AIRCRAFT", "INPUT_DATA"}
+    MAX_FILE_SIZE = 2 * 1024 * 1024  # 2 MB
+
+    if not uploaded_file.name.endswith((".xltx", ".xlsx")):
+        st.warning("Template must be a .xltx or .xlsx file.")
+        return False
+    if uploaded_file.size > MAX_FILE_SIZE:
+        st.warning(f"Template too large: {uploaded_file.size} bytes.")
+        return False
+
+    # Validate it is a real workbook with the sheets the pipeline relies on.
+    data = uploaded_file.getvalue()
+    try:
+        with pd.ExcelFile(BytesIO(data), engine="openpyxl") as xls:
+            missing = REQUIRED_SHEETS - set(map(str, xls.sheet_names))
+    except Exception:  # pylint: disable=broad-except
+        st.warning("Could not read the template as an Excel file.")
+        return False
+    if missing:
+        st.warning("Template is missing required sheets: "
+                   f"{', '.join(sorted(missing))}.")
+        return False
+
+    try:
+        db.update_template(data, uploaded_file.name)
+    except Exception:  # pylint: disable=broad-except
+        logger.error("Failed to store the template.", exc_info=True)
+        st.error("Failed to store the template.")
+        return False
+    st.toast("Log sheet template updated!", icon="✅")
+    return True
 
 
 def gifs_flown_per_day(df: pd.DataFrame) -> pd.DataFrame:

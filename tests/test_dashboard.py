@@ -184,10 +184,11 @@ def test_navigation_to_upload_page(page: Page):
 
     # Navigate to upload page
     page.locator("div").filter(has_text=re.compile(r"^📈 Statistics$")).first.click()
-    page.get_by_text("📁 Upload Log Sheets").click()
+    page.get_by_text("📁 Log Sheets").click()
 
-    # Verify upload page loaded
-    expect(page.get_by_test_id("stFileUploaderDropzone")).to_be_visible()
+    # Verify upload page loaded. The page has two uploaders (template +
+    # completed log sheets); the completed-log-sheets one renders last.
+    expect(page.get_by_test_id("stFileUploaderDropzone").last).to_be_visible()
 
 
 def navigate_to_stats_gur_page(page: Page) -> None:
@@ -302,12 +303,12 @@ def test_file_upload_valid(page: Page):
 
     # Navigate to upload page
     page.locator("div").filter(has_text=re.compile(r"^📈 Statistics$")).first.click()
-    page.get_by_text("📁 Upload Log Sheets").click()
-    expect(page.get_by_test_id("stFileUploaderDropzone")).to_be_visible()
+    page.get_by_text("📁 Log Sheets").click()
+    expect(page.get_by_test_id("stFileUploaderDropzone").last).to_be_visible()
 
-    # Upload valid file
+    # Upload valid file to the completed-log-sheets uploader (the last one).
     valid_file = "tests/fixtures/2965D_260214_ZE633.xlsx"
-    page.set_input_files("input[type='file']", [valid_file])
+    page.locator("input[type='file']").last.set_input_files([valid_file])
 
     # Assert success message appears in toast notification
     expect(
@@ -321,12 +322,12 @@ def test_file_upload_invalid(page: Page):
 
     # Navigate to upload page
     page.locator("div").filter(has_text=re.compile(r"^📈 Statistics$")).first.click()
-    page.get_by_text("📁 Upload Log Sheets").click()
-    expect(page.get_by_test_id("stFileUploaderDropzone")).to_be_visible()
+    page.get_by_text("📁 Log Sheets").click()
+    expect(page.get_by_test_id("stFileUploaderDropzone").last).to_be_visible()
 
     # Upload invalid xlsx file (has .xlsx extension but is not a valid Excel file)
     invalid_file = "tests/fixtures/invalid.xlsx"
-    page.set_input_files("input[type='file']", [invalid_file])
+    page.locator("input[type='file']").last.set_input_files([invalid_file])
 
     # Assert warning message appears indicating the log sheet is invalid
     expect(
