@@ -9,12 +9,16 @@ import streamlit as st
 
 # User-defined imports.
 from dashboard.utils import (
+    delta_gifs_previous_day,
     delta_launches_previous_day,
     filter_by_financial_year,
     format_minutes_to_HHHH_mm,
     get_financial_year,
+    gif_cadet_count,
     gifs_flown_per_day,
+    gs_cadet_count,
     last_flying_day_summary,
+    solo_gs_cadet_count,
     total_launches_for_financial_year,
 )
 
@@ -712,6 +716,37 @@ def show_launch_delta_metric(df: pd.DataFrame):
         delta=delta_launches,
         help="Difference in launches between the last two days.",
     )
+
+
+def show_single_metrics(df: pd.DataFrame):
+    """Show the financial-year headline metrics in a four-column row.
+
+    Args:
+        df (pd.DataFrame): The launches DataFrame.
+    """
+    # Wider launches column: its label and delta need more room.
+    launches_col, gs_col, solo_col, gif_col = st.columns([1.3, 1, 1, 1], gap="medium")
+    with launches_col:
+        show_launch_delta_metric(df)
+    with gs_col:
+        st.metric(
+            "Total G/S",
+            gs_cadet_count(df),
+            help="Unique G/S cadets flown (second pilot to an instructor).",
+        )
+    with solo_col:
+        st.metric(
+            "Solo G/S",
+            solo_gs_cadet_count(df),
+            help="Solo G/S sortie (no second pilot).",
+        )
+    with gif_col:
+        st.metric(
+            "Total GIF",
+            gif_cadet_count(df),
+            delta=delta_gifs_previous_day(df),
+            help="GIF cadets flown; arrow shows the last flying day.",
+        )
 
 
 def show_logo(logo_path: Path):

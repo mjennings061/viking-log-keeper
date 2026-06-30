@@ -274,10 +274,22 @@ def gifs_flown_per_day(df: pd.DataFrame) -> pd.DataFrame:
     return grouped
 
 
+def _no_second_pilot(second_pilot: pd.Series) -> pd.Series:
+    """Boolean mask: True where there is no second pilot (solo).
+
+    A SecondPilot of NaN, 0, "", "0" or "-" means no second pilot.
+
+    Args:
+        second_pilot (pd.Series): The SecondPilot column.
+
+    Returns:
+        pd.Series: Boolean mask, True for solo sorties.
+    """
+    return second_pilot.isna() | second_pilot.isin([0, "", "0", "-"])
+
+
 def solo_gs_cadet_count(df: pd.DataFrame) -> int:
     """Count unique AircraftCommanders who flew a solo (no SecondPilot) G/S sortie.
-
-    A SecondPilot of NaN, 0, "", "0" or "-" means no second pilot (solo).
 
     Args:
         df (pd.DataFrame): The launches DataFrame.
@@ -285,9 +297,52 @@ def solo_gs_cadet_count(df: pd.DataFrame) -> int:
     Returns:
         int: Number of distinct solo G/S AircraftCommanders.
     """
-    no_second = df["SecondPilot"].isna() | df["SecondPilot"].isin([0, "", "0", "-"])
-    solo_gs = df[(df["Duty"] == "G/S") & no_second]
+    solo_gs = df[(df["Duty"] == "G/S") & _no_second_pilot(df["SecondPilot"])]
     return int(solo_gs["AircraftCommander"].nunique())
+
+
+def gs_cadet_count(df: pd.DataFrame) -> int:
+    """Count unique G/S cadets — the SecondPilot on dual G/S sorties.
+
+    Cadets train as SecondPilot to an instructor (the AircraftCommander) and may
+    never command themselves, so count distinct real SecondPilots on G/S sorties
+    that had a second pilot.
+
+    Args:
+        df (pd.DataFrame): The launches DataFrame.
+
+    Returns:
+        int: Number of distinct dual G/S SecondPilots (cadets).
+    """
+    gs = df[df["Duty"] == "G/S"]
+    return int(gs.loc[~_no_second_pilot(gs["SecondPilot"]), "SecondPilot"].nunique())
+
+
+def gif_cadet_count(df: pd.DataFrame) -> int:
+    """Total GIF cadets flown — same count as the cumulative GIF table.
+
+    Args:
+        df (pd.DataFrame): The launches DataFrame.
+
+    Returns:
+        int: Total number of GIFs flown.
+    """
+    return int(gifs_flown_per_day(df)["GIFs Flown"].sum())
+
+
+def delta_gifs_previous_day(df: pd.DataFrame) -> int:
+    """Count GIF cadets flown on the most recent flying day.
+
+    Args:
+        df (pd.DataFrame): The launches DataFrame.
+
+    Returns:
+        int: GIFs flown on the last flying day (0 if empty or none that day).
+    """
+    if df.empty:
+        return 0
+    last_day_df = df[df["Date"] == df["Date"].max()]
+    return gif_cadet_count(last_day_df)
 
 
 def last_flying_day_summary(df: pd.DataFrame) -> dict:

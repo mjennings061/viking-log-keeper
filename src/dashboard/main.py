@@ -29,7 +29,7 @@ from dashboard.plots import (   # noqa: E402
     launches_by_type_table,
     table_aircraft_weekly_summary,
     generate_aircraft_daily_summary,
-    show_launch_delta_metric,
+    show_single_metrics,
     show_logo,
     aircraft_flown_per_day,
     launches_daily_summary,
@@ -44,8 +44,7 @@ from dashboard.weather import weather_page  # noqa: E402
 from dashboard.utils import (   # noqa: E402
     LOGO_PATH,
     upload_log_sheets,
-    date_filter,
-    solo_gs_cadet_count
+    date_filter
 )
 
 
@@ -216,15 +215,7 @@ def show_data_dashboard(db: Database):
                 refresh_data()
 
             # Display metrics for financial year.
-            left, right = st.columns(2, gap="medium")
-            with left:
-                show_launch_delta_metric(filtered_df)
-            with right:
-                st.metric(
-                    "Solo G/S Cadets",
-                    solo_gs_cadet_count(filtered_df),
-                    help="Solo G/S sortie (no second pilot).",
-                )
+            show_single_metrics(filtered_df)
 
             left, right = st.columns(2, gap="medium")
             with left:
