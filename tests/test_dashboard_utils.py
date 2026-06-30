@@ -2,7 +2,7 @@
 
 import pandas as pd
 
-from dashboard.utils import last_flying_day_summary
+from dashboard.utils import last_flying_day_summary, solo_gs_cadet_count
 
 
 def _launches_df() -> pd.DataFrame:
@@ -75,3 +75,15 @@ def test_last_flying_day_summary_zero_gifs():
     df["Duty"] = "SCT U/T"
     summary = last_flying_day_summary(df)
     assert summary["gif_cadets"] == 0
+
+
+def test_solo_gs_cadet_count():
+    """Count unique solo G/S commanders; dedupe, exclude dual and non-G/S."""
+    df = pd.DataFrame({
+        "Duty": ["G/S", "G/S", "G/S", "G/S", "G/S", "SCT U/T"],
+        "AircraftCommander": ["A", "A", "B", "C", "D", "E"],
+        "SecondPilot": [0, "", "0", "-", "Real Guy", "0"],
+    })
+    # A (twice, dedup), B, C => 3 unique solo G/S commanders.
+    # D excluded (has a SecondPilot); E excluded (not G/S).
+    assert solo_gs_cadet_count(df) == 3

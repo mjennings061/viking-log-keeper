@@ -274,6 +274,22 @@ def gifs_flown_per_day(df: pd.DataFrame) -> pd.DataFrame:
     return grouped
 
 
+def solo_gs_cadet_count(df: pd.DataFrame) -> int:
+    """Count unique AircraftCommanders who flew a solo (no SecondPilot) G/S sortie.
+
+    A SecondPilot of NaN, 0, "", "0" or "-" means no second pilot (solo).
+
+    Args:
+        df (pd.DataFrame): The launches DataFrame.
+
+    Returns:
+        int: Number of distinct solo G/S AircraftCommanders.
+    """
+    no_second = df["SecondPilot"].isna() | df["SecondPilot"].isin([0, "", "0", "-"])
+    solo_gs = df[(df["Duty"] == "G/S") & no_second]
+    return int(solo_gs["AircraftCommander"].nunique())
+
+
 def last_flying_day_summary(df: pd.DataFrame) -> dict:
     """Summarise the most recent flying day for the ops form helper.
 
