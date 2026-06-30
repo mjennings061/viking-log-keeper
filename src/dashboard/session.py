@@ -21,6 +21,9 @@ COOKIE_MANAGER_KEY = "vgs_cookies"
 COOKIE_DAYS = 10
 # Fernet max token age (seconds).
 _MAX_AGE = COOKIE_DAYS * 24 * 60 * 60
+# Attributes a set and its matching clear must share, or the browser treats
+# them as different cookies and the clear silently no-ops.
+COOKIE_ATTRS = {"same_site": "lax", "secure": True}
 
 
 def get_cookie_manager() -> stx.CookieManager:
@@ -106,6 +109,5 @@ def clear_auth_cookie(cookie_manager, key: str = "del_auth") -> None:
         "",
         key=key,
         expires_at=datetime.now(timezone.utc) - timedelta(days=1),
-        same_site="lax",
-        secure=True,
+        **COOKIE_ATTRS,
     )

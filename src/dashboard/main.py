@@ -49,6 +49,7 @@ from dashboard.utils import (   # noqa: E402
     update_template_from_upload,
 )
 from dashboard.session import (   # noqa: E402
+    COOKIE_ATTRS,
     COOKIE_NAME,
     clear_auth_cookie,
     cookie_expiry,
@@ -440,6 +441,11 @@ def restore_session(cookie_manager):
     if st.session_state.get("authenticated"):
         return
 
+    # No COOKIE_SECRET: there is never a cookie to restore. Skip the settle
+    # rerun entirely and behave exactly like the pre-persistence app.
+    if not persistence_available():
+        return
+
     # A logout is pending or done this session: never restore from the cookie.
     # _process_logout() owns deleting it; we must not race that by re-reading.
     if st.session_state.get("_logging_out"):
@@ -518,8 +524,7 @@ def _persist_cookie(cookie_manager):
         token,
         key="set_auth",
         expires_at=cookie_expiry(),
-        same_site="lax",  # Strict withholds the cookie on link/bookmark entry.
-        secure=True,  # Bearer credential - never send over plain HTTP.
+        **COOKIE_ATTRS,  # lax + secure; see session.COOKIE_ATTRS for why.
     )
 
 
@@ -618,6 +623,8 @@ def main():
     show_logo(LOGO_PATH)
 
     # Cookie manager used to persist the login across page refreshes.
+    # Invariant: at most ONE cookie write (set/clear) per completing run - a
+    # second write in the same run never renders and silently no-ops.
     cookie_manager = get_cookie_manager()
 
     # Warn once if persistence is unconfigured - the usual cause of logins not
