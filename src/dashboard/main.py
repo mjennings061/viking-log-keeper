@@ -156,10 +156,16 @@ def show_log_sheets_page(db: Database, aircraft_df: pd.DataFrame):
             lookup and the aircraft drop-down."""
     # Download a pre-filled 2965D for a chosen aircraft.
     st.subheader("⬇️ Download pre-filled log sheet")
-    known_aircraft = (
-        sorted(aircraft_df["Aircraft"].dropna().unique())
-        if not aircraft_df.empty else []
-    )
+    if not aircraft_df.empty:
+        # Only offer the most recently flown aircraft.
+        recent = (
+            aircraft_df.dropna(subset=["Date", "Aircraft"])
+            .sort_values("Date", ascending=False)
+            .drop_duplicates("Aircraft")
+        )
+        known_aircraft = sorted(recent["Aircraft"].head(6))
+    else:
+        known_aircraft = []
     chosen = st.selectbox(
         "Aircraft",
         known_aircraft,
