@@ -138,9 +138,14 @@ def fill_log_sheet(
             .replace(TEMPLATE_CONTENT_TYPE, WORKBOOK_CONTENT_TYPE)
         )
 
-        # Copy all parts; swap in only the 2 edited ones.
+        # Force a recalc on open so dependent cells get updated e.g. totals.
+        if "fullCalcOnLoad" not in workbook:
+            workbook = workbook.replace("<calcPr", '<calcPr fullCalcOnLoad="1"', 1)
+
+        # Copy all parts; swap in only the 3 edited ones.
         edited = {
             sheet_path: sheet_xml.encode("utf-8"),
+            "xl/workbook.xml": workbook.encode("utf-8"),
             "[Content_Types].xml": content_types.encode("utf-8"),
         }
         buffer = BytesIO()
