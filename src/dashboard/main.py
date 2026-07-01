@@ -685,6 +685,9 @@ def main():
 
             # Clear the session state.
             st.session_state.clear()
+            # Drop the cookie next run so a persisted login can't re-restore.
+            st.session_state["_logging_out"] = True
+            st.rerun()
 
         # Logout control, pinned to the bottom of the sidebar. Only shown if we
         # did not just clear the session due to an error above.
