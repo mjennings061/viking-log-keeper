@@ -59,6 +59,16 @@ from dashboard.session import (   # noqa: E402
     persistence_available,
 )
 
+# Per-user cached data that must not leak from one login to the next.
+_USER_DATA_KEYS = (
+    "db_name",
+    "log_sheet_db",
+    "df",
+    "aircraft_df",
+    "cgs_match_count",
+    "weather",
+)
+
 
 def get_launches_for_dashboard(db: Database) -> pd.DataFrame:
     """Get the launches from the database. Store in session state.
@@ -418,6 +428,8 @@ def login(username: str, password: str):
     client = Client(db_user)
     if client.log_in():
         # User is authenticated remove the form.
+        # Clear any prior user's cached data before starting the new session.
+        _clear_user_data()
         st.session_state["authenticated"] = True
         st.session_state["client"] = client
         # Stash the encrypted credentials. main() writes the cookie on the next
@@ -528,6 +540,12 @@ def _persist_cookie(cookie_manager):
     )
 
 
+def _clear_user_data():
+    """Drop the previous user's cached data so it can't leak into a new login."""
+    for key in _USER_DATA_KEYS:
+        st.session_state.pop(key, None)
+
+
 def _process_logout(cookie_manager):
     """Delete the auth cookie on a completing run while a logout is pending."""
     if not st.session_state.get("_logging_out"):
@@ -537,6 +555,7 @@ def _process_logout(cookie_manager):
     # Keep _logging_out set so restore stays suppressed until login or reload.
     for key in ("authenticated", "client", "_auth_token"):
         st.session_state.pop(key, None)
+    _clear_user_data()
 
 
 def _logout_button():
@@ -550,6 +569,10 @@ def _logout_button():
 
 def set_db():
     """Set the database to use. Called when the user selects a database."""
+    # A stale on_change can fire with db_name reset to None; ignore it.
+    if not st.session_state.get("db_name"):
+        return
+
     # Get the previous database name.
     if "log_sheet_db" in st.session_state:
         previous_db_name = st.session_state['log_sheet_db'].database_name
