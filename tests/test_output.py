@@ -155,6 +155,9 @@ def test_fill_log_sheet():
     assert ws["C4"].value == timedelta(minutes=74070)
     assert ws["C5"].value == 1234
 
+    # Excel must recompute the injected header on open, not trust the cache.
+    assert openpyxl.load_workbook(BytesIO(out)).calculation.fullCalcOnLoad is True
+
     # The hidden sheets the ingest pipeline relies on still parse.
     with pd.ExcelFile(BytesIO(out)) as xls:
         assert {"FORMATTED", "_AIRCRAFT"} <= set(xls.sheet_names)
