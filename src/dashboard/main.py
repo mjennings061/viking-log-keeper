@@ -167,13 +167,14 @@ def refresh_data():
     st.toast("Data Refreshed!", icon="✅")
 
 
-def show_log_sheets_page(db: Database, aircraft_df: pd.DataFrame):
+def show_log_sheets_page(db: Database, aircraft_df: pd.DataFrame, redirect_page):
     """Render Log Sheets page: pre-filled download, template update and sheet upload.
 
     Args:
         db (Database): The VGS database class.
         aircraft_df (pd.DataFrame): Aircraft info for the brought-forward
-            lookup and the aircraft drop-down."""
+            lookup and the aircraft drop-down.
+        redirect_page (st.Page): Page to switch to after a successful upload."""
     # Download a pre-filled 2965D for a chosen aircraft.
     st.subheader("⬇️ Download pre-filled log sheet")
     if not aircraft_df.empty:
@@ -237,11 +238,9 @@ def show_log_sheets_page(db: Database, aircraft_df: pd.DataFrame):
         # Upload the log sheets and refresh data.
         success = upload_log_sheets(files)
         refresh_data()
-        # Only redirect on a successful upload.
+        # Jump to the stats page on a successful upload.
         if success:
-            # Flag a redirect to the stats page.
-            st.session_state["redirect_to_stats"] = True
-            st.rerun()
+            st.switch_page(redirect_page)
 
 
 def show_data_dashboard(db: Database):
@@ -253,14 +252,6 @@ def show_data_dashboard(db: Database):
     logger.info("Displaying %s dashboard.", db.database_name)
     vgs = db.database_name.upper()
     st.title(f"{vgs} Dashboard")
-
-    # Sidebar for page navigation
-    pages = ["📈 Statistics", "📁 Log Sheets",
-             "🧮 Stats & GUR Helper", "⛅ Weather", "🌍 All Data"]
-    # Honour a redirect after a log sheet upload before the widget is instantiated.
-    if st.session_state.pop("redirect_to_stats", False):
-        st.session_state["select_page"] = "🧮 Stats & GUR Helper"
-    page = st.selectbox("Select a Page:", pages, key="select_page")
 
     # Get dataframe of launches and aircraft info.
     if "df" not in st.session_state:
@@ -307,103 +298,121 @@ def show_data_dashboard(db: Database):
     # Combine CGS launches if the user flew there, then apply the same filter
     personal_df = get_personal_df(filtered_df, st.session_state["client"])
 
-    match page:
-        case "📈 Statistics":
-            # Refresh data button.
-            if st.button("🔃 Refresh Data", key="refresh"):
-                refresh_data()
+    # Pages are callables sharing the filter state computed above.
+    def statistics_page():
+        """Render the Statistics page."""
+        # Refresh data button.
+        if st.button("🔃 Refresh Data", key="refresh"):
+            refresh_data()
 
-            # Display metrics for financial year.
-            show_single_metrics(filtered_df)
+        # Display metrics for financial year.
+        show_single_metrics(filtered_df)
 
+        left, right = st.columns(2, gap="medium")
+        with left:
+            # Plot the number of launches by unique AircraftCommander.
+            plot_launches_by_commander(filtered_df)
+        with right:
+            # Plot the ten unique longest flight times
+            plot_longest_flight_times(filtered_df)
+            # Plot the pie chart to show launches per duty
+            plot_duty_pie_chart(filtered_df)
+
+        # Plot the number of launches per month
+        plot_monthly_launches(filtered_df)
+
+        # Plot number of GIFs flown.
+        plot_gif_bar_chart(filtered_df)
+
+        # Logbook helper by AircraftCommander.
+        show_logbook_helper(personal_df, commander)
+        # Show CGS match info if applicable
+        if (
+            commander
+            and "cgs_match_count" in st.session_state
+            and commander in st.session_state["cgs_match_count"]
+        ):
+            match_count = st.session_state["cgs_match_count"][commander]
+            if match_count > 0:
+                st.info(f"CGS launches for {commander}: {match_count}")
+
+        # Show solo/dual launch summary for selected pilot
+        table_solo_dual_summary(personal_df, commander)
+
+        # Filter the data by the selected quarter.
+        if quarter and commander:
+            quarter_personal_df = get_personal_df(
+                filtered_df=df,
+                client=st.session_state["client"]
+            )
+            quarterly_summary(quarter_personal_df, commander, quarter)
+
+    def all_data_page():
+        """Render the All Data page."""
+        # Plot all launches. Filter by AircraftCommander and date if
+        # selected.
+        if commander:
+            commander_df = filtered_df[
+                filtered_df['AircraftCommander'] == commander
+            ]
+        else:
+            commander_df = filtered_df
+        table_all_launches(commander_df)
+
+    def stats_gur_page():
+        """Render the Stats & GUR Helper page."""
+        # Show statistics and glider utilisation return helpers.
+        # Stats helpers.
+        st.header("Stats Helpers")
+
+        # Stats return - summarise the last flying day by default.
+        ops_form_helper(df)
+
+        # Hide the detailed tables behind a toggle.
+        if st.toggle("Show more stats", key="more_stats_shown"):
             left, right = st.columns(2, gap="medium")
             with left:
-                # Plot the number of launches by unique AircraftCommander.
-                plot_launches_by_commander(filtered_df)
+                # Show the first and last launch time table.
+                plot_firstlast_launch_table(filtered_df)
+                # Show number of GIFs flown by day.
+                table_gifs_per_date(filtered_df)
             with right:
-                # Plot the ten unique longest flight times
-                plot_longest_flight_times(filtered_df)
-                # Plot the pie chart to show launches per duty
-                plot_duty_pie_chart(filtered_df)
+                # Show launches by sortie type.
+                launches_by_type_table(filtered_df)
 
-            # Plot the number of launches per month
-            plot_monthly_launches(filtered_df)
+        # GUR helpers.
+        st.divider()
+        st.header("GUR Helpers")
+        table_gur_summary(aircraft_df, df)
+        left, right = st.columns(2, gap="medium")
+        with left:
+            table_aircraft_totals(aircraft_df)
+            table_aircraft_weekly_summary(filtered_df)
+            aircraft_flown_per_day(filtered_df)
+        with right:
+            generate_aircraft_daily_summary(filtered_df)
+            launches_daily_summary(filtered_df)
 
-            # Plot number of GIFs flown.
-            plot_gif_bar_chart(filtered_df)
+    def log_sheets_page():
+        """Render the Log Sheets page."""
+        show_log_sheets_page(db, aircraft_df, gur)
 
-            # Logbook helper by AircraftCommander.
-            show_logbook_helper(personal_df, commander)
-            # Show CGS match info if applicable
-            if (
-                commander
-                and "cgs_match_count" in st.session_state
-                and commander in st.session_state["cgs_match_count"]
-            ):
-                match_count = st.session_state["cgs_match_count"][commander]
-                if match_count > 0:
-                    st.info(f"CGS launches for {commander}: {match_count}")
+    def weather_view():
+        """Render the Weather page."""
+        weather_page(db, filtered_df)
 
-            # Show solo/dual launch summary for selected pilot
-            table_solo_dual_summary(personal_df, commander)
+    # Build page objects; title required for callables, emojis kept as icons.
+    # Distinct callables (not lambdas) give each page a unique URL pathname.
+    stats = st.Page(statistics_page, title="Statistics", icon="📈",
+                    default=True)
+    gur = st.Page(stats_gur_page, title="Stats & GUR Helper", icon="🧮")
+    logs = st.Page(log_sheets_page, title="Log Sheets", icon="📁")
+    weather = st.Page(weather_view, title="Weather", icon="⛅")
+    all_data = st.Page(all_data_page, title="All Data", icon="🌍")
 
-            # Filter the data by the selected quarter.
-            if quarter and commander:
-                personal_df = get_personal_df(
-                    filtered_df=df,
-                    client=st.session_state["client"]
-                )
-                quarterly_summary(personal_df, commander, quarter)
-
-        case "🌍 All Data":
-            # Plot all launches. Filter by AircraftCommander and date if
-            # selected.
-            if commander:
-                commander_df = filtered_df[
-                    filtered_df['AircraftCommander'] == commander
-                ]
-            else:
-                commander_df = filtered_df
-            table_all_launches(commander_df)
-
-        case "🧮 Stats & GUR Helper":
-            # Show statistics and glider utilisation return helpers.
-            # Stats helpers.
-            st.header("Stats Helpers")
-
-            # Stats return - summarise the last flying day by default.
-            ops_form_helper(df)
-
-            # Hide the detailed tables behind a toggle.
-            if st.toggle("Show more stats", key="more_stats_shown"):
-                left, right = st.columns(2, gap="medium")
-                with left:
-                    # Show the first and last launch time table.
-                    plot_firstlast_launch_table(filtered_df)
-                    # Show number of GIFs flown by day.
-                    table_gifs_per_date(filtered_df)
-                with right:
-                    # Show launches by sortie type.
-                    launches_by_type_table(filtered_df)
-
-            # GUR helpers.
-            st.divider()
-            st.header("GUR Helpers")
-            table_gur_summary(aircraft_df, df)
-            left, right = st.columns(2, gap="medium")
-            with left:
-                table_aircraft_totals(aircraft_df)
-                table_aircraft_weekly_summary(filtered_df)
-                aircraft_flown_per_day(filtered_df)
-            with right:
-                generate_aircraft_daily_summary(filtered_df)
-                launches_daily_summary(filtered_df)
-
-        case "⛅ Weather":
-            weather_page(db, filtered_df)
-
-        case "📁 Log Sheets":
-            show_log_sheets_page(db, aircraft_df)
+    # Sidebar nav; order preserved from the old selectbox.
+    nav = st.navigation([stats, logs, gur, weather, all_data])
+    nav.run()
 
 
 def login(username: str, password: str):

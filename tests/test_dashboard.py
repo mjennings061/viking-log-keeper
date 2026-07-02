@@ -154,6 +154,15 @@ def login_user(page: Page) -> None:
     )
 
 
+def open_page(page: Page, name: str) -> None:
+    """Open a page from the sidebar navigation.
+
+    Args:
+        page: Playwright page instance.
+        name: The page's nav label, e.g. "Log Sheets"."""
+    page.get_by_test_id("stSidebarNav").get_by_role("link", name=name).click()
+
+
 #####################################################################
 # E2E Test Functions
 #####################################################################
@@ -246,8 +255,7 @@ def test_navigation_to_upload_page(page: Page):
     login_user(page)
 
     # Navigate to upload page
-    page.locator("div").filter(has_text=re.compile(r"^📈 Statistics$")).first.click()
-    page.get_by_text("📁 Log Sheets").click()
+    open_page(page, "Log Sheets")
 
     # Verify upload page loaded. The page has two uploaders (template +
     # completed log sheets); the completed-log-sheets one renders last.
@@ -256,8 +264,7 @@ def test_navigation_to_upload_page(page: Page):
 
 def navigate_to_stats_gur_page(page: Page) -> None:
     """Helper to open the Stats & GUR page."""
-    page.locator("div").filter(has_text=re.compile(r"^📈 Statistics$")).first.click()
-    page.get_by_text("🧮 Stats & GUR Helper").click()
+    open_page(page, "Stats & GUR Helper")
     expect(page.get_by_role("heading", name="Stats Helpers")).to_be_visible(
         timeout=10000
     )
@@ -295,9 +302,8 @@ def test_navigation_to_weather_page(page: Page):
     """Test navigation to weather page."""
     login_user(page)
 
-    # Open Statistics dropdown and navigate to Weather page
-    page.locator("div").filter(has_text=re.compile(r"^📈 Statistics$")).first.click()
-    page.get_by_text("⛅ Weather").click()
+    # Navigate to the Weather page.
+    open_page(page, "Weather")
 
     # Wait for weather page to load
     expect(page.get_by_role("heading", name="Weather Summary")).to_be_visible(
@@ -310,8 +316,7 @@ def test_weather_variable_selection(page: Page):
     login_user(page)
 
     # Navigate to weather page
-    page.locator("div").filter(has_text=re.compile(r"^📈 Statistics$")).first.click()
-    page.get_by_text("⛅ Weather").click()
+    open_page(page, "Weather")
 
     # Change weather variable
     page.locator("div").filter(has_text=re.compile(r"^Wind Speed$")).first.click()
@@ -326,8 +331,7 @@ def test_weather_cache_reload(page: Page):
     login_user(page)
 
     # Navigate to weather page
-    page.locator("div").filter(has_text=re.compile(r"^📈 Statistics$")).first.click()
-    page.get_by_text("⛅ Weather").click()
+    open_page(page, "Weather")
 
     # Click reload button
     page.get_by_test_id("stBaseButton-secondary").click()
@@ -365,8 +369,7 @@ def test_file_upload_valid(page: Page):
     login_user(page)
 
     # Navigate to upload page
-    page.locator("div").filter(has_text=re.compile(r"^📈 Statistics$")).first.click()
-    page.get_by_text("📁 Log Sheets").click()
+    open_page(page, "Log Sheets")
     expect(page.get_by_test_id("stFileUploaderDropzone").last).to_be_visible()
 
     # Upload valid file to the completed-log-sheets uploader (the last one).
@@ -384,8 +387,7 @@ def test_file_upload_invalid(page: Page):
     login_user(page)
 
     # Navigate to upload page
-    page.locator("div").filter(has_text=re.compile(r"^📈 Statistics$")).first.click()
-    page.get_by_text("📁 Log Sheets").click()
+    open_page(page, "Log Sheets")
     expect(page.get_by_test_id("stFileUploaderDropzone").last).to_be_visible()
 
     # Upload invalid xlsx file (has .xlsx extension but is not a valid Excel file)
