@@ -145,13 +145,28 @@ def login_user(page: Page) -> None:
     # Fill login form
     page.get_by_label("Username", exact=True).fill(USERNAME)
     page.get_by_label("Password", exact=True).fill(PASSWORD)
-    page.get_by_test_id("stBaseButton-secondaryFormSubmit").click()
+    submit = page.get_by_test_id("stBaseButton-secondaryFormSubmit")
+    submit.click()
 
-    # Wait for dashboard to load
-    expected_heading = f"{USERNAME.upper()} Dashboard"
-    expect(page.get_by_role("heading", name=expected_heading)).to_be_visible(
-        timeout=20000
-    )
+    # Wait for the dashboard. The first submit is occasionally dropped before
+    # Streamlit's session is ready, so re-submit once if still on the form.
+    heading = page.get_by_role("heading", name=f"{USERNAME.upper()} Dashboard")
+    try:
+        expect(heading).to_be_visible(timeout=20000)
+    except AssertionError:
+        if not page.get_by_test_id("stForm").is_visible():
+            raise
+        submit.click()
+        expect(heading).to_be_visible(timeout=20000)
+
+
+def open_page(page: Page, name: str) -> None:
+    """Open a page from the sidebar navigation.
+
+    Args:
+        page: Playwright page instance.
+        name: The page's nav label, e.g. "Log Sheets"."""
+    page.get_by_test_id("stSidebarNav").get_by_role("link", name=name).click()
 
 
 #####################################################################
@@ -186,7 +201,7 @@ def test_complete_login_flow(page: Page):
     expect(page.get_by_role("heading", name=expected_heading)).to_be_visible()
 
     # Verify we can refresh data (confirms dashboard is functional)
-    expect(page.get_by_test_id("stBaseButton-secondary")).to_be_visible()
+    expect(page.get_by_role("button", name="Refresh Data")).to_be_visible()
 
 
 def test_login_persists_after_reload(page: Page):
@@ -235,7 +250,7 @@ def test_dashboard_data_refresh(page: Page):
     login_user(page)
 
     # Click refresh button
-    page.get_by_test_id("stBaseButton-secondary").click()
+    page.get_by_role("button", name="Refresh Data").click()
 
     # Look for success message
     expect(page.get_by_text("Data Refreshed!")).to_be_visible()
@@ -246,8 +261,7 @@ def test_navigation_to_upload_page(page: Page):
     login_user(page)
 
     # Navigate to upload page
-    page.locator("div").filter(has_text=re.compile(r"^📈 Statistics$")).first.click()
-    page.get_by_text("📁 Log Sheets").click()
+    open_page(page, "Log Sheets")
 
     # Verify upload page loaded. The page has two uploaders (template +
     # completed log sheets); the completed-log-sheets one renders last.
@@ -256,8 +270,7 @@ def test_navigation_to_upload_page(page: Page):
 
 def navigate_to_stats_gur_page(page: Page) -> None:
     """Helper to open the Stats & GUR page."""
-    page.locator("div").filter(has_text=re.compile(r"^📈 Statistics$")).first.click()
-    page.get_by_text("🧮 Stats & GUR Helper").click()
+    open_page(page, "Stats & GUR Helper")
     expect(page.get_by_role("heading", name="Stats Helpers")).to_be_visible(
         timeout=10000
     )
@@ -295,9 +308,8 @@ def test_navigation_to_weather_page(page: Page):
     """Test navigation to weather page."""
     login_user(page)
 
-    # Open Statistics dropdown and navigate to Weather page
-    page.locator("div").filter(has_text=re.compile(r"^📈 Statistics$")).first.click()
-    page.get_by_text("⛅ Weather").click()
+    # Navigate to the Weather page.
+    open_page(page, "Weather")
 
     # Wait for weather page to load
     expect(page.get_by_role("heading", name="Weather Summary")).to_be_visible(
@@ -310,8 +322,12 @@ def test_weather_variable_selection(page: Page):
     login_user(page)
 
     # Navigate to weather page
-    page.locator("div").filter(has_text=re.compile(r"^📈 Statistics$")).first.click()
-    page.get_by_text("⛅ Weather").click()
+    open_page(page, "Weather")
+
+    # Wait for the fetch to finish so the post-fetch widgets are stable.
+    expect(
+        page.get_by_text("Weather data fetched successfully.")
+    ).to_be_visible(timeout=15000)
 
     # Change weather variable
     page.locator("div").filter(has_text=re.compile(r"^Wind Speed$")).first.click()
@@ -326,11 +342,10 @@ def test_weather_cache_reload(page: Page):
     login_user(page)
 
     # Navigate to weather page
-    page.locator("div").filter(has_text=re.compile(r"^📈 Statistics$")).first.click()
-    page.get_by_text("⛅ Weather").click()
+    open_page(page, "Weather")
 
     # Click reload button
-    page.get_by_test_id("stBaseButton-secondary").click()
+    page.get_by_role("button", name="Reset Weather Cache").click()
 
     # Verify reload success message
     expect(page.get_by_text("Weather data fetched successfully.")).to_be_visible(
@@ -365,8 +380,7 @@ def test_file_upload_valid(page: Page):
     login_user(page)
 
     # Navigate to upload page
-    page.locator("div").filter(has_text=re.compile(r"^📈 Statistics$")).first.click()
-    page.get_by_text("📁 Log Sheets").click()
+    open_page(page, "Log Sheets")
     expect(page.get_by_test_id("stFileUploaderDropzone").last).to_be_visible()
 
     # Upload valid file to the completed-log-sheets uploader (the last one).
@@ -384,8 +398,7 @@ def test_file_upload_invalid(page: Page):
     login_user(page)
 
     # Navigate to upload page
-    page.locator("div").filter(has_text=re.compile(r"^📈 Statistics$")).first.click()
-    page.get_by_text("📁 Log Sheets").click()
+    open_page(page, "Log Sheets")
     expect(page.get_by_test_id("stFileUploaderDropzone").last).to_be_visible()
 
     # Upload invalid xlsx file (has .xlsx extension but is not a valid Excel file)
