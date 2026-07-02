@@ -31,6 +31,8 @@ from dashboard.plots import (   # noqa: E402
     generate_aircraft_daily_summary,
     show_single_metrics,
     show_logo,
+    show_login_hero,
+    show_dashboard_header,
     aircraft_flown_per_day,
     launches_daily_summary,
     table_gifs_per_date,
@@ -251,7 +253,7 @@ def show_data_dashboard(db: Database):
     # Set the page title.
     logger.info("Displaying %s dashboard.", db.database_name)
     vgs = db.database_name.upper()
-    st.title(f"{vgs} Dashboard")
+    show_dashboard_header(LOGO_PATH, f"{vgs} Dashboard")
 
     # Get dataframe of launches and aircraft info.
     if "df" not in st.session_state:
@@ -514,6 +516,9 @@ def authenticate():
 
     if st.session_state["authenticated"]:
         return
+
+    # Login screen only: full-size branding above the form.
+    show_login_hero(LOGO_PATH)
 
     # Login form.
     with st.form(key="login_form"):

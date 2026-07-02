@@ -1,6 +1,7 @@
 """plots.py - Create plots for the dashboard"""
 
 # Get packages.
+import base64
 from pathlib import Path
 
 import altair as alt
@@ -750,19 +751,51 @@ def show_single_metrics(df: pd.DataFrame):
 
 
 def show_logo(logo_path: Path):
-    """Add the logo to the page.
+    """Add the persistent brand mark to the sidebar.
 
     Args:
         logo_path (Path): The path to the logo.
     """
     st.logo(str(logo_path))
+
+
+def show_login_hero(logo_path: Path):
+    """Show the large centred logo and title on the login screen.
+
+    Args:
+        logo_path (Path): The path to the logo.
+    """
     _, centre, _ = st.columns(3)
     with centre:
         st.image(str(logo_path), width="stretch")
 
-    # Show centred text.
+    # Centred title, shown only before login.
     st.markdown(
-        "<h2 style='text-align: center;'>" "Volunteer Gliding Squadron Dashboard</h1>",
+        "<h2 style='text-align: center;'>Volunteer Gliding Squadron Dashboard</h2>",
+        unsafe_allow_html=True,
+    )
+
+
+@st.cache_data(show_spinner=False)
+def _logo_data_uri(logo_path: str) -> str:
+    """Return the logo as a base64 PNG data URI (cached across reruns).
+
+    Args:
+        logo_path (str): The path to the logo."""
+    encoded = base64.b64encode(Path(logo_path).read_bytes()).decode()
+    return f"data:image/png;base64,{encoded}"
+
+
+def show_dashboard_header(logo_path: Path, title: str):
+    """Show the dashboard title with the logo inline to its left.
+
+    Args:
+        logo_path (Path): The path to the logo.
+        title (str): The dashboard title text."""
+    st.markdown(
+        f"<h1 style='display: flex; align-items: center; gap: 0.6rem;'>"
+        f"<img src='{_logo_data_uri(str(logo_path))}' alt='' "
+        f"style='height: 3rem;'/> {title}</h1>",
         unsafe_allow_html=True,
     )
 
