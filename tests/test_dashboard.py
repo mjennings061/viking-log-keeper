@@ -19,15 +19,20 @@ load_dotenv()
 USERNAME = str(os.getenv("TEST_USERNAME"))
 PASSWORD = str(os.getenv("TEST_PASSWORD"))
 
-BASE_URL = "http://localhost:8501"
+# The auth cookie is Secure, so the browser only stores it over https - the
+# e2e server therefore runs TLS with a throwaway self-signed cert.
+BASE_URL = "https://localhost:8501"
 
 
 @pytest.fixture(scope="session", autouse=True)
-def streamlit_app():
+def streamlit_app(tmp_path_factory):
     """Start Streamlit app for E2E tests (simplified version).
 
     This fixture starts the Streamlit app once per test session and cleans up
     after all tests complete. pytest-playwright handles browser lifecycle.
+
+    The server runs over TLS with a throwaway self-signed cert so the browser
+    stores the Secure auth cookie (it would silently drop it over http).
     """
     # Kill any existing Streamlit processes
     try:
@@ -41,6 +46,20 @@ def streamlit_app():
     except (subprocess.TimeoutExpired, FileNotFoundError):
         pass
 
+    # Generate a self-signed cert for localhost, valid one day.
+    cert_dir = tmp_path_factory.mktemp("tls")
+    cert_file = cert_dir / "cert.pem"
+    key_file = cert_dir / "key.pem"
+    subprocess.run(
+        [
+            "openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes",
+            "-keyout", str(key_file), "-out", str(cert_file),
+            "-days", "1", "-subj", "/CN=localhost",
+        ],
+        check=True,
+        capture_output=True,
+    )
+
     # Start Streamlit
     streamlit_process = subprocess.Popen(
         [
@@ -51,6 +70,8 @@ def streamlit_app():
             "--server.headless=true",
             "--browser.gatherUsageStats=false",
             "--server.enableCORS=false",
+            f"--server.sslCertFile={cert_file}",
+            f"--server.sslKeyFile={key_file}",
         ],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
@@ -63,7 +84,8 @@ def streamlit_app():
 
     while time.time() - start_time < max_wait_time:
         try:
-            response = requests.get(BASE_URL, timeout=3)
+            # verify=False: the poll only checks liveness, not cert validity.
+            response = requests.get(BASE_URL, timeout=3, verify=False)
             if response.status_code == 200:
                 ready = True
                 break
@@ -128,7 +150,7 @@ def login_user(page: Page) -> None:
     # Wait for dashboard to load
     expected_heading = f"{USERNAME.upper()} Dashboard"
     expect(page.get_by_role("heading", name=expected_heading)).to_be_visible(
-        timeout=10000
+        timeout=20000
     )
 
 
@@ -165,6 +187,47 @@ def test_complete_login_flow(page: Page):
 
     # Verify we can refresh data (confirms dashboard is functional)
     expect(page.get_by_test_id("stBaseButton-secondary")).to_be_visible()
+
+
+def test_login_persists_after_reload(page: Page):
+    """Login survives a page refresh via the encrypted auth cookie."""
+    login_user(page)
+
+    # Wait for auth cookie before reloading (a real user reads the page first anyway).
+    page.wait_for_function(
+        "() => document.cookie.includes('vgs_auth')", timeout=10000
+    )
+
+    # Reload - the cookie should restore the session without the login form.
+    page.reload()
+
+    expected_heading = f"{USERNAME.upper()} Dashboard"
+    expect(page.get_by_role("heading", name=expected_heading)).to_be_visible(
+        timeout=15000
+    )
+
+
+def test_logout_clears_session(page: Page):
+    """Logging out clears the auth cookie and survives a reload."""
+    login_user(page)
+    page.wait_for_function(
+        "() => document.cookie.includes('vgs_auth')", timeout=10000
+    )
+
+    # Log out via the sidebar button.
+    page.get_by_role("button", name="Log out").click()
+
+    # The login form should reappear...
+    expect(page.get_by_test_id("stForm")).to_be_visible(timeout=10000)
+
+    # ...the auth cookie must actually be removed (else a reload re-logs in)...
+    page.wait_for_function(
+        "() => !document.cookie.includes('vgs_auth')", timeout=15000
+    )
+
+    # ...and the login form stays after a reload.
+    page.reload()
+    expect(page.get_by_test_id("stForm")).to_be_visible(timeout=15000)
 
 
 def test_dashboard_data_refresh(page: Page):

@@ -48,6 +48,26 @@ from dashboard.utils import (   # noqa: E402
     get_prefilled_log_sheet,
     update_template_from_upload,
 )
+from dashboard.session import (   # noqa: E402
+    COOKIE_ATTRS,
+    COOKIE_NAME,
+    clear_auth_cookie,
+    cookie_expiry,
+    decrypt_credentials,
+    encrypt_credentials,
+    get_cookie_manager,
+    persistence_available,
+)
+
+# Per-user cached data that must not leak from one login to the next.
+_USER_DATA_KEYS = (
+    "db_name",
+    "log_sheet_db",
+    "df",
+    "aircraft_df",
+    "cgs_match_count",
+    "weather",
+)
 
 
 def get_launches_for_dashboard(db: Database) -> pd.DataFrame:
@@ -387,7 +407,11 @@ def show_data_dashboard(db: Database):
 
 
 def login(username: str, password: str):
-    """Login to the dashboard."""
+    """Login to the dashboard.
+
+    Args:
+        username (str): The VGS username.
+        password (str): The VGS password."""
     try:
         # Create the DB user.
         db_user = DbUser(
@@ -404,12 +428,73 @@ def login(username: str, password: str):
     client = Client(db_user)
     if client.log_in():
         # User is authenticated remove the form.
+        # Clear any prior user's cached data before starting the new session.
+        _clear_user_data()
         st.session_state["authenticated"] = True
         st.session_state["client"] = client
+        # Stash the encrypted credentials. main() writes the cookie on the next
+        # (completing) run - setting it here then immediately calling st.rerun()
+        # drops it, because the set-component never gets to render.
+        st.session_state["_auth_token"] = encrypt_credentials(username, password)
+        # A fresh login cancels any pending logout from earlier this session.
+        st.session_state.pop("_logging_out", None)
         st.toast("Login successful")
         st.rerun()
     else:
         st.error("Invalid Password")
+
+
+def restore_session(cookie_manager):
+    """Restore a login from the auth cookie after a page refresh.
+
+    Args:
+        cookie_manager: The cookie manager component."""
+    # Nothing to do if already authenticated this session.
+    if st.session_state.get("authenticated"):
+        return
+
+    # No COOKIE_SECRET: there is never a cookie to restore. Skip the settle
+    # rerun entirely and behave exactly like the pre-persistence app.
+    if not persistence_available():
+        return
+
+    # A logout is pending or done this session: never restore from the cookie.
+    # _process_logout() owns deleting it; we must not race that by re-reading.
+    if st.session_state.get("_logging_out"):
+        return
+
+    # The cookie iframe reports nothing on the first Cloud run; give it one
+    # rerun to deliver cookies before falling through to the login form.
+    cookies = cookie_manager.get_all()
+    if not cookies and not st.session_state.get("_cookies_settled"):
+        st.session_state["_cookies_settled"] = True
+        st.rerun()
+
+    token = cookie_manager.get(COOKIE_NAME)
+    credentials = decrypt_credentials(token) if token else None
+    if not credentials:
+        return
+
+    username, password = credentials
+    try:
+        client = Client(DbUser(
+            username=username,
+            password=password,
+            uri=st.secrets["MONGO_URI"],
+        ))
+    except ValueError:
+        client = None
+
+    if client and client.log_in():
+        st.session_state["authenticated"] = True
+        st.session_state["client"] = client
+        st.session_state["_auth_token"] = token
+        logger.info("Restored session for %s from cookie.", username)
+    else:
+        # Stale or invalid cookie - drop the connection and clear the cookie.
+        if client:
+            client.close()
+        clear_auth_cookie(cookie_manager, key="del_stale")
 
 
 def authenticate():
@@ -435,8 +520,59 @@ def authenticate():
             )
 
 
+def _persist_cookie(cookie_manager):
+    """Write the auth cookie once the login has settled.
+
+    Args:
+        cookie_manager: The cookie manager component."""
+    token = st.session_state.get("_auth_token")
+    if not token:
+        return
+    # Already stored - nothing to do.
+    if cookie_manager.get(COOKIE_NAME) == token:
+        return
+    cookie_manager.set(
+        COOKIE_NAME,
+        token,
+        key="set_auth",
+        expires_at=cookie_expiry(),
+        **COOKIE_ATTRS,  # lax + secure; see session.COOKIE_ATTRS for why.
+    )
+
+
+def _clear_user_data():
+    """Drop the previous user's cached data so it can't leak into a new login."""
+    for key in _USER_DATA_KEYS:
+        st.session_state.pop(key, None)
+
+
+def _process_logout(cookie_manager):
+    """Delete the auth cookie on a completing run while a logout is pending."""
+    if not st.session_state.get("_logging_out"):
+        return
+    # Overwrite the cookie expired on this completing run.
+    clear_auth_cookie(cookie_manager, key="del_logout")
+    # Keep _logging_out set so restore stays suppressed until login or reload.
+    for key in ("authenticated", "client", "_auth_token"):
+        st.session_state.pop(key, None)
+    _clear_user_data()
+
+
+def _logout_button():
+    """Render a logout button pinned to the bottom of the sidebar."""
+    st.sidebar.divider()
+    if st.sidebar.button("🚪 Log out", use_container_width=True, key="logout"):
+        # _process_logout() does the work next run, on a completing run.
+        st.session_state["_logging_out"] = True
+        st.rerun()
+
+
 def set_db():
     """Set the database to use. Called when the user selects a database."""
+    # A stale on_change can fire with db_name reset to None; ignore it.
+    if not st.session_state.get("db_name"):
+        return
+
     # Get the previous database name.
     if "log_sheet_db" in st.session_state:
         previous_db_name = st.session_state['log_sheet_db'].database_name
@@ -509,11 +645,33 @@ def main():
     configure_app(LOGO_PATH)
     show_logo(LOGO_PATH)
 
+    # Cookie manager used to persist the login across page refreshes.
+    # Invariant: at most ONE cookie write (set/clear) per completing run - a
+    # second write in the same run never renders and silently no-ops.
+    cookie_manager = get_cookie_manager()
+
+    # Warn once if persistence is unconfigured - the usual cause of logins not
+    # surviving a refresh on Streamlit Cloud (COOKIE_SECRET missing from secrets).
+    if not persistence_available() and not st.session_state.get("_warned_no_persist"):
+        logger.warning(
+            "COOKIE_SECRET is not set - login persistence is disabled. "
+            "Add it under Settings -> Secrets to keep users logged in."
+        )
+        st.session_state["_warned_no_persist"] = True
+
+    # Finish any pending logout before reading the cookie for restore.
+    _process_logout(cookie_manager)
+
+    # Restore a previous login from the encrypted auth cookie if present
+    restore_session(cookie_manager)
+
     # Authenticate the user.
     authenticate()
 
     # User is authenticated display the dashboard.
     if st.session_state["authenticated"]:
+        # Persist the login cookie now that we are on a run that completes.
+        _persist_cookie(cookie_manager)
         try:
             # Choose the database to use.
             choose_db(client=st.session_state["client"])
@@ -527,6 +685,14 @@ def main():
 
             # Clear the session state.
             st.session_state.clear()
+            # Drop the cookie next run so a persisted login can't re-restore.
+            st.session_state["_logging_out"] = True
+            st.rerun()
+
+        # Logout control, pinned to the bottom of the sidebar. Only shown if we
+        # did not just clear the session due to an error above.
+        if st.session_state.get("authenticated"):
+            _logout_button()
 
 
 def display_dashboard():

@@ -47,6 +47,7 @@ jobs:
         mkdir -p .streamlit
         echo 'MONGO_URI = "${{ secrets.MONGO_URI }}"' >> .streamlit/secrets.toml
         echo 'OPS_FORM_URL = "${{ secrets.OPS_FORM_URL }}"' >> .streamlit/secrets.toml
+        echo 'COOKIE_SECRET = "${{ secrets.COOKIE_SECRET }}"' >> .streamlit/secrets.toml
 
     - name: Run Playwright tests
       env:
