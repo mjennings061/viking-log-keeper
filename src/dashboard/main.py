@@ -8,6 +8,7 @@ import subprocess
 import streamlit as st
 import pandas as pd
 from pathlib import Path
+from urllib.parse import urlparse
 
 # Ensure the src directory is in the sys.path.
 src_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
@@ -413,7 +414,9 @@ def show_data_dashboard(db: Database):
     all_data = st.Page(all_data_page, title="All Data", icon="🌍")
 
     # Sidebar nav; order preserved from the old selectbox.
-    nav = st.navigation([stats, logs, gur, weather, all_data])
+    pages = [stats, logs, gur, weather, all_data]
+    nav = st.navigation(pages)
+    _restore_requested_page(nav, pages)
     nav.run()
 
 
@@ -653,11 +656,33 @@ def configure_app(LOGO_PATH: Path):
     )
 
 
+def _capture_requested_page():
+    """Stash a deep-link page path before the login gate discards it."""
+    if "_requested_page" in st.session_state:
+        return
+    st.session_state["_requested_page"] = (
+        urlparse(st.context.url).path.rstrip("/").rsplit("/", 1)[-1]
+    )
+
+
+def _restore_requested_page(nav, pages):
+    """Switch to a deep link captured before login; consumed once."""
+    requested = st.session_state.pop("_requested_page", None)
+    if not requested:
+        return
+    target = next((p for p in pages if p.url_path == requested), None)
+    if target and target.url_path != nav.url_path:
+        st.switch_page(target)
+
+
 def main():
     """Main Streamlit App Code."""
     # Confiure the Streamlit app.
     configure_app(LOGO_PATH)
     show_logo(LOGO_PATH)
+
+    # Deep links are lost during the login reruns unless captured now.
+    _capture_requested_page()
 
     # Cookie manager used to persist the login across page refreshes.
     # Invariant: at most ONE cookie write (set/clear) per completing run - a
