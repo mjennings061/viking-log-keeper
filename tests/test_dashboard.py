@@ -160,6 +160,19 @@ def login_user(page: Page) -> None:
         expect(heading).to_be_visible(timeout=20000)
 
 
+def wait_for_idle(page: Page) -> None:
+    """Wait for Streamlit to finish rerunning so the DOM is stable.
+
+    Args:
+        page: Playwright page instance."""
+    try:
+        expect(page.get_by_test_id("stStatusWidget")).to_be_hidden(
+            timeout=15000
+        )
+    except AssertionError:
+        pass
+
+
 def open_page(page: Page, name: str) -> None:
     """Open a page from the sidebar navigation.
 
@@ -167,6 +180,7 @@ def open_page(page: Page, name: str) -> None:
         page: Playwright page instance.
         name: The page's nav label, e.g. "Log Sheets"."""
     page.get_by_test_id("stSidebarNav").get_by_role("link", name=name).click()
+    wait_for_idle(page)
 
 
 #####################################################################
@@ -326,9 +340,12 @@ def test_weather_variable_selection(page: Page):
 
     # Change weather variable
     page.locator("div").filter(has_text=re.compile(r"^Wind Speed$")).first.click()
-    page.get_by_role("option", name="Wind Direction").click()
+    option = page.get_by_role("option", name="Wind Direction")
+    expect(option).to_be_visible()
+    option.click()
 
     # Verify change was applied (page should not error)
+    wait_for_idle(page)
     expect(page.get_by_role("heading", name="Weather Summary")).to_be_visible()
 
 
