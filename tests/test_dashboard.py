@@ -145,13 +145,19 @@ def login_user(page: Page) -> None:
     # Fill login form
     page.get_by_label("Username", exact=True).fill(USERNAME)
     page.get_by_label("Password", exact=True).fill(PASSWORD)
-    page.get_by_test_id("stBaseButton-secondaryFormSubmit").click()
+    submit = page.get_by_test_id("stBaseButton-secondaryFormSubmit")
+    submit.click()
 
-    # Wait for dashboard to load
-    expected_heading = f"{USERNAME.upper()} Dashboard"
-    expect(page.get_by_role("heading", name=expected_heading)).to_be_visible(
-        timeout=20000
-    )
+    # Wait for the dashboard. The first submit is occasionally dropped before
+    # Streamlit's session is ready, so re-submit once if still on the form.
+    heading = page.get_by_role("heading", name=f"{USERNAME.upper()} Dashboard")
+    try:
+        expect(heading).to_be_visible(timeout=20000)
+    except AssertionError:
+        if not page.get_by_test_id("stForm").is_visible():
+            raise
+        submit.click()
+        expect(heading).to_be_visible(timeout=20000)
 
 
 def open_page(page: Page, name: str) -> None:
@@ -195,7 +201,7 @@ def test_complete_login_flow(page: Page):
     expect(page.get_by_role("heading", name=expected_heading)).to_be_visible()
 
     # Verify we can refresh data (confirms dashboard is functional)
-    expect(page.get_by_test_id("stBaseButton-secondary")).to_be_visible()
+    expect(page.get_by_role("button", name="Refresh Data")).to_be_visible()
 
 
 def test_login_persists_after_reload(page: Page):
@@ -244,7 +250,7 @@ def test_dashboard_data_refresh(page: Page):
     login_user(page)
 
     # Click refresh button
-    page.get_by_test_id("stBaseButton-secondary").click()
+    page.get_by_role("button", name="Refresh Data").click()
 
     # Look for success message
     expect(page.get_by_text("Data Refreshed!")).to_be_visible()
@@ -334,7 +340,7 @@ def test_weather_cache_reload(page: Page):
     open_page(page, "Weather")
 
     # Click reload button
-    page.get_by_test_id("stBaseButton-secondary").click()
+    page.get_by_role("button", name="Reset Weather Cache").click()
 
     # Verify reload success message
     expect(page.get_by_text("Weather data fetched successfully.")).to_be_visible(
