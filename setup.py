@@ -1,5 +1,6 @@
 """setup.py - This file is used to install the package and its dependencies."""
 
+import os
 import sys
 import shutil
 import logging
@@ -78,7 +79,8 @@ class PostInstallCommand(install):
 def run_setup():
     setup(
         name="viking-log-keeper",
-        version="2.7.0",
+        # Release CI passes the git tag. Local builds are always 0.0.0.dev0.
+        version=(os.environ.get("PACKAGE_VERSION") or "0.0.0.dev0").lstrip("v"),
         packages=find_packages(where="src"),
         package_dir={"": "src"},
         url="https://github.com/mjennings061/viking-log-keeper",
