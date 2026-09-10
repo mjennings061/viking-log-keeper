@@ -18,10 +18,9 @@ from log_keeper.output import (
     fill_log_sheet,
 )
 
-TEMPLATE_FIXTURE = Path(__file__).parent / "fixtures" / "2965D_260214_ZE633.xlsx"
 # The repo's docs/ template is the empty scaffold (blank header cells).
 EMPTY_TEMPLATE = (Path(__file__).parent.parent / "docs"
-                  / "2965D_YYMMDD_ZEXXX.xltx")
+                  / "2965B_YYMMDD_ZEXXX.xlsx")
 
 
 @pytest.fixture
@@ -133,7 +132,7 @@ def test_update_aircraft_info(mock_db, sample_aircraft_info):
 
 def test_fill_log_sheet():
     """fill_log_sheet pre-fills the header cells and preserves the workbook."""
-    src = TEMPLATE_FIXTURE.read_bytes()
+    src = EMPTY_TEMPLATE.read_bytes()
     out = fill_log_sheet(src, "ZE683", launches_bf=1234,
                          hours_bf_minutes=74070, sheet_date=date(2026, 6, 30))
 
@@ -149,7 +148,7 @@ def test_fill_log_sheet():
     assert "template.main+xml" not in content_types
 
     # The four header cells are filled (C4 as an exact [h]:mm duration).
-    ws = openpyxl.load_workbook(BytesIO(out))["2965D"]
+    ws = openpyxl.load_workbook(BytesIO(out))["2965B"]
     assert ws["F2"].value == "ZE683"
     assert ws["O2"].value == datetime(2026, 6, 30)
     assert ws["C4"].value == timedelta(minutes=74070)
@@ -168,7 +167,7 @@ def test_fill_log_sheet_blank_brought_forward():
     out = fill_log_sheet(EMPTY_TEMPLATE.read_bytes(), "ZE557",
                          launches_bf=None, hours_bf_minutes=None,
                          sheet_date=date(2026, 6, 30))
-    ws = openpyxl.load_workbook(BytesIO(out))["2965D"]
+    ws = openpyxl.load_workbook(BytesIO(out))["2965B"]
     assert ws["F2"].value == "ZE557"
     assert ws["C4"].value is None
     assert ws["C5"].value is None

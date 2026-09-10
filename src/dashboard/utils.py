@@ -140,7 +140,7 @@ def validate_log_sheet(file: BytesIO) -> bool:
     Returns:
         bool: True if the log sheet is valid, False otherwise."""
     # Contants.
-    TEMPLATE_LOG_SHEET = "2965D_YYMMDD_ZEXXX.xlsx"
+    TEMPLATE_LOG_SHEET = "2965B_YYMMDD_ZEXXX.xlsx"
     MAX_FILE_SIZE = 1 * 1024 * 1024  # 1 MB
 
     # Validate the file is an Excel file.
@@ -250,7 +250,7 @@ def upload_log_sheets(files: Sequence[BytesIO]) -> bool:
 
 
 def get_prefilled_log_sheet(db, aircraft: str, aircraft_df: pd.DataFrame):
-    """Build a pre-filled 2965D log sheet for an aircraft.
+    """Build a pre-filled 2965B log sheet for an aircraft.
 
     Args:
         db (Database): The VGS database.
@@ -287,11 +287,11 @@ def get_prefilled_log_sheet(db, aircraft: str, aircraft_df: pd.DataFrame):
                    f"Date: {today:%d %b %y}")
 
     data = fill_log_sheet(template, aircraft, launches_bf, hours_bf, today)
-    return data, f"2965D_{today:%y%m%d}_{aircraft}.xlsx"
+    return data, f"2965B_{today:%y%m%d}_{aircraft}.xlsx"
 
 
 def update_template_from_upload(db, uploaded_file) -> bool:
-    """Validate an uploaded 2965D template and store it in the database.
+    """Validate an uploaded 2965B template and store it in the database.
 
     Args:
         db (Database): The VGS database.
@@ -299,7 +299,7 @@ def update_template_from_upload(db, uploaded_file) -> bool:
 
     Returns:
         bool: True if the template was stored, False otherwise."""
-    REQUIRED_SHEETS = {"2965D", "FORMATTED", "_AIRCRAFT", "INPUT_DATA"}
+    REQUIRED_SHEETS = {"2965B", "FORMATTED", "_AIRCRAFT", "INPUT_DATA"}
     MAX_FILE_SIZE = 2 * 1024 * 1024  # 2 MB
 
     if not uploaded_file.name.endswith((".xltx", ".xlsx")):

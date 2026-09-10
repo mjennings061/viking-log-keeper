@@ -4,6 +4,7 @@ This file handles log sheet extraction and sanitisation.
 """
 
 # Get packages.
+import datetime as dt
 from pathlib import Path
 from typing import Tuple, Union
 import pandas as pd
@@ -82,8 +83,6 @@ def extract_launches(xls: pd.ExcelFile) -> pd.DataFrame:
             'AircraftCommander': 'string',
             '2ndPilot': 'string',
             'Duty': 'string',
-            'TakeOffTime': 'datetime64[ns]',
-            'LandingTime': 'datetime64[ns]',
             'FlightTime': 'UInt16',
             'SPC': 'UInt8',
             'PLF': 'bool',
@@ -94,9 +93,34 @@ def extract_launches(xls: pd.ExcelFile) -> pd.DataFrame:
         }
     )
 
+    # The sheet holds a plain clock time, so put the sortie date back on it.
+    for column in ('TakeOffTime', 'LandingTime'):
+        raw_df[column] = _combine_date_time(raw_df['Date'], raw_df[column])
+
     # Validate the log sheet. Raise an error if invalid.
     validate_log_sheet(raw_df)
     return raw_df
+
+
+def _combine_date_time(dates: pd.Series, times: pd.Series) -> pd.Series:
+    """Join a plain clock time to its sheet date.
+
+    Args:
+        dates (pd.Series): The sortie dates.
+        times (pd.Series): Clock times, or whole datetimes on older sheets.
+
+    Returns:
+        pd.Series: Datetimes, NaT where either value is missing.
+    """
+    combined = [
+        pd.Timestamp.combine(date.date(), time)
+        if isinstance(time, dt.time) and pd.notna(date) else time
+        for date, time in zip(dates, times)
+    ]
+    return pd.to_datetime(
+        pd.Series(combined, index=times.index),
+        errors='coerce'
+    )
 
 
 def parse_hours_after(s):
@@ -271,6 +295,9 @@ def sanitise_log_sheets(log_sheet_df):
         na_position="first"
     )
 
+    # Codes 2 to 5 are the aerotow profiles.
+    log_sheet_df['Aerotow'] = log_sheet_df['SPC'].isin([2, 3, 4, 5])
+
     # Rename 2ndPilot to SecondPilot.
     log_sheet_df.rename(columns={"2ndPilot": "SecondPilot"}, inplace=True)
 
@@ -297,7 +324,7 @@ def collate_log_sheets(dir_path: Union[str, Path]) -> pd.DataFrame:
     dir_path = Path(dir_path)
 
     # Get the directory contents.
-    FILE_NAME = "2965D_*.xlsx"
+    FILE_NAME = "2965[BD]_*.xlsx"
     dir_contents = dir_path.glob(f"{FILE_NAME}")
     log_sheet_files = [x for x in dir_contents if x.is_file()]
 
@@ -318,7 +345,7 @@ def collate_log_sheets(dir_path: Union[str, Path]) -> pd.DataFrame:
             this_sheet_df = ingest_log_sheet(file_path)
             log_sheet_list.append(this_sheet_df)
         except Exception:   # pylint: disable=broad-except
-            if file_path.name != "2965D_YYMMDD_ZEXXX.xlsx":
+            if not file_path.name.endswith("_YYMMDD_ZEXXX.xlsx"):
                 warning_msg = f"Log sheet invalid: {file_path.name}"
                 tqdm.write(warning_msg)
 

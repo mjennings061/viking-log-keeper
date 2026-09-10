@@ -21,7 +21,7 @@
 
 1. Create a directory on your sharepoint to store the log sheets e.g. `Log Sheets`.
 
-1. Save the `2965D_YYMMDD_ZEXXX.xlsx` template (See `docs/`) into the `Log Sheets` directory.
+1. Save the `2965B_YYMMDD_ZEXXX.xlsx` template (See `docs/`) into the `Log Sheets` directory.
 
     ![image](https://github.com/mjennings061/viking-log-keeper/assets/24479573/ea8e51e0-ee2b-481a-88ce-63a544e0da1b)
 
