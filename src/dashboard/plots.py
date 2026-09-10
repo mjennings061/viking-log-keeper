@@ -1077,6 +1077,12 @@ def table_gur_summary(aircraft_df: pd.DataFrame, launches_df: pd.DataFrame):
     six_months_ago = pd.Timestamp.now() - pd.DateOffset(months=6)
     last_entry_df = last_entry_df[last_entry_df["Date"] > six_months_ago]
 
+    # No aircraft serviced recently, so there is nothing to summarise.
+    if last_entry_df.empty:
+        st.subheader("GUR Summary")
+        st.warning("No aircraft flown in the last six months.")
+        return
+
     # Filter gur summary by aircraft in last entry.
     gur_summary = gur_summary[gur_summary["Aircraft"].isin(last_entry_df["Aircraft"])]
 

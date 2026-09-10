@@ -388,7 +388,9 @@ def plot_wind_polar(weather_df):
 
     # Set circular grid labels and add values as text
     max_freq = max(frequencies)
-    ax.set_yticks(np.arange(0, max_freq + 1, round(max_freq / 5)))
+    # Step of at least 1 otherwise np.arange blows up.
+    tick_step = max(1, round(max_freq / 5))
+    ax.set_yticks(np.arange(0, max_freq + 1, tick_step))
     for i in ax.get_yticks():
         ax.text(0, i, str(int(i)), color=text_color, ha="right", va="center")
 
