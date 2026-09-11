@@ -1,5 +1,5 @@
 """main.py
-661 VGS - Collate all log sheets (2965D) into one master log DB.
+661 VGS - Collate all log sheets (2965B) into one master log DB.
 """
 
 # Get packages.

@@ -18,11 +18,11 @@ from pymongo import DeleteMany, UpdateOne
 from log_keeper import logger
 from log_keeper.get_config import Database
 
-# 2965D template pre-fill constants.
+# 2965B template pre-fill constants.
 EXCEL_EPOCH = date(1899, 12, 30)
 MINUTES_PER_DAY = 1440
-TEMPLATE_SHEET_NAME = "2965D"
-# Header cells filled on the 2965D sheet.
+TEMPLATE_SHEET_NAME = "2965B"
+# Header cells filled on the 2965B sheet.
 CELL_AIRCRAFT = "F2"
 CELL_DATE = "O2"
 CELL_HOURS_BF = "C4"
@@ -72,7 +72,7 @@ def fill_log_sheet(
     hours_bf_minutes,
     sheet_date: date,
 ) -> bytes:
-    """Pre-fill a 2965D template's header cells, preserving everything else.
+    """Pre-fill a 2965B template's header cells, preserving everything else.
 
     Args:
         template_bytes (bytes): The stored template (.xltx/.xlsx) file.
@@ -87,7 +87,7 @@ def fill_log_sheet(
     # An xlsx is a zip of XML; patch 4 cells, copy the rest byte-for-byte.
     # (openpyxl would drop the form controls, image and drop-downs on save.)
     with zipfile.ZipFile(BytesIO(template_bytes)) as zin:
-        # Locate the 2965D sheet's file: name -> rId (workbook) -> filename.
+        # Locate the 2965B sheet's file: name -> rId (workbook) -> filename.
         workbook = zin.read("xl/workbook.xml").decode("utf-8")
         rid = re.search(
             r'<sheet[^>]*name="%s"[^>]*r:id="([^"]+)"' % TEMPLATE_SHEET_NAME,

@@ -178,7 +178,7 @@ def show_log_sheets_page(db: Database, aircraft_df: pd.DataFrame, redirect_page)
         aircraft_df (pd.DataFrame): Aircraft info for the brought-forward
             lookup and the aircraft drop-down.
         redirect_page (st.Page): Page to switch to after a successful upload."""
-    # Download a pre-filled 2965D for a chosen aircraft.
+    # Download a pre-filled 2965B for a chosen aircraft.
     st.subheader("⬇️ Download pre-filled log sheet")
     if not aircraft_df.empty:
         # Only offer the most recently flown aircraft.
@@ -216,7 +216,7 @@ def show_log_sheets_page(db: Database, aircraft_df: pd.DataFrame, redirect_page)
     # Replace the stored template (holds squadron-specific INPUT_DATA).
     with st.expander("⚙️ Update log sheet template"):
         template_file = st.file_uploader(
-            "Upload a new 2965D template (.xltx/.xlsx) with the "
+            "Upload a new 2965B template (.xltx/.xlsx) with the "
             "INPUT_DATA sheet filled in.",
             type=["xltx", "xlsx"],
             key="template_upload",
