@@ -44,6 +44,7 @@ from dashboard.plots import (   # noqa: E402
     ops_form_helper,
 )
 from dashboard.weather import weather_page  # noqa: E402
+from dashboard.roster import roster_config, roster_page  # noqa: E402
 from dashboard.utils import (   # noqa: E402
     LOGO_PATH,
     upload_log_sheets,
@@ -404,6 +405,10 @@ def show_data_dashboard(db: Database):
         """Render the Weather page."""
         weather_page(db, filtered_df)
 
+    def roster_view():
+        """Render the Roster page."""
+        roster_page(db.database_name)
+
     # Build page objects; title required for callables, emojis kept as icons.
     # Distinct callables (not lambdas) give each page a unique URL pathname.
     stats = st.Page(statistics_page, title="Statistics", icon="📈",
@@ -415,6 +420,11 @@ def show_data_dashboard(db: Database):
 
     # Sidebar nav; order preserved from the old selectbox.
     pages = [stats, logs, gur, weather, all_data]
+
+    # Roster only exists for a squadron with an API in secrets; no entry, no page.
+    if roster_config(db.database_name):
+        pages.append(st.Page(roster_view, title="Roster", icon="📅"))
+
     nav = st.navigation(pages)
     _restore_requested_page(nav, pages)
     nav.run()
