@@ -93,6 +93,37 @@ def decrypt_credentials(token: str) -> Optional[Tuple[str, str]]:
         return None
 
 
+def encrypt_value(value: str) -> Optional[str]:
+    """Encrypt one value, such as a roster session token, for a cookie.
+
+    Args:
+        value (str): The value to encrypt.
+
+    Returns:
+        Optional[str]: The encrypted value, or None without ``COOKIE_SECRET``."""
+    cipher = _fernet()
+    return cipher.encrypt(value.encode()).decode() if cipher else None
+
+
+def decrypt_value(token: str) -> Optional[str]:
+    """Decrypt a value written by ``encrypt_value``.
+
+    Args:
+        token (str): The encrypted value read from a cookie.
+
+    Returns:
+        Optional[str]: The value, or None if missing, tampered with or unreadable."""
+    cipher = _fernet()
+    if not cipher or not token:
+        return None
+    # No ttl here; the server decides when the session behind it ends.
+    try:
+        return cipher.decrypt(token.encode()).decode()
+    except InvalidToken:
+        logger.warning("Ignoring an unreadable cookie.")
+        return None
+
+
 def cookie_expiry() -> datetime:
     """Absolute (UTC) expiry timestamp for a freshly-set auth cookie.
 
@@ -101,11 +132,13 @@ def cookie_expiry() -> datetime:
     return datetime.now(timezone.utc) + timedelta(days=COOKIE_DAYS)
 
 
-def clear_auth_cookie(cookie_manager, key: str = "del_auth") -> None:
-    """Remove the auth cookie by overwriting it expired, with matching attrs."""
+def clear_auth_cookie(
+    cookie_manager, key: str = "del_auth", name: str = COOKIE_NAME
+) -> None:
+    """Remove a cookie by overwriting it expired, with matching attrs."""
     # delete() uses non-matching attributes and fails.
     cookie_manager.set(
-        COOKIE_NAME,
+        name,
         "",
         key=key,
         expires_at=datetime.now(timezone.utc) - timedelta(days=1),

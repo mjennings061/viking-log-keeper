@@ -44,7 +44,8 @@ from dashboard.plots import (   # noqa: E402
     ops_form_helper,
 )
 from dashboard.weather import weather_page  # noqa: E402
-from dashboard.roster import roster_config, roster_page  # noqa: E402
+from dashboard.roster import roster_page  # noqa: E402
+from dashboard.roster_api import roster_config  # noqa: E402
 from dashboard.utils import (   # noqa: E402
     LOGO_PATH,
     upload_log_sheets,
@@ -71,6 +72,11 @@ _USER_DATA_KEYS = (
     "aircraft_df",
     "cgs_match_count",
     "weather",
+    # Roster sign-in; the remembered-device cookie signs them back in.
+    "roster_token",
+    "roster_me",
+    "roster_checked",
+    "roster_layout",
 )
 
 
@@ -247,11 +253,12 @@ def show_log_sheets_page(db: Database, aircraft_df: pd.DataFrame, redirect_page)
             st.switch_page(redirect_page)
 
 
-def show_data_dashboard(db: Database):
+def show_data_dashboard(db: Database, cookie_manager):
     """Display the dashboard.
 
     Args:
-        db (Database): Database class for the VGS."""
+        db (Database): Database class for the VGS.
+        cookie_manager: The cookie manager component, for the roster sign-in."""
     # Set the page title.
     logger.info("Displaying %s dashboard.", db.database_name)
     vgs = db.database_name.upper()
@@ -407,7 +414,7 @@ def show_data_dashboard(db: Database):
 
     def roster_view():
         """Render the Roster page."""
-        roster_page(db.database_name)
+        roster_page(db.database_name, cookie_manager)
 
     # Build page objects; title required for callables, emojis kept as icons.
     # Distinct callables (not lambdas) give each page a unique URL pathname.
@@ -727,7 +734,9 @@ def main():
 
             if "log_sheet_db" in st.session_state:
                 # Display dashboard.
-                show_data_dashboard(st.session_state["log_sheet_db"])
+                show_data_dashboard(
+                    st.session_state["log_sheet_db"], cookie_manager
+                )
         except Exception:  # pylint: disable=broad-except
             logger.error("Failed to display dashboard.", exc_info=True)
             st.error("Failed to display dashboard.")
