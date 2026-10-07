@@ -46,6 +46,7 @@ from dashboard.plots import (   # noqa: E402
 from dashboard.weather import weather_page  # noqa: E402
 from dashboard.roster import roster_page  # noqa: E402
 from dashboard.roster_api import roster_config  # noqa: E402
+from dashboard.roster_signin import sign_out  # noqa: E402
 from dashboard.utils import (   # noqa: E402
     LOGO_PATH,
     upload_log_sheets,
@@ -77,6 +78,8 @@ _USER_DATA_KEYS = (
     "roster_me",
     "roster_checked",
     "roster_layout",
+    # The "Signed out" toast from logout is not for the next person.
+    "roster_flash",
 )
 
 
@@ -596,6 +599,9 @@ def _logout_button():
     """Render a logout button pinned to the bottom of the sidebar."""
     st.sidebar.divider()
     if st.sidebar.button("🚪 Log out", use_container_width=True, key="logout"):
+        # End the roster session too, or its cookie signs the next login in as them.
+        if st.session_state.get("roster_token"):
+            sign_out(st.session_state["db_name"])
         # _process_logout() does the work next run, on a completing run.
         st.session_state["_logging_out"] = True
         st.rerun()

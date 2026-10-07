@@ -17,10 +17,9 @@ CHOICES = ["Y", "AM", "PM", "N", "TBC", "C"]
 # The three note boxes above the names, in the spreadsheet's order.
 NOTE_ROWS = {
     "event": "Visiting / event",
-    "accommodation": "Accommodation in use",
-    "gs": "GS",
+    "accommodation": "Accommodation",
+    "gs": "GS Attending",
 }
-# Layouts a signed-in person can switch between.
 # Times on the page are UK time; the API sends UTC.
 UK = ZoneInfo("Europe/London")
 
@@ -113,6 +112,12 @@ def describe(status: str | None, part: str | None = None) -> str:
     return f"Y, {part} only" if part else status
 
 
+def plain(text: str) -> str:
+    """A member's words, safe to show on the page as Markdown."""
+    # Escaping [ stops links and outside images from rendering.
+    return text.replace("[", r"\[")
+
+
 def choice_of(entry: dict | None) -> str | None:
     """The CHOICES button an answer matches; AM and PM win over Y."""
     if not entry:
@@ -200,7 +205,8 @@ def grid_rows(grid: dict) -> tuple[list[dict], list[dict], list[dict]]:
         row = {"id": f"note:{key}", "name": label, "name|cls": "note-label", "cat": ""}
         for day in dates:
             note = days.get(day) or {}
-            text = note.get(key) or ""
+            # AgGrid runs ::JSCODE:: text outside rowData as code, so strip it.
+            text = (note.get(key) or "").replace("::JSCODE::", "")
             row[day] = text
             row[f"{day}|cls"] = "note-cell"
             row[f"{day}|tip"] = (
@@ -257,7 +263,9 @@ def _css(theme: str) -> dict:
     p = PALETTE[theme]
     centred = {"text-align": "center", "justify-content": "center"}
     css = {
-        ".ag-cell.ans": {**centred, "font-weight": "600"},
+        # Tighter side padding lets a month of dates fit without scrolling.
+        ".ag-root-wrapper": {"--ag-cell-horizontal-padding": "6px"},
+        ".ag-cell.ans":{**centred, "font-weight": "600"},
         ".ag-cell.s-blank": {"color": p["muted"], "font-weight": "500"},
         # Two lines of note at most; hovering shows the rest.
         ".ag-cell.note-cell": {
@@ -340,13 +348,13 @@ def draw_grid(ref: dict, grid: dict) -> None:
     # Day numbers repeat across a month end, so show the month there.
     spans = ref["kind"] == "course" or len({d[:7] for d in dates}) > 1
     columns = [
-        {"field": "name", "headerName": "Name", "pinned": "left", "width": 176},
-        {"field": "cat", "headerName": "Cat", "pinned": "left", "width": 54,
+        {"field": "name", "headerName": "Name", "pinned": "left", "width": 150},
+        {"field": "cat", "headerName": "Cat", "pinned": "left", "width": 44,
          "headerTooltip": "Instructor category from STARS"},
     ] + [
         {"field": d, "headerName": day_mon(d) if spans else short(d),
          "headerTooltip": long(d), "tooltipField": f"{d}|tip",
-         "flex": 1, "minWidth": 70, "wrapText": True}
+         "flex": 1, "minWidth": 56, "wrapText": True}
         for d in dates
     ]
     options = {
@@ -360,7 +368,7 @@ def draw_grid(ref: dict, grid: dict) -> None:
         "getRowId": JsCode("function(p) { return p.data.id; }"),
         "tooltipShowDelay": 250,
         "tooltipHideDelay": 10000,
-        "headerHeight": 40,
+        "headerHeight": HEADER_PX,
         "getRowHeight": ROW_HEIGHT,
     }
     frame = pd.DataFrame(rows, columns=list(top[0]))

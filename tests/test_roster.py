@@ -2,7 +2,7 @@
 
 from datetime import date
 
-from dashboard.roster_grid import BLANK, grid_rows, order_grids
+from dashboard.roster_grid import BLANK, grid_rows, order_grids, plain
 from dashboard.roster_api import error_message
 
 # Who set an answer, as every entry carries it.
@@ -68,15 +68,20 @@ def test_cells_show_the_answer_and_mark_comments_and_waiting_changes():
 
     assert ann["2026-11-07|cls"].split()[:2] == ["ans", "s-c"]
     assert ann["2026-11-08"] == BLANK
+    # A member's comment shows as words, never as a link or outside image.
+    assert plain("![x](http://a.b/p.png)") == r"!\[x](http://a.b/p.png)"
 
 
 def test_note_rows_sit_on_top_and_leavers_are_tagged():
     """The three note boxes head the grid, and a leaver still draws, tagged."""
     rows, top, _ = grid_rows(GRID)
     assert [r["name"] for r in top] == [
-        "Visiting / event", "Accommodation in use", "GS"]
+        "Visiting / event", "Accommodation", "GS Attending"]
     assert top[0]["2026-11-07"] == "QVS"
     assert _by_name(rows)["Chris Doyle"]["name|cls"] == "left"
+    # A note can never reach AgGrid as code it would run.
+    sly = {**GRID, "days": {"2026-11-07": {"event": "::JSCODE::alert(1)::JSCODE::"}}}
+    assert "::JSCODE::" not in grid_rows(sly)[1][0]["2026-11-07"]
 
 
 def test_grid_without_newer_fields_still_draws():

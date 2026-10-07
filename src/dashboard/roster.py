@@ -1,5 +1,6 @@
 """roster.py - Squadron availability: the page that ties the roster together."""
 
+import html
 from datetime import date, datetime, timedelta
 
 import streamlit as st
@@ -26,6 +27,7 @@ from dashboard.roster_grid import (
     grid_path,
     long,
     order_grids,
+    plain,
     show_key,
     when,
 )
@@ -56,6 +58,11 @@ def _load_grids(squadron: str) -> tuple[list[dict], int]:
     return order_grids(months, courses, datetime.now(UK).date())
 
 
+def _go(ids: list[str], index: int) -> None:
+    """Open the grid at index; a callback of the grid arrows."""
+    st.session_state["roster_grid"] = ids[index]
+
+
 def _grid_picker(grids: list[dict], start: int) -> dict:
     """Show the chosen grid's title with an arrow either side.
 
@@ -70,19 +77,25 @@ def _grid_picker(grids: list[dict], start: int) -> dict:
     index = ids.index(chosen) if chosen in ids else start
 
     back, title, forward = st.columns([1, 6, 1], vertical_alignment="center")
-    if back.button("◀", disabled=index <= 0, width="stretch", help="Previous grid"):
-        index -= 1
-    if forward.button("▶", disabled=index >= len(grids) - 1, width="stretch",
-                      help="Next grid"):
-        index += 1
+    # Step in a callback, so this run's arrows already know where the click landed.
+    back.button("◀", disabled=index <= 0, width="stretch", help="Previous grid",
+                on_click=_go, args=(ids, index - 1))
+    forward.button("▶", disabled=index >= len(grids) - 1, width="stretch",
+                   help="Next grid", on_click=_go, args=(ids, index + 1))
 
     ref = grids[index]
     if ref["kind"] == "month":
-        title.caption("Month")
+        label = "Month"
     else:
-        title.caption(f"Course, {day_mon(ref['first'].isoformat())} to "
-                      f"{day_mon(ref['last'].isoformat())}")
-    title.subheader(ref["title"])
+        label = (f"Course, {day_mon(ref['first'].isoformat())} to "
+                 f"{day_mon(ref['last'].isoformat())}")
+    # One block, as a subheader's own top padding leaves a gap under the label.
+    title.markdown(
+        f'<div style="font-size:0.875rem;opacity:0.6">{html.escape(label)}</div>'
+        '<div style="font-size:1.5rem;font-weight:600;line-height:1.2">'
+        f"{html.escape(ref['title'])}</div>",
+        unsafe_allow_html=True,
+    )
     st.session_state["roster_grid"] = ref["id"]
     return ref
 
@@ -217,6 +230,8 @@ def _your_dates(squadron: str, grid: dict) -> None:
                 st.segmented_control(
                     "Coming for", ["All day", "AM", "PM"],
                     default=(entry or {}).get("part") or "All day",
+                    # Re-tapping AM must not unpick it and save the whole day.
+                    required=True,
                     key=f"yd_part_{day}", on_change=_tap, args=args,
                 )
             if status in ("N", "TBC", "C"):
@@ -226,11 +241,11 @@ def _your_dates(squadron: str, grid: dict) -> None:
                     key=f"yd_comment_{day}", on_change=_tap, args=args,
                 )
             elif entry and entry.get("comment"):
-                st.caption(f'"{entry["comment"]}"')
+                st.caption(f'"{plain(entry["comment"])}"')
             if pend:
                 st.markdown(f":orange[Waiting for approval: "
                             f"{describe(pend['toStatus'], pend.get('toPart'))}, "
-                            f'"{pend["reason"]}".]')
+                            f'"{plain(pend["reason"])}".]')
 
     if opened := st.session_state.pop("roster_dialog", None):
         person_id, day, choice = opened
@@ -276,7 +291,8 @@ def _changes_panel(squadron: str) -> None:
                 f"{describe(change.get('fromStatus'), change.get('fromPart'))} to "
                 f"{describe(change['toStatus'], change.get('toPart'))}."
             )
-            st.caption(f'"{change["reason"]}". Asked {when(change["updatedAt"])}.')
+            st.caption(f'"{plain(change["reason"])}". '
+                       f'Asked {when(change["updatedAt"])}.')
             if not is_admin():
                 continue
             approve, reject = st.columns([1, 4])
@@ -325,13 +341,12 @@ def roster_page(squadron: str, cookie_manager) -> None:
         st.caption(f"🔒 Frozen since {fmt_date(grid['freezeAt'])}. "
                    "Changing an answer needs an admin.")
     else:
-        st.caption(f"Freezes on {fmt_date(grid['freezeAt'])}. "
-                   "Until then, changes land straight away.")
+        st.caption(f"Freezes on {fmt_date(grid['freezeAt'])}.")
 
     if signed_in() and layout == YOUR_DATES:
         _your_dates(squadron, grid)
     else:
-        show_key()
         draw_grid(ref, grid)
+        show_key()
         _open_tapped(squadron, grid)
     _changes_panel(squadron)

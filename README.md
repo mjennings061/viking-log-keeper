@@ -63,7 +63,7 @@
     ```
 
     > When deploying to Streamlit Community Cloud, add the same secrets
-    > (`MONGO_URI`, `OPS_FORM_URL`, `COOKIE_SECRET`) under the app's
+    > (`MONGO_URI`, `OPS_FORM_URL`, `COOKIE_SECRET` and any `[roster.*]` block) under the app's
     > *Settings → Secrets*. If `COOKIE_SECRET` is omitted the app still works,
     > but logins are not persisted across refreshes. Rotating it logs everyone
     > out once.

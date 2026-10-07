@@ -47,7 +47,7 @@ def drop_sign_in() -> None:
     """Forget the roster session and clear its cookie on this run."""
     for key in ("roster_token", "roster_me", "roster_layout"):
         st.session_state.pop(key, None)
-    # None means clear it; _sync_cookie does the write.
+    # None means clear it; sync_cookie does the write.
     st.session_state["roster_cookie"] = None
 
 
@@ -118,7 +118,10 @@ def _request_code(squadron: str) -> None:
     except RosterError as exc:
         st.session_state["roster_signin_error"] = str(exc)
         return
-    st.session_state.update(roster_nonce=result["nonce"], roster_step="code")
+    # Streamlit drops the picker's value once it is hidden, so keep who it was.
+    st.session_state.update(
+        roster_nonce=result["nonce"], roster_step="code", roster_person=person_id
+    )
 
 
 def _verify(squadron: str) -> None:
@@ -127,7 +130,7 @@ def _verify(squadron: str) -> None:
     if not re.fullmatch(r"\d{6}", code):
         st.session_state["roster_signin_error"] = "Enter the six digits from the email."
         return
-    remember = st.session_state.get("roster_remember", True)
+    remember = st.session_state.get("roster_remember", False)
     body = {
         "nonce": st.session_state.get("roster_nonce"),
         "code": code,
@@ -141,7 +144,8 @@ def _verify(squadron: str) -> None:
 
     token = me.pop("token")
     st.session_state.update(roster_token=token, roster_me=me, roster_layout=_layout())
-    for key in ("roster_step", "roster_nonce", "roster_code", "roster_who"):
+    for key in ("roster_step", "roster_nonce", "roster_code", "roster_who",
+                "roster_person"):
         st.session_state.pop(key, None)
     # Not remembered, the token lives only as long as this browser tab.
     value = encrypt_value(token) if remember else None
@@ -151,7 +155,7 @@ def _verify(squadron: str) -> None:
     flash(f"Signed in as {me['name']}{', admin' if me['role'] == 'admin' else ''}.")
 
 
-def _sign_out(squadron: str) -> None:
+def sign_out(squadron: str) -> None:
     """End this device's session; a callback of 'Sign out'."""
     try:
         token = st.session_state.get("roster_token")
@@ -179,14 +183,15 @@ def sign_in_bar(squadron: str) -> None:
             "Layout", [GRID, YOUR_DATES], key="roster_layout",
             label_visibility="collapsed",
         )
-        right.button("Sign out", type="tertiary", on_click=_sign_out, args=(squadron,))
+        right.button("Sign out", type="tertiary", on_click=sign_out, args=(squadron,))
         return
 
     step = state.get("roster_step")
     if step is None:
-        st.button("Update my roster", type="primary",
-                  on_click=lambda: state.update(roster_step="who"))
-        st.caption("Submit or edit your availability.")
+        row = st.container(horizontal=True, vertical_alignment="center")
+        row.button("Update my roster", type="primary",
+                   on_click=lambda: state.update(roster_step="who"))
+        row.caption("Submit or edit your availability.")
         return
 
     with st.container(border=True):
@@ -205,12 +210,13 @@ def sign_in_bar(squadron: str) -> None:
         else:
             names = {p["personId"]: p["name"]
                      for p in read(squadron, "/roster/people")["people"]}
-            name = names.get(state.get("roster_who"), "you")
+            name = names.get(state.get("roster_person"), "you")
             with st.form("roster_code_form", border=False):
                 st.markdown(f"Code sent to {name}'s email.")
                 st.text_input("Six-digit code", max_chars=6, key="roster_code",
                               autocomplete="one-time-code")
-                st.checkbox("Remember this device for 30 days", value=True,
+                # Off by default; the squadron's PCs are shared.
+                st.checkbox("Remember this device for 30 days", value=False,
                             key="roster_remember")
                 st.form_submit_button("Sign in", type="primary",
                                       on_click=_verify, args=(squadron,))

@@ -15,6 +15,7 @@ from dashboard.roster_grid import (
     grid_path,
     long,
     parse_day,
+    plain,
     split_choice,
     when,
 )
@@ -49,7 +50,7 @@ def answer_dialog(squadron: str, grid: dict, person_id: str, day: str,
     st.caption(long(day))
     st.subheader(row["name"])
     if entry:
-        comment = f', "{entry["comment"]}"' if entry.get("comment") else ""
+        comment = f', "{plain(entry["comment"])}"' if entry.get("comment") else ""
         st.write(f"{describe(entry['status'], entry.get('part'))}{comment}. "
                  f"Set by {entry['updatedByName']}, {when(entry['updatedAt'])}.")
     else:
@@ -57,14 +58,16 @@ def answer_dialog(squadron: str, grid: dict, person_id: str, day: str,
     if pend:
         st.markdown(f":orange[Waiting for approval: "
                     f"{describe(pend['toStatus'], pend.get('toPart'))}, "
-                    f'"{pend["reason"]}".]')
+                    f'"{plain(pend["reason"])}".]')
 
     if not can_edit(person_id):
         if not signed_in():
             st.info("To change answers, press Update my roster.")
         return
 
-    choice = st.segmented_control("Answer", CHOICES,
+    # Keyed per cell, so a dialog closed unsaved cannot carry over to the next one.
+    cell = f"{person_id}_{day}_{preset}"
+    choice = st.segmented_control("Answer", CHOICES, key=f"answer_{cell}",
                                   default=preset or choice_of(entry))
     # A member changing a frozen answer asks; a comment-only edit just saves.
     asking = (not is_admin() and grid["frozen"] and entry is not None
@@ -76,7 +79,7 @@ def answer_dialog(squadron: str, grid: dict, person_id: str, day: str,
     else:
         label = "Comment (optional)"
     start = "" if asking else (entry or {}).get("comment") or ""
-    comment = st.text_input(label, value=start, max_chars=200)
+    comment = st.text_input(label, value=start, max_chars=200, key=f"comment_{cell}")
 
     if asking:
         st.caption("This date has frozen. Your change goes to an admin, and your "
@@ -121,8 +124,9 @@ def note_dialog(squadron: str, grid: dict, key: str, day: str) -> None:
     if not is_admin():
         st.write(text or "Nothing here yet.")
         return
+    # Keyed per box and date, so unsaved text cannot carry over to another note.
     value = st.text_area("Shown above the names for this date. Leave empty to clear.",
-                         value=text, max_chars=200)
+                         value=text, max_chars=200, key=f"note_{key}_{day}")
     if st.button("Save", type="primary"):
         save(squadron, "PATCH", f"/roster/days/{day}", {key: value.strip()}, "Saved")
 
@@ -134,7 +138,9 @@ def dates_dialog(squadron: str, ref: dict, grid: dict) -> None:
                "adding it back brings them back.")
     keep = st.multiselect("Dates", grid["dates"], default=grid["dates"],
                           format_func=day_mon)
-    added = st.date_input("Add a date", value=None, format="DD/MM/YYYY")
+    # Keyed per grid, so a date picked but not saved stays with its own grid.
+    added = st.date_input("Add a date", value=None, format="DD/MM/YYYY",
+                          key=f"add_date_{ref['id']}")
     if st.button("Save", type="primary"):
         add = [added.isoformat()] if added else []
         remove = [d for d in grid["dates"] if d not in keep]
@@ -200,7 +206,7 @@ def remove_dialog(squadron: str, ref: dict) -> None:
         save(squadron, "DELETE", grid_path(ref), None, f"{ref['title']} removed")
 
 
-def save(squadron: str, method: str, path: str, body: dict | None, done: str):
+def save(squadron: str, method: str, path: str, body: dict | None, done: str) -> None:
     """Write, then close any dialog and toast; on failure show why, stay open.
 
     Args:
@@ -208,18 +214,15 @@ def save(squadron: str, method: str, path: str, body: dict | None, done: str):
         method (str): HTTP method.
         path (str): API path.
         body (dict | None): JSON body.
-        done (str): Toast on success.
-
-    Returns:
-        dict | None: The response, or None if it failed."""
+        done (str): Toast on success."""
     try:
-        result = write(squadron, method, path, body)
+        write(squadron, method, path, body)
     except RosterError as exc:
         st.error(str(exc))
-        return None
+        return
     flash(done)
+    # st.rerun() never returns; it closes the dialog.
     st.rerun()
-    return result
 
 
 def put_answer(squadron: str, person_id: str, day: str, choice: str, comment: str):
