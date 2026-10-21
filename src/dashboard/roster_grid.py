@@ -351,14 +351,14 @@ def draw_grid(ref: dict, grid: dict) -> None:
         grid (dict): The API's grid body."""
     rows, top, bottom = grid_rows(grid)
     dates = grid["dates"]
-    # Day numbers repeat across a month end, so show the month there.
-    spans = ref["kind"] == "course" or len({d[:7] for d in dates}) > 1
+    # A course id is never a month, so a course shows the month on every date.
+    home = ref["id"] if ref["kind"] == "month" else None
     columns = [
         {"field": "name", "headerName": "Name", "pinned": "left", "width": 150},
         {"field": "cat", "headerName": "Cat", "pinned": "left", "width": 44,
          "headerTooltip": "Instructor category from STARS"},
     ] + [
-        {"field": d, "headerName": day_mon(d) if spans else short(d),
+        {"field": d, "headerName": short(d) if d[:7] == home else day_mon(d),
          "headerTooltip": long(d), "tooltipField": f"{d}|tip",
          "flex": 1, "minWidth": 56, "wrapText": True}
         for d in dates
