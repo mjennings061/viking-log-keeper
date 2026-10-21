@@ -220,7 +220,7 @@ def sign_in_bar(squadron: str) -> None:
                             key="roster_remember")
                 st.form_submit_button("Sign in", type="primary",
                                       on_click=_verify, args=(squadron,))
-            st.button(f"Not {name.split()[0]}?", type="tertiary",
+            st.button(f"Not {name}?", type="tertiary",
                       on_click=lambda: state.update(roster_step="who"))
         if error := state.pop("roster_signin_error", None):
             st.error(error)

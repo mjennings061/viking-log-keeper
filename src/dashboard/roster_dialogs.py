@@ -89,7 +89,7 @@ def answer_dialog(squadron: str, grid: dict, person_id: str, day: str,
     if is_admin() and pend:
         st.caption("Saving closes the waiting change as superseded and emails them.")
     if is_admin() and person_id != st.session_state["roster_me"]["personId"]:
-        st.caption(f"You are setting {row['name'].split()[0]}'s answer. "
+        st.caption(f"You are setting {row['name']}'s answer. "
                    "It is recorded under your name.")
 
     if st.button("Send for approval" if asking else "Save", type="primary"):

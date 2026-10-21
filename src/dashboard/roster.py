@@ -271,7 +271,6 @@ def _your_dates(squadron: str, grid: dict) -> None:
 
 def _decide(squadron: str, change: dict, approve: bool) -> None:
     """Approve or reject a change; a callback, so the panel redraws after."""
-    first = change["name"].split()[0]
     if approve:
         path, body = f"/roster/changes/{change['changeId']}/approve", None
         done = f"Approved. {change['name']} is emailed."
@@ -281,7 +280,7 @@ def _decide(squadron: str, change: dict, approve: bool) -> None:
             flash("Give a reason. It is emailed to them.")
             return
         path, body = f"/roster/changes/{change['changeId']}/reject", {"comment": reason}
-        done = f"Rejected. {first} is emailed your reason."
+        done = f"Rejected. {change['name']} is emailed your reason."
     try:
         write(squadron, "POST", path, body)
     except RosterError as exc:
@@ -319,7 +318,7 @@ def _changes_panel(squadron: str) -> None:
             with reject.popover("Reject"):
                 st.text_input("Reason for rejecting", max_chars=200,
                               key=f"reject_{change['changeId']}",
-                              placeholder=f"Reason for {change['name'].split()[0]}")
+                              placeholder=f"Reason for {change['name']}")
                 st.button("Reject", key=f"confirm_reject_{change['changeId']}",
                           on_click=_decide, args=(squadron, change, False))
 
