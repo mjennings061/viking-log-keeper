@@ -6,7 +6,7 @@ from datetime import date, datetime, timedelta
 import streamlit as st
 
 from dashboard import logger
-from dashboard.roster_api import RosterError, read
+from dashboard.roster_api import RosterError, read, read_list
 from dashboard.roster_dialogs import (
     answer_dialog,
     course_dialog,
@@ -48,10 +48,10 @@ from dashboard.roster_signin import (
 
 def _load_grids(squadron: str) -> tuple[list[dict], int]:
     """Every month and course, in date order, and which to open on."""
-    months = read(squadron, "/roster/months")["months"]
+    months = read_list(squadron, "/roster/months")["months"]
     # Courses are optional; a backend without them still shows the months.
     try:
-        courses = read(squadron, "/roster/courses")["courses"]
+        courses = read_list(squadron, "/roster/courses")["courses"]
     except RosterError:
         logger.info("No courses from the roster API.", exc_info=True)
         courses = []
@@ -153,6 +153,19 @@ def _open_tapped(squadron: str, grid: dict) -> None:
         note_dialog(squadron, grid, row.removeprefix("note:"), col)
     else:
         answer_dialog(squadron, grid, row, col)
+
+
+@st.fragment
+def _squadron_grid(squadron: str, ref: dict, grid: dict) -> None:
+    """The grid and its key; a tap reruns only this, not the whole app.
+
+    Args:
+        squadron (str): Database name of the squadron.
+        ref (dict): Which grid this is.
+        grid (dict): The grid on show."""
+    draw_grid(ref, grid)
+    show_key()
+    _open_tapped(squadron, grid)
 
 
 def _tap(squadron: str, grid: dict, day: str) -> None:
@@ -350,7 +363,5 @@ def roster_page(squadron: str, cookie_manager) -> None:
     if signed_in() and layout == YOUR_DATES:
         _your_dates(squadron, grid)
     else:
-        draw_grid(ref, grid)
-        show_key()
-        _open_tapped(squadron, grid)
+        _squadron_grid(squadron, ref, grid)
     _changes_panel(squadron)

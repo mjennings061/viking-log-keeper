@@ -119,6 +119,19 @@ def read(squadron: str, path: str) -> dict:
     return call(squadron, "GET", path)
 
 
+@st.cache_data(ttl=CACHE_TTL, show_spinner="Loading roster...")
+def read_list(squadron: str, path: str) -> dict:
+    """Read a list only admin grid changes alter: months, courses or people.
+
+    Args:
+        squadron (str): Database name of the squadron.
+        path (str): API path, e.g. '/roster/months'.
+
+    Returns:
+        dict: The decoded response body."""
+    return call(squadron, "GET", path)
+
+
 def send(
     squadron: str,
     method: str,
@@ -138,6 +151,9 @@ def send(
     Returns:
         dict: The decoded response body."""
     result = call(squadron, method, path, token, body)
-    # ponytail: clears every cached read, per-path clearing if it gets slow.
+    # Clears every grid read, per-path clearing if it gets slow.
     read.clear()
+    # Answers, notes and approvals leave the lists alone, so keep them.
+    if path.startswith(("/roster/months", "/roster/courses")):
+        read_list.clear()
     return result

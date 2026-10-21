@@ -72,6 +72,7 @@ _USER_DATA_KEYS = (
     "log_sheet_db",
     "df",
     "aircraft_df",
+    "cgs_df",
     "cgs_match_count",
     "weather",
     # Roster sign-in; the remembered-device cookie signs them back in.
@@ -148,8 +149,11 @@ def get_personal_df(filtered_df: pd.DataFrame, client: Client) -> pd.DataFrame:
 
     if "cgs" in client.available_databases:
         try:
-            cgs_db = Database(client, "cgs")
-            cgs_df = cgs_db.get_launches_dataframe()
+            # Fetched once per login, not on every rerun.
+            if "cgs_df" not in st.session_state:
+                cgs_db = Database(client, "cgs")
+                st.session_state["cgs_df"] = cgs_db.get_launches_dataframe()
+            cgs_df = st.session_state["cgs_df"]
 
             # Filter CGS where either role matches any AircraftCommander
             cgs_user_df = cgs_df[
@@ -179,6 +183,8 @@ def refresh_data():
     db = st.session_state["log_sheet_db"]
     st.session_state['df'] = get_launches_for_dashboard(db)
     st.session_state['aircraft_df'] = get_aircraft_for_dashboard(db)
+    # Dropped so get_personal_df fetches fresh CGS launches next.
+    st.session_state.pop("cgs_df", None)
     st.toast("Data Refreshed!", icon="✅")
 
 

@@ -6,7 +6,7 @@ from datetime import datetime
 import streamlit as st
 
 from dashboard import logger
-from dashboard.roster_api import RosterError, call, read, send
+from dashboard.roster_api import RosterError, call, read_list, send
 from dashboard.session import (
     COOKIE_ATTRS,
     clear_auth_cookie,
@@ -196,7 +196,7 @@ def sign_in_bar(squadron: str) -> None:
 
     with st.container(border=True):
         if step == "who":
-            people = read(squadron, "/roster/people")["people"]
+            people = read_list(squadron, "/roster/people")["people"]
             names = {p["personId"]: p["name"] for p in people}
             st.selectbox("Who are you?", list(names), index=None,
                          placeholder="Pick your name",
@@ -209,7 +209,7 @@ def sign_in_bar(squadron: str) -> None:
             st.caption("The code goes to the email STARS holds for that person.")
         else:
             names = {p["personId"]: p["name"]
-                     for p in read(squadron, "/roster/people")["people"]}
+                     for p in read_list(squadron, "/roster/people")["people"]}
             name = names.get(state.get("roster_person"), "you")
             with st.form("roster_code_form", border=False):
                 st.markdown(f"Code sent to {name}'s email.")
