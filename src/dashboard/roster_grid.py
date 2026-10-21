@@ -3,7 +3,7 @@
 import hashlib
 import json
 from calendar import monthrange
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 import pandas as pd
@@ -147,6 +147,9 @@ def order_grids(months: list[str], courses: list[dict], today: date):
     for month in months:
         first = date.fromisoformat(f"{month}-01")
         last = first.replace(day=monthrange(first.year, first.month)[1])
+        # A month ending on a Saturday also holds the Sunday after it.
+        if last.weekday() == 5:
+            last += timedelta(days=1)
         title = f"{first:%B %Y}"
         grids.append({"kind": "month", "id": month, "title": title,
                       "first": first, "last": last})
