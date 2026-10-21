@@ -80,8 +80,10 @@ def test_note_rows_sit_on_top_and_leavers_are_tagged():
     assert top[0]["2026-11-07"] == "QVS"
     assert _by_name(rows)["Chris Doyle"]["name|cls"] == "left"
     # A note can never reach AgGrid as code it would run.
-    sly = {**GRID, "days": {"2026-11-07": {"event": "::JSCODE::alert(1)::JSCODE::"}}}
-    assert "::JSCODE::" not in grid_rows(sly)[1][0]["2026-11-07"]
+    split = "::JSC::JSCODE::ODE::"
+    sly = {**GRID, "days": {"2026-11-07": {"event": f"{split}alert(1){split}"}}}
+    note = grid_rows(sly)[1][0]
+    assert "::JSCODE::" not in note["2026-11-07"] + note["2026-11-07|tip"]
 
 
 def test_grid_without_newer_fields_still_draws():

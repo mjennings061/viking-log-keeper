@@ -168,9 +168,10 @@ def _tap(squadron: str, grid: dict, day: str) -> None:
     status = state.get(f"yd_status_{day}")
     part = state.get(f"yd_part_{day}")
     comment = state.get(f"yd_comment_{day}")
-    # Rebuild this row's buttons from the saved answer on the next run.
-    for key in ("status", "part", "comment"):
-        state.pop(f"yd_{key}_{day}", None)
+    # Put the row back to the saved answer; setting, not deleting, reaches the browser.
+    state[f"yd_status_{day}"] = (entry or {}).get("status")
+    state[f"yd_part_{day}"] = (entry or {}).get("part") or "All day"
+    state[f"yd_comment_{day}"] = (entry or {}).get("comment") or ""
 
     # Tapping the answer already picked unpicks it; treat that as no change.
     if not status:
@@ -195,6 +196,9 @@ def _tap(squadron: str, grid: dict, day: str) -> None:
         flash(put_answer(squadron, me["personId"], day, choice, text))
     except RosterError as exc:
         flash(str(exc))
+    else:
+        state[f"yd_status_{day}"], state[f"yd_comment_{day}"] = status, text
+        state[f"yd_part_{day}"] = part or "All day"
 
 
 def _your_dates(squadron: str, grid: dict) -> None:

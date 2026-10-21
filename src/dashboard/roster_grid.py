@@ -205,14 +205,17 @@ def grid_rows(grid: dict) -> tuple[list[dict], list[dict], list[dict]]:
         row = {"id": f"note:{key}", "name": label, "name|cls": "note-label", "cat": ""}
         for day in dates:
             note = days.get(day) or {}
-            # AgGrid runs ::JSCODE:: text outside rowData as code, so strip it.
-            text = (note.get(key) or "").replace("::JSCODE::", "")
-            row[day] = text
-            row[f"{day}|cls"] = "note-cell"
-            row[f"{day}|tip"] = (
+            text = note.get(key) or ""
+            tip = (
                 f"{text}\nUpdated by {note.get('updatedByName')}, "
                 f"{when(note.get('updatedAt'))}" if text else ""
             )
+            # AgGrid runs ::JSCODE:: text outside rowData as code, so drop the note.
+            if "::JSCODE::" in tip:
+                text = tip = ""
+            row[day] = text
+            row[f"{day}|cls"] = "note-cell"
+            row[f"{day}|tip"] = tip
         top.append(row)
 
     rows = []

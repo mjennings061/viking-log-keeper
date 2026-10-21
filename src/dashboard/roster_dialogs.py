@@ -79,7 +79,9 @@ def answer_dialog(squadron: str, grid: dict, person_id: str, day: str,
     else:
         label = "Comment (optional)"
     start = "" if asking else (entry or {}).get("comment") or ""
-    comment = st.text_input(label, value=start, max_chars=200, key=f"comment_{cell}")
+    # Keyed on asking too, or the old comment stays in the box and passes as a reason.
+    comment = st.text_input(label, value=start, max_chars=200,
+                            key=f"comment_{cell}_{asking}")
 
     if asking:
         st.caption("This date has frozen. Your change goes to an admin, and your "

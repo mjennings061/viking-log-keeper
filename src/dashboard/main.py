@@ -46,7 +46,7 @@ from dashboard.plots import (   # noqa: E402
 from dashboard.weather import weather_page  # noqa: E402
 from dashboard.roster import roster_page  # noqa: E402
 from dashboard.roster_api import roster_config  # noqa: E402
-from dashboard.roster_signin import sign_out  # noqa: E402
+from dashboard.roster_signin import ROSTER_COOKIE, sign_out  # noqa: E402
 from dashboard.utils import (   # noqa: E402
     LOGO_PATH,
     upload_log_sheets,
@@ -60,6 +60,7 @@ from dashboard.session import (   # noqa: E402
     clear_auth_cookie,
     cookie_expiry,
     decrypt_credentials,
+    decrypt_value,
     encrypt_credentials,
     get_cookie_manager,
     persistence_available,
@@ -78,6 +79,7 @@ _USER_DATA_KEYS = (
     "roster_me",
     "roster_checked",
     "roster_layout",
+    "roster_step", "roster_nonce", "roster_person",
     # The "Signed out" toast from logout is not for the next person.
     "roster_flash",
 )
@@ -435,6 +437,9 @@ def show_data_dashboard(db: Database, cookie_manager):
     if roster_config(db.database_name):
         pages.append(st.Page(roster_view, title="Roster", icon="📅"))
 
+    # Re-saved every run, or Streamlit drops the layout while another page is open.
+    if "roster_layout" in st.session_state:
+        st.session_state["roster_layout"] = st.session_state["roster_layout"]
     nav = st.navigation(pages)
     _restore_requested_page(nav, pages)
     nav.run()
@@ -595,12 +600,16 @@ def _process_logout(cookie_manager):
     _clear_user_data()
 
 
-def _logout_button():
+def _logout_button(cookie_manager):
     """Render a logout button pinned to the bottom of the sidebar."""
     st.sidebar.divider()
     if st.sidebar.button("🚪 Log out", use_container_width=True, key="logout"):
         # End the roster session too, or its cookie signs the next login in as them.
-        if st.session_state.get("roster_token"):
+        token = st.session_state.get("roster_token") or decrypt_value(
+            cookie_manager.get(ROSTER_COOKIE) or ""
+        )
+        if token and st.session_state.get("db_name"):
+            st.session_state["roster_token"] = token
             sign_out(st.session_state["db_name"])
         # _process_logout() does the work next run, on a completing run.
         st.session_state["_logging_out"] = True
@@ -756,7 +765,7 @@ def main():
         # Logout control, pinned to the bottom of the sidebar. Only shown if we
         # did not just clear the session due to an error above.
         if st.session_state.get("authenticated"):
-            _logout_button()
+            _logout_button(cookie_manager)
 
 
 def display_dashboard():
