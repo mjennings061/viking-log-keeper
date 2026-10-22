@@ -44,6 +44,9 @@ from dashboard.plots import (   # noqa: E402
     ops_form_helper,
 )
 from dashboard.weather import weather_page  # noqa: E402
+from dashboard.roster import roster_page  # noqa: E402
+from dashboard.roster_api import roster_config  # noqa: E402
+from dashboard.roster_signin import ROSTER_COOKIE, sign_out  # noqa: E402
 from dashboard.utils import (   # noqa: E402
     LOGO_PATH,
     upload_log_sheets,
@@ -57,6 +60,7 @@ from dashboard.session import (   # noqa: E402
     clear_auth_cookie,
     cookie_expiry,
     decrypt_credentials,
+    decrypt_value,
     encrypt_credentials,
     get_cookie_manager,
     persistence_available,
@@ -68,8 +72,17 @@ _USER_DATA_KEYS = (
     "log_sheet_db",
     "df",
     "aircraft_df",
+    "cgs_df",
     "cgs_match_count",
     "weather",
+    # Roster sign-in; the remembered-device cookie signs them back in.
+    "roster_token",
+    "roster_me",
+    "roster_checked",
+    "roster_layout",
+    "roster_step", "roster_nonce", "roster_person",
+    # The "Signed out" toast from logout is not for the next person.
+    "roster_flash",
 )
 
 
@@ -136,8 +149,11 @@ def get_personal_df(filtered_df: pd.DataFrame, client: Client) -> pd.DataFrame:
 
     if "cgs" in client.available_databases:
         try:
-            cgs_db = Database(client, "cgs")
-            cgs_df = cgs_db.get_launches_dataframe()
+            # Fetched once per login, not on every rerun.
+            if "cgs_df" not in st.session_state:
+                cgs_db = Database(client, "cgs")
+                st.session_state["cgs_df"] = cgs_db.get_launches_dataframe()
+            cgs_df = st.session_state["cgs_df"]
 
             # Filter CGS where either role matches any AircraftCommander
             cgs_user_df = cgs_df[
@@ -167,6 +183,8 @@ def refresh_data():
     db = st.session_state["log_sheet_db"]
     st.session_state['df'] = get_launches_for_dashboard(db)
     st.session_state['aircraft_df'] = get_aircraft_for_dashboard(db)
+    # Dropped so get_personal_df fetches fresh CGS launches next.
+    st.session_state.pop("cgs_df", None)
     st.toast("Data Refreshed!", icon="✅")
 
 
@@ -246,11 +264,12 @@ def show_log_sheets_page(db: Database, aircraft_df: pd.DataFrame, redirect_page)
             st.switch_page(redirect_page)
 
 
-def show_data_dashboard(db: Database):
+def show_data_dashboard(db: Database, cookie_manager):
     """Display the dashboard.
 
     Args:
-        db (Database): Database class for the VGS."""
+        db (Database): Database class for the VGS.
+        cookie_manager: The cookie manager component, for the roster sign-in."""
     # Set the page title.
     logger.info("Displaying %s dashboard.", db.database_name)
     vgs = db.database_name.upper()
@@ -404,6 +423,10 @@ def show_data_dashboard(db: Database):
         """Render the Weather page."""
         weather_page(db, filtered_df)
 
+    def roster_view():
+        """Render the Roster page."""
+        roster_page(db.database_name, cookie_manager)
+
     # Build page objects; title required for callables, emojis kept as icons.
     # Distinct callables (not lambdas) give each page a unique URL pathname.
     stats = st.Page(statistics_page, title="Statistics", icon="📈",
@@ -415,6 +438,14 @@ def show_data_dashboard(db: Database):
 
     # Sidebar nav; order preserved from the old selectbox.
     pages = [stats, logs, gur, weather, all_data]
+
+    # Roster only exists for a squadron with an API in secrets; no entry, no page.
+    if roster_config(db.database_name):
+        pages.append(st.Page(roster_view, title="Roster", icon="📅"))
+
+    # Re-saved every run, or Streamlit drops the layout while another page is open.
+    if "roster_layout" in st.session_state:
+        st.session_state["roster_layout"] = st.session_state["roster_layout"]
     nav = st.navigation(pages)
     _restore_requested_page(nav, pages)
     nav.run()
@@ -575,10 +606,17 @@ def _process_logout(cookie_manager):
     _clear_user_data()
 
 
-def _logout_button():
+def _logout_button(cookie_manager):
     """Render a logout button pinned to the bottom of the sidebar."""
     st.sidebar.divider()
     if st.sidebar.button("🚪 Log out", use_container_width=True, key="logout"):
+        # End the roster session too, or its cookie signs the next login in as them.
+        token = st.session_state.get("roster_token") or decrypt_value(
+            cookie_manager.get(ROSTER_COOKIE) or ""
+        )
+        if token and st.session_state.get("db_name"):
+            st.session_state["roster_token"] = token
+            sign_out(st.session_state["db_name"])
         # _process_logout() does the work next run, on a completing run.
         st.session_state["_logging_out"] = True
         st.rerun()
@@ -717,7 +755,9 @@ def main():
 
             if "log_sheet_db" in st.session_state:
                 # Display dashboard.
-                show_data_dashboard(st.session_state["log_sheet_db"])
+                show_data_dashboard(
+                    st.session_state["log_sheet_db"], cookie_manager
+                )
         except Exception:  # pylint: disable=broad-except
             logger.error("Failed to display dashboard.", exc_info=True)
             st.error("Failed to display dashboard.")
@@ -731,7 +771,7 @@ def main():
         # Logout control, pinned to the bottom of the sidebar. Only shown if we
         # did not just clear the session due to an error above.
         if st.session_state.get("authenticated"):
-            _logout_button()
+            _logout_button(cookie_manager)
 
 
 def display_dashboard():

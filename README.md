@@ -54,8 +54,16 @@
     echo "COOKIE_SECRET=\"$(python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())')\"" >> .streamlit/secrets.toml
     ```
 
+    The Roster page appears for a squadron only when its roster API is set in the secrets file. To enable it, add the following to `.streamlit/secrets.toml`:
+
+    ```toml
+    [roster."661vgs"]
+    url = "<VGS_STARS_URL>"
+    key = "<ROSTER_READ_KEY>"
+    ```
+
     > When deploying to Streamlit Community Cloud, add the same secrets
-    > (`MONGO_URI`, `OPS_FORM_URL`, `COOKIE_SECRET`) under the app's
+    > (`MONGO_URI`, `OPS_FORM_URL`, `COOKIE_SECRET` and any `[roster.*]` block) under the app's
     > *Settings → Secrets*. If `COOKIE_SECRET` is omitted the app still works,
     > but logins are not persisted across refreshes. Rotating it logs everyone
     > out once.

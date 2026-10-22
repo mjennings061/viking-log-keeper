@@ -249,6 +249,9 @@ def test_dashboard_data_refresh(page: Page):
     """Test that data refresh works on dashboard."""
     login_user(page)
 
+    # A toast sent while the login toast still shows is dropped, so wait it out.
+    expect(page.get_by_test_id("stToast")).to_have_count(0, timeout=15000)
+
     # Click refresh button
     page.get_by_role("button", name="Refresh Data").click()
 
@@ -330,7 +333,7 @@ def test_weather_variable_selection(page: Page):
     ).to_be_visible(timeout=15000)
 
     # Change weather variable
-    page.locator("div").filter(has_text=re.compile(r"^Wind Speed$")).first.click()
+    page.get_by_role("combobox", name="Select weather metric to compare:").click()
     page.get_by_role("option", name="Wind Direction").click()
 
     # Verify change was applied (page should not error)
@@ -359,17 +362,14 @@ def test_pilot_filter_functionality(page: Page):
 
     # Use pilot filter
     expect(page.get_by_text("Filter by Pilot")).to_be_visible()
-    page.locator("div").filter(has_text=re.compile(r"^All$")).first.click()
-    page.get_by_test_id("stSelectboxVirtualDropdown").get_by_text("Jennings").click()
+    page.get_by_role("combobox", name="Filter by Pilot").click()
+    page.get_by_role("option", name=re.compile("Jennings")).first.click()
 
     # Use quarter filter
-    expect(page.get_by_text("Select QuarterChoose an")).to_be_visible()
-    page.locator("div").filter(has_text=re.compile(r"^Choose an option$")).first.click()
+    page.get_by_role("combobox", name="Select Quarter").click()
 
     # Select first available quarter
-    page.get_by_test_id("stSelectboxVirtualDropdown").get_by_role(
-        "option"
-    ).first.click()
+    page.get_by_role("option").first.click()
 
     # Verify quarterly summary appears
     expect(page.get_by_role("heading", name="Quarterly Summary Helper")).to_be_visible()
