@@ -70,7 +70,7 @@ def answer_dialog(squadron: str, grid: dict, person_id: str, day: str,
     choice = st.segmented_control("Answer", CHOICES, key=f"answer_{cell}",
                                   default=preset or choice_of(entry))
     # A member changing a frozen answer asks; a comment-only edit just saves.
-    asking = (not is_admin() and grid["frozen"] and entry is not None
+    asking = (not is_admin() and day in grid["frozenDates"] and entry is not None
               and choice != choice_of(entry))
     if asking:
         label = "Reason for the change (required)"

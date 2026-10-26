@@ -15,6 +15,7 @@ GRID = {
     "dates": ["2026-11-07", "2026-11-08"],
     "freezeAt": "2026-10-18",
     "frozen": True,
+    "frozenDates": ["2026-11-07", "2026-11-08"],
     "days": {"2026-11-07": {"event": "QVS", "updatedByName": "Sam Reid",
                             "updatedAt": "2026-10-02T19:00:00Z"}},
     "rows": [
