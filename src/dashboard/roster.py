@@ -359,7 +359,9 @@ def roster_page(squadron: str, cookie_manager) -> None:
         st.caption(f"🔒 Frozen since {fmt_date(grid['freezeAt'])}. "
                    "Changing an answer needs an admin.")
     else:
-        st.caption(f"Freezes on {fmt_date(grid['freezeAt'])}.")
+        # A date also on a course can freeze before the rest of its month.
+        early = " Some dates have already frozen." if grid["frozenDates"] else ""
+        st.caption(f"Freezes on {fmt_date(grid['freezeAt'])}.{early}")
 
     if signed_in() and layout == YOUR_DATES:
         _your_dates(squadron, grid)
