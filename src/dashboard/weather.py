@@ -22,7 +22,7 @@ from log_keeper.weather import WeatherFetcher
 
 
 # --- Cached API batch fetch ---
-@st.cache_data(ttl="12h", show_spinner=True)
+@st.cache_data(ttl="12h", show_spinner=True, refresh_mode="background")
 def fetch_weather_for_dates_cached(
     latitude: float, longitude: float, dates: tuple
 ) -> pd.DataFrame:
