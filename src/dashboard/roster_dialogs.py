@@ -124,7 +124,7 @@ def note_dialog(squadron: str, grid: dict, key: str, day: str) -> None:
     st.caption(f"Updated by {note.get('updatedByName')}, "
                f"{when(note.get('updatedAt'))}." if text else "Empty.")
     if not is_admin():
-        st.write(text or "Nothing here yet.")
+        st.write(plain(text) if text else "Nothing here yet.")
         return
     # Keyed per box and date, so unsaved text cannot carry over to another note.
     value = st.text_area("Shown above the names for this date. Leave empty to clear.",

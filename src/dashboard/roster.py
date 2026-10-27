@@ -235,7 +235,7 @@ def _your_dates(squadron: str, grid: dict) -> None:
         with st.container(border=True):
             event = (days.get(day) or {}).get("event")
             line = f"**{day_mon(day)}**"
-            line += f" · {event}" if event else ""
+            line += f" · {plain(event)}" if event else ""
             # A date also on a course can freeze before the rest of its month.
             line += " · :orange[🔒 Frozen]" if day in grid["frozenDates"] else ""
             st.markdown(line)
