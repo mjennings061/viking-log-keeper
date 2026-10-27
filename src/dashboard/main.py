@@ -5,6 +5,7 @@
 import sys
 import os
 import subprocess
+import threading
 import streamlit as st
 import pandas as pd
 from pathlib import Path
@@ -45,7 +46,7 @@ from dashboard.plots import (   # noqa: E402
 )
 from dashboard.weather import weather_page  # noqa: E402
 from dashboard.roster import roster_page  # noqa: E402
-from dashboard.roster_api import roster_config  # noqa: E402
+from dashboard.roster_api import call, roster_config  # noqa: E402
 from dashboard.roster_signin import ROSTER_COOKIE, sign_out  # noqa: E402
 from dashboard.utils import (   # noqa: E402
     LOGO_PATH,
@@ -278,6 +279,11 @@ def show_data_dashboard(db: Database, cookie_manager):
     # Get dataframe of launches and aircraft info.
     if "df" not in st.session_state:
         logger.debug("Fetching launches for dashboard.")
+        # Once per login: wake the roster API now to warm it up.
+        if roster_config(db.database_name):
+            threading.Thread(
+                target=call, args=(db.database_name, "GET", "/health"), daemon=True
+            ).start()
         st.session_state['df'] = get_launches_for_dashboard(db)
 
     if "aircraft_df" not in st.session_state:
