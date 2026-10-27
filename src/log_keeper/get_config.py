@@ -325,7 +325,7 @@ class Database:
             # Convert to the local timezone
             df["datetime"] = df["datetime"].dt.tz_convert("Europe/London")
             df = df.sort_values(by="datetime")
-            df = df.drop(columns=["_id"], axis=1).reset_index(drop=True)
+            df = df.drop(columns=["_id"]).reset_index(drop=True)
         except Exception:
             # Log error and return an empty DataFrame.
             logger.error("Could not fetch data from the collection.")
@@ -377,11 +377,13 @@ class Database:
                 # Convert to the local timezone
                 df["datetime"] = df["datetime"].dt.tz_convert("Europe/London")
                 df = df.sort_values(by="datetime")
-                df = df.drop(columns=["_id"], axis=1).reset_index(drop=True)
+                df = df.drop(columns=["_id"]).reset_index(drop=True)
 
         except Exception:
             # Log error and return an empty DataFrame.
-            logger.error("Could not fetch filtered weather data from the collection.")
+            logger.exception(
+                "Could not fetch filtered weather data from the collection."
+            )
             df = pd.DataFrame()
         return df
 

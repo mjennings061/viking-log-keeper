@@ -5,6 +5,7 @@
 import sys
 import os
 import subprocess
+import threading
 import streamlit as st
 import pandas as pd
 from pathlib import Path
@@ -45,7 +46,7 @@ from dashboard.plots import (   # noqa: E402
 )
 from dashboard.weather import weather_page  # noqa: E402
 from dashboard.roster import roster_page  # noqa: E402
-from dashboard.roster_api import roster_config  # noqa: E402
+from dashboard.roster_api import RosterError, call, roster_config  # noqa: E402
 from dashboard.roster_signin import ROSTER_COOKIE, sign_out  # noqa: E402
 from dashboard.utils import (   # noqa: E402
     LOGO_PATH,
@@ -177,6 +178,17 @@ def get_personal_df(filtered_df: pd.DataFrame, client: Client) -> pd.DataFrame:
     return filtered_df
 
 
+def _wake_roster(squadron: str) -> None:
+    """Wake the roster API so the Roster page opens fast.
+
+    Args:
+        squadron (str): Database name of the squadron."""
+    try:
+        call(squadron, "GET", "/health")
+    except RosterError:
+        logger.exception("Roster API did not wake.")
+
+
 def refresh_data():
     """Refresh the data in the session state."""
     logger.info("Refreshing data.")
@@ -278,6 +290,11 @@ def show_data_dashboard(db: Database, cookie_manager):
     # Get dataframe of launches and aircraft info.
     if "df" not in st.session_state:
         logger.debug("Fetching launches for dashboard.")
+        # Once per login: wake the roster API now to warm it up.
+        if roster_config(db.database_name):
+            threading.Thread(
+                target=_wake_roster, args=(db.database_name,), daemon=True
+            ).start()
         st.session_state['df'] = get_launches_for_dashboard(db)
 
     if "aircraft_df" not in st.session_state:
@@ -317,12 +334,12 @@ def show_data_dashboard(db: Database, cookie_manager):
     # Add a date filter to the sidebar (this will apply to both DataFrames)
     filtered_df = date_filter(df, key="main_filter")
 
-    # Combine CGS launches if the user flew there, then apply the same filter
-    personal_df = get_personal_df(filtered_df, st.session_state["client"])
-
     # Pages are callables sharing the filter state computed above.
     def statistics_page():
         """Render the Statistics page."""
+        # Combine CGS launches if the user flew there; only this page uses them.
+        personal_df = get_personal_df(filtered_df, st.session_state["client"])
+
         # Refresh data button.
         if st.button("🔃 Refresh Data", key="refresh"):
             refresh_data()

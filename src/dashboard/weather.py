@@ -22,7 +22,7 @@ from log_keeper.weather import WeatherFetcher
 
 
 # --- Cached API batch fetch ---
-@st.cache_data(ttl="12h", show_spinner=True)
+@st.cache_data(ttl="12h", show_spinner=True, refresh_mode="background")
 def fetch_weather_for_dates_cached(
     latitude: float, longitude: float, dates: tuple
 ) -> pd.DataFrame:
@@ -68,7 +68,7 @@ def weather_page(db: Database, launches_df: pd.DataFrame):
                 "Weather data cache reset! New data will be fetched.",
                 icon="✅",
             )
-            st.cache_data.clear()
+            fetch_weather_for_dates_cached.clear()
         st.info("Reset the cache to fetch the latest weather data from the API.")
 
     # Use session state to check if the weather data needs to be refreshed.

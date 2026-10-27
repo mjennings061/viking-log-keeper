@@ -6,9 +6,12 @@ import streamlit as st
 # Cloud Run sleeps, so the first call of an evening waits for it to wake.
 TIMEOUT = 30
 # Long enough that the grid arrows do not wake the API over and over.
+# Background refresh serves an expired copy for up to one more TTL.
 CACHE_TTL = "5m"
 # FastAPI's own answer for a route the API has not built yet.
 MISSING_ROUTE = ("Not Found", "Method Not Allowed")
+# One connection pool for every call, so each call skips a fresh TLS handshake.
+SESSION = requests.Session()
 
 
 class RosterError(Exception):
@@ -85,7 +88,7 @@ def call(
         headers["Authorization"] = f"Bearer {token}"
 
     try:
-        response = requests.request(
+        response = SESSION.request(
             method,
             f"{config['url'].rstrip('/')}{path}",
             headers=headers,
@@ -106,7 +109,9 @@ def call(
     return payload
 
 
-@st.cache_data(ttl=CACHE_TTL, show_spinner="Loading roster...")
+@st.cache_data(
+    ttl=CACHE_TTL, show_spinner="Loading roster...", refresh_mode="background"
+)
 def read(squadron: str, path: str) -> dict:
     """Read with the squadron's read-only key, cached in memory, never on disk.
 
@@ -119,7 +124,9 @@ def read(squadron: str, path: str) -> dict:
     return call(squadron, "GET", path)
 
 
-@st.cache_data(ttl=CACHE_TTL, show_spinner="Loading roster...")
+@st.cache_data(
+    ttl=CACHE_TTL, show_spinner="Loading roster...", refresh_mode="background"
+)
 def read_list(squadron: str, path: str) -> dict:
     """Read a list only admin grid changes alter: months, courses or people.
 

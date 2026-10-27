@@ -202,7 +202,8 @@ def _tap(squadron: str, grid: dict, day: str) -> None:
             return
         state["roster_dialog"] = (me["personId"], day, choice)
         return
-    if not is_admin() and grid["frozen"] and entry and choice != choice_of(entry):
+    if (not is_admin() and day in grid["frozenDates"] and entry
+            and choice != choice_of(entry)):
         state["roster_dialog"] = (me["personId"], day, choice)
         return
     try:
@@ -234,8 +235,9 @@ def _your_dates(squadron: str, grid: dict) -> None:
         with st.container(border=True):
             event = (days.get(day) or {}).get("event")
             line = f"**{day_mon(day)}**"
-            line += f" · {event}" if event else ""
-            line += " · :orange[🔒 Frozen]" if grid["frozen"] else ""
+            line += f" · {plain(event)}" if event else ""
+            # A date also on a course can freeze before the rest of its month.
+            line += " · :orange[🔒 Frozen]" if day in grid["frozenDates"] else ""
             st.markdown(line)
             args = (squadron, grid, day)
             st.segmented_control(
@@ -357,7 +359,9 @@ def roster_page(squadron: str, cookie_manager) -> None:
         st.caption(f"🔒 Frozen since {fmt_date(grid['freezeAt'])}. "
                    "Changing an answer needs an admin.")
     else:
-        st.caption(f"Freezes on {fmt_date(grid['freezeAt'])}.")
+        # A date also on a course can freeze before the rest of its month.
+        early = " Some dates have already frozen." if grid["frozenDates"] else ""
+        st.caption(f"Freezes on {fmt_date(grid['freezeAt'])}.{early}")
 
     if signed_in() and layout == YOUR_DATES:
         _your_dates(squadron, grid)
