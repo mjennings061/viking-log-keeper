@@ -202,7 +202,8 @@ def _tap(squadron: str, grid: dict, day: str) -> None:
             return
         state["roster_dialog"] = (me["personId"], day, choice)
         return
-    if not is_admin() and grid["frozen"] and entry and choice != choice_of(entry):
+    if (not is_admin() and day in grid["frozenDates"] and entry
+            and choice != choice_of(entry)):
         state["roster_dialog"] = (me["personId"], day, choice)
         return
     try:
@@ -235,7 +236,8 @@ def _your_dates(squadron: str, grid: dict) -> None:
             event = (days.get(day) or {}).get("event")
             line = f"**{day_mon(day)}**"
             line += f" · {event}" if event else ""
-            line += " · :orange[🔒 Frozen]" if grid["frozen"] else ""
+            # A date also on a course can freeze before the rest of its month.
+            line += " · :orange[🔒 Frozen]" if day in grid["frozenDates"] else ""
             st.markdown(line)
             args = (squadron, grid, day)
             st.segmented_control(
