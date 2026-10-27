@@ -10,6 +10,8 @@ TIMEOUT = 30
 CACHE_TTL = "5m"
 # FastAPI's own answer for a route the API has not built yet.
 MISSING_ROUTE = ("Not Found", "Method Not Allowed")
+# One connection pool for every call, so each call skips a fresh TLS handshake.
+SESSION = requests.Session()
 
 
 class RosterError(Exception):
@@ -86,7 +88,7 @@ def call(
         headers["Authorization"] = f"Bearer {token}"
 
     try:
-        response = requests.request(
+        response = SESSION.request(
             method,
             f"{config['url'].rstrip('/')}{path}",
             headers=headers,
