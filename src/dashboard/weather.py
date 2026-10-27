@@ -68,7 +68,7 @@ def weather_page(db: Database, launches_df: pd.DataFrame):
                 "Weather data cache reset! New data will be fetched.",
                 icon="✅",
             )
-            st.cache_data.clear()
+            fetch_weather_for_dates_cached.clear()
         st.info("Reset the cache to fetch the latest weather data from the API.")
 
     # Use session state to check if the weather data needs to be refreshed.
