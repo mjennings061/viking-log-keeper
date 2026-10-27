@@ -323,12 +323,12 @@ def show_data_dashboard(db: Database, cookie_manager):
     # Add a date filter to the sidebar (this will apply to both DataFrames)
     filtered_df = date_filter(df, key="main_filter")
 
-    # Combine CGS launches if the user flew there, then apply the same filter
-    personal_df = get_personal_df(filtered_df, st.session_state["client"])
-
     # Pages are callables sharing the filter state computed above.
     def statistics_page():
         """Render the Statistics page."""
+        # Combine CGS launches if the user flew there; only this page uses them.
+        personal_df = get_personal_df(filtered_df, st.session_state["client"])
+
         # Refresh data button.
         if st.button("🔃 Refresh Data", key="refresh"):
             refresh_data()
