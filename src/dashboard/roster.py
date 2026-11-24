@@ -163,7 +163,15 @@ def _squadron_grid(squadron: str, ref: dict, grid: dict) -> None:
         squadron (str): Database name of the squadron.
         ref (dict): Which grid this is.
         grid (dict): The grid on show."""
-    draw_grid(ref, grid)
+    state, key = st.session_state, f"roster_day_{ref['id']}"
+    row, col = state.get("roster_open", (None, None))
+    # A date header or Coming number picks that day, or clears it if already picked.
+    if row in (None, "count") and col in grid["dates"]:
+        state.pop("roster_open")
+        state[key] = None if state.get(key) == col else col
+    # An admin may have removed the picked date since.
+    day = state.get(key) if state.get(key) in grid["dates"] else None
+    draw_grid(ref, grid, day)
     show_key()
     _open_tapped(squadron, grid)
 
