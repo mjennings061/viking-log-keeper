@@ -2,7 +2,7 @@
 
 from datetime import date
 
-from dashboard.roster_grid import BLANK, grid_rows, order_grids, plain
+from dashboard.roster_grid import BLANK, coming_on, grid_rows, order_grids, plain
 from dashboard.roster_api import error_message
 
 # Who set an answer, as every entry carries it.
@@ -71,6 +71,20 @@ def test_cells_show_the_answer_and_mark_comments_and_waiting_changes():
     assert ann["2026-11-08"] == BLANK
     # A member's comment shows as words, never as a link or outside image.
     assert plain("![x](http://a.b/p.png)") == r"!\[x](http://a.b/p.png)"
+
+
+def test_picking_a_day_keeps_only_y_and_tbc():
+    """Y, half days and TBC stay for the day picked; C and blanks go."""
+    maybe = {
+        "personId": "4",
+        "name": "Pat Lee",
+        "entries": {"2026-11-08": {"status": "TBC", **BY}},
+    }
+    grid = {**GRID, "rows": GRID["rows"] + [maybe]}
+    assert [p["name"] for p in coming_on(grid, "2026-11-07")["rows"]] == ["Joe Bloggs"]
+    on_8th = coming_on(grid, "2026-11-08")
+    assert [p["name"] for p in on_8th["rows"]] == ["Joe Bloggs", "Pat Lee"]
+    assert on_8th["dates"] == GRID["dates"]
 
 
 def test_note_rows_sit_on_top_and_leavers_are_tagged():

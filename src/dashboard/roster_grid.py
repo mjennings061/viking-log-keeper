@@ -52,10 +52,11 @@ ROW_HEIGHT = JsCode(
 )
 # Python works out each cell's classes, so the grid only has to look them up.
 CELL_CLASS = JsCode("function(p) { return p.data[p.colDef.field + '|cls']; }")
-# Sends the clicked row and column back; the time makes a repeat click new.
+# Sends the tapped row (none for a header) and column; the time makes a repeat new.
 CLICK = JsCode(
     "function({eventData}) {"
-    " return {row: eventData.data.id, col: eventData.colDef.field, at: Date.now()};"
+    " return {row: eventData.data ? eventData.data.id : null,"
+    " col: eventData.column.getColId(), at: Date.now()};"
     " }"
 )
 
@@ -254,8 +255,28 @@ def grid_rows(grid: dict) -> tuple[list[dict], list[dict], list[dict]]:
     for day in dates:
         bottom[day] = str(coming[day])
         bottom[f"{day}|cls"] = "count-cell"
-        bottom[f"{day}|tip"] = "Ys for this date, half days included"
+        bottom[f"{day}|tip"] = (
+            "Ys for this date, half days included. Tap to see who said Y or TBC."
+        )
     return rows, top, [bottom]
+
+
+def coming_on(grid: dict, day: str) -> dict:
+    """The grid with only the people who said Y or TBC for one day.
+
+    Args:
+        grid (dict): The API's month or course grid.
+        day (str): ISO date to filter on.
+
+    Returns:
+        dict: A copy of the grid with fewer rows."""
+    # AM and PM are a Y with a part, so they stay too.
+    rows = [
+        p
+        for p in grid["rows"]
+        if ((p.get("entries") or {}).get(day) or {}).get("status") in ("Y", "TBC")
+    ]
+    return {**grid, "rows": rows}
 
 
 def _css(theme: str) -> dict:
@@ -318,6 +339,12 @@ def _css(theme: str) -> dict:
             "margin-left": "6px",
         },
         ".ag-tooltip": {"white-space": "pre-line", "max-width": "280px"},
+        # Date headers and Coming numbers filter the grid when tapped.
+        ".ag-header-cell.day, .ag-cell.count-cell": {"cursor": "pointer"},
+        ".ag-header-cell.picked": {
+            "background-color": p["y"][0],
+            "color": p["y"][1],
+        },
     }
     for status in ("y", "n", "tbc", "c"):
         bg, ink = p[status]
@@ -343,13 +370,19 @@ def clicked(response) -> None:
     st.session_state["roster_open"] = response.get("row"), response.get("col")
 
 
-def draw_grid(ref: dict, grid: dict) -> None:
+def draw_grid(ref: dict, grid: dict, day: str | None = None) -> None:
     """The squadron grid, laid out like the spreadsheet.
 
     Args:
         ref (dict): Which grid this is.
-        grid (dict): The API's grid body."""
+        grid (dict): The API's grid body.
+        day (str | None): ISO date picked to show who's coming, if any."""
     rows, top, bottom = grid_rows(grid)
+    # Only the people rows narrow; the Coming row still counts everyone.
+    if day:
+        rows = grid_rows(coming_on(grid, day))[0]
+        if not rows:
+            st.info(f"Nobody has said Y or TBC for {long(day)} yet.")
     dates = grid["dates"]
     # A course id is never a month, so a course shows the month on every date.
     home = ref["id"] if ref["kind"] == "month" else None
@@ -360,7 +393,8 @@ def draw_grid(ref: dict, grid: dict) -> None:
     ] + [
         {"field": d, "headerName": short(d) if d[:7] == home else day_mon(d),
          "headerTooltip": long(d), "tooltipField": f"{d}|tip",
-         "flex": 1, "minWidth": 56, "wrapText": True}
+         "flex": 1, "minWidth": 56, "wrapText": True,
+         "headerClass": "day picked" if d == day else "day"}
         for d in dates
     ]
     options = {
@@ -376,6 +410,8 @@ def draw_grid(ref: dict, grid: dict) -> None:
         "tooltipHideDelay": 10000,
         "headerHeight": HEADER_PX,
         "getRowHeight": ROW_HEIGHT,
+        # Hides the grid's own "No Rows To Show", which would sit over the notes.
+        "suppressNoRowsOverlay": True,
     }
     frame = pd.DataFrame(rows, columns=list(top[0]))
     version = hashlib.md5(json.dumps(grid, sort_keys=True).encode()).hexdigest()
@@ -389,9 +425,16 @@ def draw_grid(ref: dict, grid: dict) -> None:
         allow_unsafe_jscode=True,
         data_return_mode="CUSTOM",
         custom_jscode_for_grid_return=CLICK,
-        update_on=["cellClicked"],
+        update_on=["cellClicked", "columnHeaderClicked"],
         # New data, new grid; updating in place leaves stale classes and rows.
-        key=f"roster_grid_{ref['id']}_{version}",
+        key=f"roster_grid_{ref['id']}_{day}_{version}",
         callback=clicked,
     )
     st.caption("Hover a cell for its comment and who set it. Tap a cell to open it.")
+    if day:
+        st.caption(
+            f"Showing who's coming on {long(day)}. "
+            "Tap the date or its Coming number again to show everyone."
+        )
+    else:
+        st.caption("Tap a date or its Coming number to show who's coming.")
